@@ -1,0 +1,890 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>devops-jenkins共享库实践指南 | Zeek 的学习与成长</title><meta name="author" content="Zeek"><meta name="copyright" content="Zeek"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="devops-jenkins共享库实践指南文章摘要本文详细介绍了Jenkins共享库(Shared Libraries)的设计理念、核心组件、开发方法以及实战应用。通过共享库，团队可以在多个Pipeline项目间复用代码，实现标准化的CI&#x2F;CD流程，提高开发效率和代码质量。文章涵盖从基础配置到高级开发的全流程指导，包括目录结构设计、全局变量编写、库版本控制、测试策略以及实际案例分析，为D">
+<meta property="og:type" content="article">
+<meta property="og:title" content="devops-jenkins共享库实践指南">
+<meta property="og:url" content="https://zeek-zhao.github.io/p/vjLRVYO1JSNB/index.html">
+<meta property="og:site_name" content="Zeek 的学习与成长">
+<meta property="og:description" content="devops-jenkins共享库实践指南文章摘要本文详细介绍了Jenkins共享库(Shared Libraries)的设计理念、核心组件、开发方法以及实战应用。通过共享库，团队可以在多个Pipeline项目间复用代码，实现标准化的CI&#x2F;CD流程，提高开发效率和代码质量。文章涵盖从基础配置到高级开发的全流程指导，包括目录结构设计、全局变量编写、库版本控制、测试策略以及实际案例分析，为D">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-05-29T12:48:08.169Z">
+<meta property="article:modified_time" content="2026-04-21T16:00:00.000Z">
+<meta property="article:author" content="Zeek">
+<meta property="article:tag" content="devops">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "devops-jenkins共享库实践指南",
+  "url": "https://zeek-zhao.github.io/p/vjLRVYO1JSNB/",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-05-29T12:48:08.169Z",
+  "dateModified": "2026-04-21T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.svg"><link rel="canonical" href="https://zeek-zhao.github.io/p/vjLRVYO1JSNB/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'devops-jenkins共享库实践指南',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">128</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">20</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> 目录</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div></div></div><div class="post type-tutorial" id="body-wrap"><header class="post-bg fixed" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的学习与成长</span></a><a class="nav-page-title" href="/"><span class="site-name">devops-jenkins共享库实践指南</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> 目录</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">devops-jenkins共享库实践指南</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-29T12:48:08.169Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-04-21T16:00:00.000Z" title="更新于 2026-04-22 00:00:00">2026-04-22</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Devops/">Devops</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Devops/02-CICD%E4%B8%8E%E5%8D%8F%E4%BD%9C/">02-CICD与协作</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="devops-jenkins共享库实践指南"><a href="#devops-jenkins共享库实践指南" class="headerlink" title="devops-jenkins共享库实践指南"></a>devops-jenkins共享库实践指南</h1><h2 id="文章摘要"><a href="#文章摘要" class="headerlink" title="文章摘要"></a>文章摘要</h2><p>本文详细介绍了Jenkins共享库(Shared Libraries)的设计理念、核心组件、开发方法以及实战应用。通过共享库，团队可以在多个Pipeline项目间复用代码，实现标准化的CI&#x2F;CD流程，提高开发效率和代码质量。文章涵盖从基础配置到高级开发的全流程指导，包括目录结构设计、全局变量编写、库版本控制、测试策略以及实际案例分析，为DevOps工程师和Jenkins管理员提供全面的最佳实践参考。</p>
+<span id="more"></span>
+
+<h2 id="1-共享库-Shared-Libraries-简介"><a href="#1-共享库-Shared-Libraries-简介" class="headerlink" title="1. 共享库(Shared Libraries)简介"></a>1. 共享库(Shared Libraries)简介</h2><h3 id="1-1-什么是Jenkins共享库"><a href="#1-1-什么是Jenkins共享库" class="headerlink" title="1.1 什么是Jenkins共享库"></a>1.1 什么是Jenkins共享库</h3><p>Jenkins共享库是一种允许在多个Jenkins Pipeline项目间共享代码的功能。它可以将常用的Pipeline代码抽取到独立的代码库，在不同项目中重复使用，从而避免重复编写相似的Pipeline代码。</p>
+<pre><code class="hljs mermaid">graph TD
+    A[Jenkins共享库] --&gt; B[可重用Pipeline代码]
+    A --&gt; C[源码管理系统]
+    A --&gt; D[版本控制]
+
+    B --&gt; E[全局变量/函数]
+    B --&gt; F[Pipeline步骤]
+    B --&gt; G[工具类]
+
+    C --&gt; H[Git]
+    C --&gt; I[SVN]
+
+    D --&gt; J[标签/分支]
+    D --&gt; K[语义化版本]</code></pre>
+
+<p>共享库本质上是存储在源码控制系统中的一组Groovy脚本，配置到Jenkins中后，可以通过<code>@Library</code>注解或Jenkins配置在Pipeline中引入。</p>
+<h3 id="1-2-共享库的核心价值"><a href="#1-2-共享库的核心价值" class="headerlink" title="1.2 共享库的核心价值"></a>1.2 共享库的核心价值</h3><pre><code class="hljs mermaid">mindmap
+  root((共享库价值))
+    代码复用
+      减少重复代码
+      统一功能实现
+      快速应用修复
+    标准化
+      统一CI/CD流程
+      强制最佳实践
+      简化合规审计
+    可维护性
+      集中式管理
+      版本控制
+      易于测试
+    团队协作
+      知识共享
+      减少学习曲线
+      提高生产力
+    灵活性
+      参数化行为
+      环境适配性
+      渐进式采用</code></pre>
+
+<p>在实际项目中，共享库可以帮助团队：</p>
+<ol>
+<li><strong>减少Pipeline代码重复</strong>：避免在每个项目中复制相似的Pipeline代码</li>
+<li><strong>标准化CI&#x2F;CD流程</strong>：确保所有项目遵循一致的构建、测试和部署标准</li>
+<li><strong>集中管理常用功能</strong>：统一管理和更新构建步骤、部署逻辑和安全策略</li>
+<li><strong>简化复杂Pipeline</strong>：使主Jenkinsfile保持简洁，复杂逻辑封装在库中</li>
+<li><strong>促进最佳实践</strong>：将团队认可的最佳实践编码并在项目间共享</li>
+</ol>
+<h3 id="1-3-与传统方式对比"><a href="#1-3-与传统方式对比" class="headerlink" title="1.3 与传统方式对比"></a>1.3 与传统方式对比</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>传统Jenkins Pipeline</th>
+<th>使用共享库</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>代码重用</td>
+<td>复制粘贴或模板复制</td>
+<td>函数调用，自动继承更新</td>
+</tr>
+<tr>
+<td>版本控制</td>
+<td>与项目Jenkinsfile耦合</td>
+<td>独立版本控制，可单独升级</td>
+</tr>
+<tr>
+<td>测试难度</td>
+<td>难以单独测试Pipeline片段</td>
+<td>可独立测试共享库代码</td>
+</tr>
+<tr>
+<td>更改影响</td>
+<td>更改需要修改每个项目</td>
+<td>集中修改，自动应用到所有项目</td>
+</tr>
+<tr>
+<td>团队协作</td>
+<td>各项目独立维护Pipeline</td>
+<td>专业团队维护共享库，统一标准</td>
+</tr>
+<tr>
+<td>学习曲线</td>
+<td>需要掌握完整Pipeline语法</td>
+<td>可使用预定义函数，降低学习门槛</td>
+</tr>
+<tr>
+<td>错误处理</td>
+<td>各项目独立处理错误</td>
+<td>统一的错误处理机制</td>
+</tr>
+</tbody></table>
+<h2 id="2-共享库基本结构与组成"><a href="#2-共享库基本结构与组成" class="headerlink" title="2. 共享库基本结构与组成"></a>2. 共享库基本结构与组成</h2><h3 id="2-1-目录结构说明"><a href="#2-1-目录结构说明" class="headerlink" title="2.1 目录结构说明"></a>2.1 目录结构说明</h3><p>一个标准的Jenkins共享库项目通常包含以下核心目录：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">(root)<br>+-- src                     # Java源代码目录<br>|   +-- org<br>|       +-- example<br>|           +-- Utils.groovy<br>+-- vars                    # 全局变量/函数目录<br>|   +-- buildJava.groovy<br>|   +-- deployTomcat.groovy<br>|   +-- log.groovy<br>+-- resources               # 非Groovy资源文件目录<br>    +-- scripts<br>    |   +-- deploy.sh<br>    +-- templates<br>        +-- email-template.html<br></code></pre></td></tr></table></figure>
+
+<pre><code class="hljs mermaid">graph TB
+    subgraph &quot;Jenkins共享库结构&quot;
+    A[共享库根目录] --&gt; B[src目录]
+    A --&gt; C[vars目录]
+    A --&gt; D[resources目录]
+
+    B --&gt; B1[Groovy类文件]
+    B --&gt; B2[Java结构组织]
+
+    C --&gt; C1[全局变量脚本]
+    C --&gt; C2[文档文件]
+
+    D --&gt; D1[Shell脚本]
+    D --&gt; D2[配置模板]
+    D --&gt; D3[其他资源文件]
+    end</code></pre>
+
+<h3 id="2-2-各目录用途详解"><a href="#2-2-各目录用途详解" class="headerlink" title="2.2 各目录用途详解"></a>2.2 各目录用途详解</h3><h4 id="2-2-1-vars目录"><a href="#2-2-1-vars目录" class="headerlink" title="2.2.1 vars目录"></a>2.2.1 vars目录</h4><p><code>vars</code>目录包含全局变量脚本，是共享库中最常用的部分：</p>
+<ul>
+<li>每个<code>.groovy</code>文件定义一个可在Pipeline中直接调用的全局变量</li>
+<li>脚本中必须包含<code>call</code>方法，作为变量被调用时的入口点</li>
+<li>可以有其他辅助方法，但只有<code>call</code>方法会被直接调用</li>
+<li>同名的<code>.txt</code>文件用于提供帮助文档</li>
+</ul>
+<p>示例结构：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">vars/<br>|-- buildMaven.groovy        # 定义buildMaven变量<br>|-- buildMaven.txt           # buildMaven的文档<br>|-- deployToTomcat.groovy    # 定义deployToTomcat变量<br>|-- log.groovy               # 定义log变量<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-2-2-src目录"><a href="#2-2-2-src目录" class="headerlink" title="2.2.2 src目录"></a>2.2.2 src目录</h4><p><code>src</code>目录用于更结构化的代码组织，采用Java风格的包结构：</p>
+<ul>
+<li>适合复杂逻辑和可重用的工具类</li>
+<li>可被vars目录中的脚本导入和使用</li>
+<li>不能直接从Pipeline调用，需通过vars中的脚本间接使用</li>
+<li>更适合面向对象编程和单元测试</li>
+</ul>
+<p>示例结构：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">src/<br>|-- org/<br>|   |-- example/<br>|       |-- Utils.groovy<br>|       |-- Docker.groovy<br>|       |-- deployment/<br>|           |-- Kubernetes.groovy<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-2-3-resources目录"><a href="#2-2-3-resources目录" class="headerlink" title="2.2.3 resources目录"></a>2.2.3 resources目录</h4><p><code>resources</code>目录用于存储非Groovy文件：</p>
+<ul>
+<li>可以包含Shell脚本、配置文件、模板等</li>
+<li>通过特定方法在Pipeline中加载</li>
+<li>便于维护不适合内嵌到Groovy代码的内容</li>
+<li>支持结构化组织，可按需设计子目录</li>
+</ul>
+<p>示例结构：</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">resources/<br>|-- scripts/<br>|   |-- build-helper.sh<br>|   |-- deploy.sh<br>|-- templates/<br>|   |-- Dockerfile.template<br>|   |-- kubernetes/<br>|       |-- deployment.yaml<br>|-- configs/<br>    |-- checkstyle.xml<br>    |-- sonar-project.properties<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-3-共享库类型与作用域"><a href="#2-3-共享库类型与作用域" class="headerlink" title="2.3 共享库类型与作用域"></a>2.3 共享库类型与作用域</h3><p>Jenkins支持三种类型的共享库，具有不同的作用域和用途：</p>
+<pre><code class="hljs mermaid">graph TD
+    A[共享库类型] --&gt; B[全局库]
+    A --&gt; C[文件夹库]
+    A --&gt; D[自动加载库]
+
+    B --&gt; B1[适用于所有Jenkins项目]
+    B --&gt; B2[需要管理员配置]
+
+    C --&gt; C1[适用于特定文件夹中的项目]
+    C --&gt; C2[需要文件夹管理员配置]
+
+    D --&gt; D1[无需显式@Library声明]
+    D --&gt; D2[自动可用于所有Pipeline]
+    D --&gt; D3[通常用于组织级默认库]</code></pre>
+
+<ol>
+<li><p><strong>全局共享库</strong>:</p>
+<ul>
+<li>适用于整个Jenkins实例中的所有项目</li>
+<li>在”系统配置”中设置</li>
+<li>需要Jenkins管理员权限配置</li>
+<li>使用时需要显式引入（除非设置为自动加载）</li>
+</ul>
+</li>
+<li><p><strong>文件夹共享库</strong>:</p>
+<ul>
+<li>仅适用于特定文件夹内的项目</li>
+<li>在文件夹配置中设置</li>
+<li>适合不同团队或项目组使用不同的共享库</li>
+</ul>
+</li>
+<li><p><strong>自动加载的库</strong>:</p>
+<ul>
+<li>无需显式声明即可使用</li>
+<li>可配置为全局或文件夹级别</li>
+<li>适用于组织级别的标准库</li>
+</ul>
+</li>
+</ol>
+<h2 id="3-配置与管理共享库"><a href="#3-配置与管理共享库" class="headerlink" title="3. 配置与管理共享库"></a>3. 配置与管理共享库</h2><h3 id="3-1-在Jenkins中配置共享库"><a href="#3-1-在Jenkins中配置共享库" class="headerlink" title="3.1 在Jenkins中配置共享库"></a>3.1 在Jenkins中配置共享库</h3><h4 id="3-1-1-全局级别配置"><a href="#3-1-1-全局级别配置" class="headerlink" title="3.1.1 全局级别配置"></a>3.1.1 全局级别配置</h4><p>在Jenkins中配置全局共享库的步骤：</p>
+<pre><code class="hljs mermaid">sequenceDiagram
+    participant A as 管理员
+    participant J as Jenkins
+    participant C as 配置页面
+    participant G as Git服务器
+
+    A-&gt;&gt;J: 访问Jenkins管理界面
+    A-&gt;&gt;J: 点击&quot;管理Jenkins&quot;
+    J--&gt;&gt;A: 显示管理页面
+    A-&gt;&gt;J: 点击&quot;System&quot;或&quot;系统配置&quot;
+    J--&gt;&gt;C: 显示系统配置页面
+    A-&gt;&gt;C: 找到&quot;Global Pipeline Libraries&quot;部分
+    A-&gt;&gt;C: 点击&quot;Add&quot;按钮
+    A-&gt;&gt;C: 输入库名称(如&quot;shared-lib&quot;)
+    A-&gt;&gt;C: 选择默认版本(如&quot;main&quot;或&quot;master&quot;)
+    A-&gt;&gt;C: 配置检索方式(如Git)
+    A-&gt;&gt;C: 输入仓库URL
+    A-&gt;&gt;C: 配置凭据(如有需要)
+    A-&gt;&gt;C: 点击&quot;Save&quot;按钮
+    C-&gt;&gt;G: 测试连接仓库
+    G--&gt;&gt;C: 连接成功
+    C-&gt;&gt;J: 保存配置
+    J--&gt;&gt;A: 配置成功</code></pre>
+
+<p>详细步骤：</p>
+<ol>
+<li>登录Jenkins并进入”管理Jenkins”</li>
+<li>点击”System”(或”系统配置”)</li>
+<li>向下滚动找到”Global Pipeline Libraries”部分</li>
+<li>点击”Add”添加新库</li>
+<li>配置库信息：<ul>
+<li><strong>Name</strong>: 库名称，将在Pipeline中引用(如”shared-lib”)</li>
+<li><strong>Default version</strong>: 默认分支或标签(通常是”main”或”master”)</li>
+<li><strong>Retrieval method</strong>: 选择获取方式(通常是”Modern SCM”)</li>
+<li><strong>Source Code Management</strong>: 选择源码管理系统(如Git)</li>
+<li>输入仓库URL</li>
+<li>如需要，配置凭据</li>
+<li>可选配置：<ul>
+<li><strong>Load implicitly</strong>: 勾选此项可自动加载库，无需@Library声明</li>
+<li><strong>Include @Library changes in job recent changes</strong>: 包含库变更在作业变更中</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>点击”Save”保存配置</li>
+</ol>
+<h4 id="3-1-2-文件夹级别配置"><a href="#3-1-2-文件夹级别配置" class="headerlink" title="3.1.2 文件夹级别配置"></a>3.1.2 文件夹级别配置</h4><p>对于文件夹级别的共享库配置：</p>
+<ol>
+<li>进入要配置共享库的文件夹</li>
+<li>点击”配置”</li>
+<li>找到”Pipeline Libraries”部分</li>
+<li>配置步骤与全局库相似，填写名称、默认版本和SCM信息</li>
+<li>保存配置</li>
+</ol>
+<h4 id="3-1-3-项目级别引用"><a href="#3-1-3-项目级别引用" class="headerlink" title="3.1.3 项目级别引用"></a>3.1.3 项目级别引用</h4><p>在项目中引用共享库的方式：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// 方法1: 在Pipeline顶部引入，使用默认版本</span><br><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;shared-lib&#x27;</span>) _<br><br><span class="hljs-comment">// 方法2: 引入特定版本或分支</span><br><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;shared-lib@1.0&#x27;</span>) _<br><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;shared-lib@feature/new-feature&#x27;</span>) _<br><br><span class="hljs-comment">// 方法3: 同时引入多个库</span><br><span class="hljs-meta">@Library</span>([<span class="hljs-string">&#x27;shared-lib&#x27;</span>, <span class="hljs-string">&#x27;utils-lib@1.2&#x27;</span>]) _<br><br><span class="hljs-comment">// 方法4: 动态确定版本(Scripted Pipeline)</span><br>library <span class="hljs-string">&quot;shared-lib@$&#123;params.LIB_VERSION&#125;&quot;</span><br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!NOTE]<br>注意<code>@Library</code>注解后面的下划线<code>_</code>不可省略，它表示我们只导入库而不导入具体的类。</p>
+</blockquote>
+<h3 id="3-2-版本控制与管理策略"><a href="#3-2-版本控制与管理策略" class="headerlink" title="3.2 版本控制与管理策略"></a>3.2 版本控制与管理策略</h3><p>有效管理共享库的版本是确保稳定性和可维护性的关键：</p>
+<pre><code class="hljs mermaid">graph TD
+    A[共享库版本控制] --&gt; B[分支策略]
+    A --&gt; C[标签策略]
+    A --&gt; D[语义化版本]
+
+    B --&gt; B1[main/master作为稳定分支]
+    B --&gt; B2[develop用于开发]
+    B --&gt; B3[feature分支添加功能]
+    B --&gt; B4[hotfix分支修复紧急问题]
+
+    C --&gt; C1[为每个稳定版本打标签]
+    C --&gt; C2[采用v1.0.0格式的标签]
+
+    D --&gt; D1[major.minor.patch格式]
+    D --&gt; D2[破坏性更改增加主版本]
+    D --&gt; D3[向后兼容功能增加次版本]
+    D --&gt; D4[bug修复增加修订版本]</code></pre>
+
+<p>版本管理最佳实践：</p>
+<ol>
+<li><p><strong>分支策略</strong>:</p>
+<ul>
+<li><code>main</code>&#x2F;<code>master</code>: 稳定的生产就绪代码</li>
+<li><code>develop</code>: 开发中的下一个版本</li>
+<li><code>feature/*</code>: 新功能开发</li>
+<li><code>hotfix/*</code>: 紧急修复</li>
+</ul>
+</li>
+<li><p><strong>标签策略</strong>:</p>
+<ul>
+<li>为每个稳定版本创建Git标签</li>
+<li>使用语义化版本格式(如v1.2.3)</li>
+<li>在Pipeline中引用特定标签而非分支</li>
+</ul>
+</li>
+<li><p><strong>版本更新流程</strong>:</p>
+<ul>
+<li>维护详细的变更日志</li>
+<li>明确标注不兼容更改</li>
+<li>考虑提供更新迁移路径</li>
+</ul>
+</li>
+<li><p><strong>生产环境建议</strong>:</p>
+<ul>
+<li>始终引用特定版本标签，而非分支</li>
+<li>先在测试环境验证新版本</li>
+<li>实施渐进式推广策略</li>
+</ul>
+</li>
+</ol>
+<h3 id="3-3-安全性与权限考量"><a href="#3-3-安全性与权限考量" class="headerlink" title="3.3 安全性与权限考量"></a>3.3 安全性与权限考量</h3><p>共享库涉及安全性方面的多个重要考量：</p>
+<pre><code class="hljs mermaid">mindmap
+  root((共享库安全考量))
+    代码审查
+      强制代码评审
+      防止恶意代码
+      验证外部调用
+    权限管理
+      限制库修改权限
+      控制谁可以配置库
+      测试与生产分离
+    沙箱机制
+      了解Groovy沙箱
+      安全审批Script Security
+      最小权限原则
+    凭据管理
+      避免硬编码凭据
+      使用Jenkins凭据API
+      审计凭据使用
+    版本锁定
+      锁定生产版本
+      受控的版本升级
+      自动安全扫描</code></pre>
+
+<p>关键安全建议：</p>
+<ol>
+<li><p><strong>代码审查</strong>:</p>
+<ul>
+<li>实施强制性代码审核流程</li>
+<li>确保所有合并请求至少有一名审核人</li>
+<li>检查是否有潜在的安全漏洞或不良实践</li>
+</ul>
+</li>
+<li><p><strong>权限控制</strong>:</p>
+<ul>
+<li>限制谁可以修改共享库配置</li>
+<li>分离库开发权限和库使用权限</li>
+<li>考虑实施基于角色的访问控制</li>
+</ul>
+</li>
+<li><p><strong>沙箱安全</strong>:</p>
+<ul>
+<li>了解Groovy沙箱机制如何保护Jenkins</li>
+<li>注意某些方法需要Script Security插件批准</li>
+<li>定期审查已批准的脚本签名</li>
+</ul>
+</li>
+<li><p><strong>库防护</strong>:</p>
+<ul>
+<li>保护共享库的源代码仓库</li>
+<li>考虑使用签名的标签</li>
+<li>实施分支保护规则</li>
+</ul>
+</li>
+</ol>
+<h2 id="4-开发共享库代码"><a href="#4-开发共享库代码" class="headerlink" title="4. 开发共享库代码"></a>4. 开发共享库代码</h2><h3 id="4-1-编写基础共享库函数"><a href="#4-1-编写基础共享库函数" class="headerlink" title="4.1 编写基础共享库函数"></a>4.1 编写基础共享库函数</h3><h4 id="4-1-1-vars目录下的全局变量"><a href="#4-1-1-vars目录下的全局变量" class="headerlink" title="4.1.1 vars目录下的全局变量"></a>4.1.1 vars目录下的全局变量</h4><p>编写一个基础的全局变量函数：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/sayHello.groovy</span><br><span class="hljs-keyword">def</span> call(String name = <span class="hljs-string">&#x27;human&#x27;</span>) &#123;<br>    <span class="hljs-comment">// 该方法会在调用sayHello()时执行</span><br>    echo <span class="hljs-string">&quot;Hello, $&#123;name&#125;!&quot;</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用方式：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;shared-lib&#x27;</span>) _<br><br>pipeline &#123;<br>    agent any<br>    stages &#123;<br>        stage(<span class="hljs-string">&#x27;Greet&#x27;</span>) &#123;<br>            steps &#123;<br>                sayHello()                <span class="hljs-comment">// 输出: Hello, human!</span><br>                sayHello(<span class="hljs-string">&#x27;Jenkins User&#x27;</span>)  <span class="hljs-comment">// 输出: Hello, Jenkins User!</span><br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="4-1-2-参数化的全局变量"><a href="#4-1-2-参数化的全局变量" class="headerlink" title="4.1.2 参数化的全局变量"></a>4.1.2 参数化的全局变量</h4><p>更灵活的参数化函数：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/buildApp.groovy</span><br><span class="hljs-keyword">def</span> call(Map config = [:]) &#123;<br>    <span class="hljs-comment">// 设置默认参数</span><br>    <span class="hljs-keyword">def</span> tool = config.tool ?: <span class="hljs-string">&#x27;maven&#x27;</span><br>    <span class="hljs-keyword">def</span> command = config.command ?: <span class="hljs-string">&#x27;package&#x27;</span><br>    <span class="hljs-keyword">def</span> options = config.options ?: <span class="hljs-string">&#x27;&#x27;</span><br><br>    echo <span class="hljs-string">&quot;Building with $&#123;tool&#125;...&quot;</span><br><br>    <span class="hljs-keyword">if</span> (tool == <span class="hljs-string">&#x27;maven&#x27;</span>) &#123;<br>        sh <span class="hljs-string">&quot;mvn $&#123;command&#125; $&#123;options&#125;&quot;</span><br>    &#125; <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> (tool == <span class="hljs-string">&#x27;gradle&#x27;</span>) &#123;<br>        sh <span class="hljs-string">&quot;gradle $&#123;command&#125; $&#123;options&#125;&quot;</span><br>    &#125; <span class="hljs-keyword">else</span> &#123;<br>        error <span class="hljs-string">&quot;Unsupported build tool: $&#123;tool&#125;&quot;</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用方式：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy">buildApp()  <span class="hljs-comment">// 使用默认参数(maven, package)</span><br><br>buildApp(<br>    <span class="hljs-symbol">tool:</span> <span class="hljs-string">&#x27;gradle&#x27;</span>,<br>    <span class="hljs-symbol">command:</span> <span class="hljs-string">&#x27;build&#x27;</span>,<br>    <span class="hljs-symbol">options:</span> <span class="hljs-string">&#x27;--info&#x27;</span><br>)<br></code></pre></td></tr></table></figure>
+
+<h4 id="4-1-3-返回值和Pipeline步骤"><a href="#4-1-3-返回值和Pipeline步骤" class="headerlink" title="4.1.3 返回值和Pipeline步骤"></a>4.1.3 返回值和Pipeline步骤</h4><p>共享库函数可以返回值和调用Pipeline步骤：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/generateVersion.groovy</span><br><span class="hljs-keyword">def</span> call() &#123;<br>    <span class="hljs-comment">// 从Git信息生成版本号</span><br>    <span class="hljs-keyword">def</span> gitCommit = sh(<span class="hljs-attr">script:</span> <span class="hljs-string">&#x27;git rev-parse --short HEAD&#x27;</span>, <span class="hljs-attr">returnStdout:</span> <span class="hljs-literal">true</span>).trim()<br>    <span class="hljs-keyword">def</span> gitTag = sh(<span class="hljs-attr">script:</span> <span class="hljs-string">&#x27;git tag --points-at HEAD&#x27;</span>, <span class="hljs-attr">returnStdout:</span> <span class="hljs-literal">true</span>).trim()<br><br>    <span class="hljs-keyword">if</span> (gitTag) &#123;<br>        <span class="hljs-comment">// 如果当前提交有标签，使用标签作为版本</span><br>        <span class="hljs-keyword">return</span> gitTag<br>    &#125; <span class="hljs-keyword">else</span> &#123;<br>        <span class="hljs-comment">// 否则使用分支名+提交ID作为版本</span><br>        <span class="hljs-keyword">def</span> branchName = env.BRANCH_NAME ?: <span class="hljs-string">&#x27;unknown&#x27;</span><br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;$&#123;branchName&#125;-$&#123;gitCommit&#125;&quot;</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用方式：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-keyword">def</span> version = generateVersion()<br>echo <span class="hljs-string">&quot;Building version: $&#123;version&#125;&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-2-开发src目录中的类"><a href="#4-2-开发src目录中的类" class="headerlink" title="4.2 开发src目录中的类"></a>4.2 开发src目录中的类</h3><h4 id="4-2-1-基础类和方法"><a href="#4-2-1-基础类和方法" class="headerlink" title="4.2.1 基础类和方法"></a>4.2.1 基础类和方法</h4><p>在src目录中创建类：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// src/org/example/Utils.groovy</span><br><span class="hljs-keyword">package</span> org.example<br><br><span class="hljs-keyword">class</span> <span class="hljs-title class_">Utils</span> &#123;<br>    <span class="hljs-keyword">static</span> <span class="hljs-keyword">def</span> printInfo(message) &#123;<br>        println <span class="hljs-string">&quot;[INFO] $&#123;message&#125;&quot;</span><br>    &#125;<br><br>    <span class="hljs-keyword">static</span> <span class="hljs-keyword">def</span> calculateChecksum(String text) &#123;<br>        <span class="hljs-keyword">return</span> text.bytes.sum()<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在vars中使用：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/checksum.groovy</span><br><span class="hljs-meta">@groovy</span>.transform.Field<br><span class="hljs-keyword">import</span> org.example.Utils<br><br><span class="hljs-keyword">def</span> call(String text) &#123;<br>    <span class="hljs-keyword">return</span> Utils.calculateChecksum(text)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="4-2-2-面向对象编程"><a href="#4-2-2-面向对象编程" class="headerlink" title="4.2.2 面向对象编程"></a>4.2.2 面向对象编程</h4><p>更复杂的类示例：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// src/org/example/Docker.groovy</span><br><span class="hljs-keyword">package</span> org.example<br><br><span class="hljs-keyword">class</span> <span class="hljs-title class_">Docker</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">Serializable</span> &#123;<br>    <span class="hljs-keyword">private</span> Script script<br>    <span class="hljs-keyword">private</span> String imageName<br><br>    Docker(Script script, String imageName) &#123;<br>        <span class="hljs-variable language_">this</span>.script = script<br>        <span class="hljs-variable language_">this</span>.imageName = imageName<br>    &#125;<br><br>    <span class="hljs-keyword">def</span> build(String tag = <span class="hljs-string">&#x27;latest&#x27;</span>) &#123;<br>        script.sh <span class="hljs-string">&quot;docker build -t $&#123;imageName&#125;:$&#123;tag&#125; .&quot;</span><br>    &#125;<br><br>    <span class="hljs-keyword">def</span> push(String tag = <span class="hljs-string">&#x27;latest&#x27;</span>) &#123;<br>        script.sh <span class="hljs-string">&quot;docker push $&#123;imageName&#125;:$&#123;tag&#125;&quot;</span><br>    &#125;<br><br>    <span class="hljs-keyword">def</span> run(String args = <span class="hljs-string">&#x27;&#x27;</span>) &#123;<br>        script.sh <span class="hljs-string">&quot;docker run $&#123;args&#125; $&#123;imageName&#125;&quot;</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在vars中使用：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/dockerPipeline.groovy</span><br><span class="hljs-keyword">import</span> org.example.Docker<br><br><span class="hljs-keyword">def</span> call(Map config = [:]) &#123;<br>    <span class="hljs-keyword">def</span> dockerImage = config.imageName ?: <span class="hljs-string">&quot;$&#123;env.JOB_NAME&#125;&quot;</span>.toLowerCase()<br><br>    pipeline &#123;<br>        agent any<br>        stages &#123;<br>            stage(<span class="hljs-string">&#x27;Build Docker Image&#x27;</span>) &#123;<br>                steps &#123;<br>                    script &#123;<br>                        <span class="hljs-keyword">def</span> docker = <span class="hljs-keyword">new</span> Docker(<span class="hljs-variable language_">this</span>, dockerImage)<br>                        docker.build()<br>                    &#125;<br>                &#125;<br>            &#125;<br>            stage(<span class="hljs-string">&#x27;Push Docker Image&#x27;</span>) &#123;<br>                steps &#123;<br>                    script &#123;<br>                        <span class="hljs-keyword">def</span> docker = <span class="hljs-keyword">new</span> Docker(<span class="hljs-variable language_">this</span>, dockerImage)<br>                        docker.push()<br>                    &#125;<br>                &#125;<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-3-加载resources资源"><a href="#4-3-加载resources资源" class="headerlink" title="4.3 加载resources资源"></a>4.3 加载resources资源</h3><p>resources目录中的文件可以在共享库中加载：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// 加载Shell脚本内容</span><br><span class="hljs-keyword">def</span> loadScript() &#123;<br>    <span class="hljs-keyword">def</span> scriptText = libraryResource <span class="hljs-string">&#x27;scripts/deploy.sh&#x27;</span><br>    writeFile <span class="hljs-attr">file:</span> <span class="hljs-string">&#x27;deploy.sh&#x27;</span>, <span class="hljs-attr">text:</span> scriptText<br>    sh <span class="hljs-string">&#x27;chmod +x deploy.sh&#x27;</span><br>    sh <span class="hljs-string">&#x27;./deploy.sh&#x27;</span><br>&#125;<br><br><span class="hljs-comment">// 加载并应用模板文件</span><br><span class="hljs-keyword">def</span> applyTemplate(Map bindings) &#123;<br>    <span class="hljs-keyword">def</span> templateText = libraryResource <span class="hljs-string">&#x27;templates/Dockerfile.template&#x27;</span><br>    <span class="hljs-keyword">def</span> engine = <span class="hljs-keyword">new</span> groovy.text.SimpleTemplateEngine()<br>    <span class="hljs-keyword">def</span> template = engine.createTemplate(templateText).make(bindings)<br>    writeFile <span class="hljs-attr">file:</span> <span class="hljs-string">&#x27;Dockerfile&#x27;</span>, <span class="hljs-attr">text:</span> template.toString()<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用示例：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/createDockerfile.groovy</span><br><span class="hljs-keyword">def</span> call(Map config) &#123;<br>    <span class="hljs-keyword">def</span> bindings = [<br>        <span class="hljs-symbol">baseImage:</span> config.baseImage ?: <span class="hljs-string">&#x27;openjdk:11&#x27;</span>,<br>        <span class="hljs-symbol">appFile:</span> config.appFile ?: <span class="hljs-string">&#x27;app.jar&#x27;</span>,<br>        <span class="hljs-symbol">port:</span> config.port ?: <span class="hljs-string">&#x27;8080&#x27;</span><br>    ]<br><br>    <span class="hljs-comment">// 加载并处理Dockerfile模板</span><br>    <span class="hljs-keyword">def</span> templateText = libraryResource <span class="hljs-string">&#x27;templates/Dockerfile.template&#x27;</span><br>    <span class="hljs-keyword">def</span> engine = <span class="hljs-keyword">new</span> groovy.text.SimpleTemplateEngine()<br>    <span class="hljs-keyword">def</span> template = engine.createTemplate(templateText).make(bindings)<br><br>    <span class="hljs-comment">// 输出处理后的Dockerfile</span><br>    writeFile <span class="hljs-attr">file:</span> <span class="hljs-string">&#x27;Dockerfile&#x27;</span>, <span class="hljs-attr">text:</span> template.toString()<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Dockerfile模板示例(<code>resources/templates/Dockerfile.template</code>):</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><code class="hljs plaintext">FROM $&#123;baseImage&#125;<br>WORKDIR /app<br>COPY $&#123;appFile&#125; /app/<br>EXPOSE $&#123;port&#125;<br>CMD [&quot;java&quot;, &quot;-jar&quot;, &quot;$&#123;appFile&#125;&quot;]<br></code></pre></td></tr></table></figure>
+
+<h2 id="5-高级共享库技巧"><a href="#5-高级共享库技巧" class="headerlink" title="5. 高级共享库技巧"></a>5. 高级共享库技巧</h2><h3 id="5-1-创建DSL和流水线构建器"><a href="#5-1-创建DSL和流水线构建器" class="headerlink" title="5.1 创建DSL和流水线构建器"></a>5.1 创建DSL和流水线构建器</h3><p>共享库可以创建领域特定语言(DSL)来简化Pipeline定义：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/microservicePipeline.groovy</span><br><span class="hljs-keyword">def</span> call(body) &#123;<br>    <span class="hljs-comment">// 评估闭包定义配置</span><br>    <span class="hljs-keyword">def</span> config = [:]<br>    body.resolveStrategy = Closure.DELEGATE_FIRST<br>    body.delegate = config<br>    body()<br><br>    <span class="hljs-comment">// 设置默认值</span><br>    config.dockerImage = config.dockerImage ?: <span class="hljs-string">&quot;$&#123;env.JOB_NAME&#125;&quot;</span>.toLowerCase()<br>    config.dockerRegistry = config.dockerRegistry ?: <span class="hljs-string">&#x27;registry.example.com&#x27;</span><br>    config.deployEnv = config.deployEnv ?: <span class="hljs-string">&#x27;dev&#x27;</span><br><br>    pipeline &#123;<br>        agent any<br>        stages &#123;<br>            stage(<span class="hljs-string">&#x27;Build&#x27;</span>) &#123;<br>                steps &#123;<br>                    sh <span class="hljs-string">&#x27;mvn clean package&#x27;</span><br>                &#125;<br>            &#125;<br>            stage(<span class="hljs-string">&#x27;Build Docker Image&#x27;</span>) &#123;<br>                steps &#123;<br>                    sh <span class="hljs-string">&quot;docker build -t $&#123;config.dockerRegistry&#125;/$&#123;config.dockerImage&#125; .&quot;</span><br>                &#125;<br>            &#125;<br>            stage(<span class="hljs-string">&#x27;Push Docker Image&#x27;</span>) &#123;<br>                steps &#123;<br>                    sh <span class="hljs-string">&quot;docker push $&#123;config.dockerRegistry&#125;/$&#123;config.dockerImage&#125;&quot;</span><br>                &#125;<br>            &#125;<br>            stage(<span class="hljs-string">&#x27;Deploy&#x27;</span>) &#123;<br>                steps &#123;<br>                    echo <span class="hljs-string">&quot;Deploying to $&#123;config.deployEnv&#125; environment...&quot;</span><br>                    <span class="hljs-comment">// 部署逻辑</span><br>                &#125;<br>            &#125;<br><br>            <span class="hljs-comment">// 如果有测试配置，则添加测试阶段</span><br>            <span class="hljs-keyword">if</span> (config.runTests) &#123;<br>                stage(<span class="hljs-string">&#x27;Run Tests&#x27;</span>) &#123;<br>                    steps &#123;<br>                        sh <span class="hljs-string">&quot;$&#123;config.testCommand ?: &#x27;mvn test&#x27;&#125;&quot;</span><br>                    &#125;<br>                &#125;<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在Jenkinsfile中使用DSL：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;shared-lib&#x27;</span>) _<br><br>microservicePipeline &#123;<br>    dockerImage = <span class="hljs-string">&#x27;user-service&#x27;</span><br>    dockerRegistry = <span class="hljs-string">&#x27;registry.company.com&#x27;</span><br>    deployEnv = <span class="hljs-string">&#x27;staging&#x27;</span><br>    runTests = <span class="hljs-literal">true</span><br>    testCommand = <span class="hljs-string">&#x27;mvn verify&#x27;</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-2-多层级抽象和复合步骤"><a href="#5-2-多层级抽象和复合步骤" class="headerlink" title="5.2 多层级抽象和复合步骤"></a>5.2 多层级抽象和复合步骤</h3><p>创建多层级抽象以处理复杂流程：</p>
+<pre><code class="hljs mermaid">graph TD
+    A[高层抽象 - javaServicePipeline] --&gt; B[构建层 - mavenBuild]
+    A --&gt; C[容器层 - dockerize]
+    A --&gt; D[部署层 - kubeDeploy]
+
+    B --&gt; B1[编译]
+    B --&gt; B2[测试]
+    B --&gt; B3[打包]
+
+    C --&gt; C1[构建镜像]
+    C --&gt; C2[标记镜像]
+    C --&gt; C3[推送镜像]
+
+    D --&gt; D1[生成K8S配置]
+    D --&gt; D2[应用配置]
+    D --&gt; D3[验证部署]</code></pre>
+
+<p>示例实现：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/mavenBuild.groovy</span><br><span class="hljs-keyword">def</span> call(Map config = [:]) &#123;<br>    <span class="hljs-keyword">def</span> goals = config.goals ?: <span class="hljs-string">&#x27;clean package&#x27;</span><br>    <span class="hljs-keyword">def</span> options = config.options ?: <span class="hljs-string">&#x27;-DskipTests=false&#x27;</span><br><br>    sh <span class="hljs-string">&quot;mvn $&#123;goals&#125; $&#123;options&#125;&quot;</span><br><br>    <span class="hljs-comment">// 返回构建产物位置</span><br>    <span class="hljs-keyword">return</span> [<span class="hljs-attr">artifactPath:</span> <span class="hljs-string">&quot;target/$&#123;config.artifactName ?: &#x27;*.jar&#x27;&#125;&quot;</span>]<br>&#125;<br><br><span class="hljs-comment">// vars/dockerize.groovy</span><br><span class="hljs-keyword">def</span> call(Map config) &#123;<br>    <span class="hljs-keyword">def</span> imageName = <span class="hljs-string">&quot;$&#123;config.registry&#125;/$&#123;config.image&#125;:$&#123;config.tag&#125;&quot;</span><br><br>    sh <span class="hljs-string">&quot;docker build -t $&#123;imageName&#125; .&quot;</span><br>    sh <span class="hljs-string">&quot;docker push $&#123;imageName&#125;&quot;</span><br><br>    <span class="hljs-keyword">return</span> [<span class="hljs-attr">imageName:</span> imageName]<br>&#125;<br><br><span class="hljs-comment">// vars/javaServicePipeline.groovy</span><br><span class="hljs-keyword">def</span> call(Map config = [:]) &#123;<br>    pipeline &#123;<br>        agent any<br>        stages &#123;<br>            stage(<span class="hljs-string">&#x27;Build&#x27;</span>) &#123;<br>                steps &#123;<br>                    script &#123;<br>                        <span class="hljs-keyword">def</span> buildResult = mavenBuild(<br>                            <span class="hljs-symbol">goals:</span> <span class="hljs-string">&#x27;clean package&#x27;</span>,<br>                            <span class="hljs-symbol">options:</span> <span class="hljs-string">&#x27;-B -DskipTests=false&#x27;</span>,<br>                            <span class="hljs-symbol">artifactName:</span> <span class="hljs-string">&#x27;service.jar&#x27;</span><br>                        )<br>                        env.ARTIFACT_PATH = buildResult.artifactPath<br>                    &#125;<br>                &#125;<br>            &#125;<br>            stage(<span class="hljs-string">&#x27;Containerize&#x27;</span>) &#123;<br>                steps &#123;<br>                    script &#123;<br>                        <span class="hljs-keyword">def</span> dockerResult = dockerize(<br>                            <span class="hljs-symbol">registry:</span> config.dockerRegistry,<br>                            <span class="hljs-symbol">image:</span> config.serviceName,<br>                            <span class="hljs-symbol">tag:</span> env.BUILD_NUMBER<br>                        )<br>                        env.IMAGE_NAME = dockerResult.imageName<br>                    &#125;<br>                &#125;<br>            &#125;<br>            stage(<span class="hljs-string">&#x27;Deploy&#x27;</span>) &#123;<br>                steps &#123;<br>                    script &#123;<br>                        kubeDeploy(<br>                            <span class="hljs-symbol">environment:</span> config.deployEnv,<br>                            <span class="hljs-symbol">image:</span> env.IMAGE_NAME,<br>                            <span class="hljs-symbol">replicas:</span> config.replicas ?: <span class="hljs-number">2</span><br>                        )<br>                    &#125;<br>                &#125;<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-3-错误处理与日志管理"><a href="#5-3-错误处理与日志管理" class="headerlink" title="5.3 错误处理与日志管理"></a>5.3 错误处理与日志管理</h3><p>在共享库中实现统一的错误处理和日志：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/withErrorHandling.groovy</span><br><span class="hljs-keyword">def</span> call(Map config = [:], Closure body) &#123;<br>    <span class="hljs-keyword">try</span> &#123;<br>        <span class="hljs-comment">// 执行主体代码</span><br>        body()<br>    &#125; <span class="hljs-keyword">catch</span> (Exception e) &#123;<br>        <span class="hljs-comment">// 处理异常</span><br>        echo <span class="hljs-string">&quot;错误发生: $&#123;e.message&#125;&quot;</span><br><br>        <span class="hljs-comment">// 发送通知</span><br>        <span class="hljs-keyword">if</span> (config.notify != <span class="hljs-literal">false</span>) &#123;<br>            mail <span class="hljs-attr">to:</span> config.mailto ?: <span class="hljs-string">&#x27;team@example.com&#x27;</span>,<br>                 <span class="hljs-symbol">subject:</span> <span class="hljs-string">&quot;构建失败: $&#123;env.JOB_NAME&#125;&quot;</span>,<br>                 <span class="hljs-symbol">body:</span> <span class="hljs-string">&quot;错误信息: $&#123;e.message&#125;\n\n详情请查看: $&#123;env.BUILD_URL&#125;&quot;</span><br>        &#125;<br><br>        <span class="hljs-comment">// 根据配置决定是否重新抛出异常</span><br>        <span class="hljs-keyword">if</span> (config.rethrow != <span class="hljs-literal">false</span>) &#123;<br>            <span class="hljs-keyword">throw</span> e<br>        &#125;<br>    &#125; <span class="hljs-keyword">finally</span> &#123;<br>        <span class="hljs-comment">// 清理操作</span><br>        <span class="hljs-keyword">if</span> (config.cleanup) &#123;<br>            echo <span class="hljs-string">&quot;执行清理操作&quot;</span><br>            config.cleanup.call()<br>        &#125;<br>    &#125;<br>&#125;<br><br><span class="hljs-comment">// vars/log.groovy</span><br><span class="hljs-keyword">def</span> info(message) &#123;<br>    echo <span class="hljs-string">&quot;[INFO] $&#123;message&#125;&quot;</span><br>&#125;<br><br><span class="hljs-keyword">def</span> warning(message) &#123;<br>    echo <span class="hljs-string">&quot;[WARNING] $&#123;message&#125;&quot;</span><br>&#125;<br><br><span class="hljs-keyword">def</span> error(message) &#123;<br>    echo <span class="hljs-string">&quot;[ERROR] $&#123;message&#125;&quot;</span><br>&#125;<br><br><span class="hljs-keyword">def</span> debug(message) &#123;<br>    <span class="hljs-keyword">if</span> (env.DEBUG_MODE == <span class="hljs-string">&#x27;true&#x27;</span>) &#123;<br>        echo <span class="hljs-string">&quot;[DEBUG] $&#123;message&#125;&quot;</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用示例：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;shared-lib&#x27;</span>) _<br><br>pipeline &#123;<br>    agent any<br>    environment &#123;<br>        DEBUG_MODE = <span class="hljs-string">&#x27;true&#x27;</span><br>    &#125;<br>    stages &#123;<br>        stage(<span class="hljs-string">&#x27;With Error Handling&#x27;</span>) &#123;<br>            steps &#123;<br>                withErrorHandling(<br>                    <span class="hljs-symbol">mailto:</span> <span class="hljs-string">&#x27;devops@example.com&#x27;</span>,<br>                    <span class="hljs-symbol">cleanup:</span> &#123; log.info(<span class="hljs-string">&quot;执行清理工作&quot;</span>) &#125;<br>                ) &#123;<br>                    log.info(<span class="hljs-string">&quot;开始执行危险操作&quot;</span>)<br>                    log.debug(<span class="hljs-string">&quot;这是一条调试信息&quot;</span>)<br>                    sh <span class="hljs-string">&quot;some-risky-command&quot;</span><br>                    log.info(<span class="hljs-string">&quot;操作成功完成&quot;</span>)<br>                &#125;<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-4-与外部系统交互"><a href="#5-4-与外部系统交互" class="headerlink" title="5.4 与外部系统交互"></a>5.4 与外部系统交互</h3><p>共享库可以封装与外部系统的集成：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/jira.groovy</span><br><span class="hljs-keyword">def</span> updateTicket(String ticketId, String status, String comment = <span class="hljs-string">&#x27;&#x27;</span>) &#123;<br>    withCredentials([string(<span class="hljs-attr">credentialsId:</span> <span class="hljs-string">&#x27;jira-token&#x27;</span>, <span class="hljs-attr">variable:</span> <span class="hljs-string">&#x27;JIRA_TOKEN&#x27;</span>)]) &#123;<br>        <span class="hljs-keyword">def</span> response = sh(<span class="hljs-attr">script:</span> <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">            curl -s -X PUT \</span><br><span class="hljs-string">            -H &quot;Content-Type: application/json&quot; \</span><br><span class="hljs-string">            -H &quot;Authorization: Bearer $&#123;JIRA_TOKEN&#125;&quot; \</span><br><span class="hljs-string">            -d &#x27;&#123;&quot;transition&quot;:&#123;&quot;id&quot;:&quot;$&#123;getTransitionId(status)&#125;&quot;&#125;, &quot;comment&quot;:&#123;&quot;body&quot;:&quot;$&#123;comment&#125;&quot;&#125;&#125;&#x27; \</span><br><span class="hljs-string">            &quot;https://jira.example.com/rest/api/2/issue/$&#123;ticketId&#125;/transitions&quot;</span><br><span class="hljs-string">        &quot;&quot;&quot;</span>, <span class="hljs-attr">returnStdout:</span> <span class="hljs-literal">true</span>)<br><br>        <span class="hljs-keyword">return</span> response<br>    &#125;<br>&#125;<br><br><span class="hljs-keyword">def</span> getTicketInfo(String ticketId) &#123;<br>    withCredentials([string(<span class="hljs-attr">credentialsId:</span> <span class="hljs-string">&#x27;jira-token&#x27;</span>, <span class="hljs-attr">variable:</span> <span class="hljs-string">&#x27;JIRA_TOKEN&#x27;</span>)]) &#123;<br>        <span class="hljs-keyword">def</span> response = sh(<span class="hljs-attr">script:</span> <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">            curl -s -X GET \</span><br><span class="hljs-string">            -H &quot;Content-Type: application/json&quot; \</span><br><span class="hljs-string">            -H &quot;Authorization: Bearer $&#123;JIRA_TOKEN&#125;&quot; \</span><br><span class="hljs-string">            &quot;https://jira.example.com/rest/api/2/issue/$&#123;ticketId&#125;&quot;</span><br><span class="hljs-string">        &quot;&quot;&quot;</span>, <span class="hljs-attr">returnStdout:</span> <span class="hljs-literal">true</span>)<br><br>        <span class="hljs-keyword">return</span> readJSON <span class="hljs-attr">text:</span> response<br>    &#125;<br>&#125;<br><br><span class="hljs-comment">// 私有辅助方法</span><br><span class="hljs-keyword">private</span> <span class="hljs-keyword">def</span> getTransitionId(String status) &#123;<br>    <span class="hljs-keyword">def</span> statusMap = [<br>        <span class="hljs-string">&#x27;InProgress&#x27;</span>: <span class="hljs-string">&#x27;4&#x27;</span>,<br>        <span class="hljs-string">&#x27;Done&#x27;</span>: <span class="hljs-string">&#x27;5&#x27;</span>,<br>        <span class="hljs-string">&#x27;Rejected&#x27;</span>: <span class="hljs-string">&#x27;6&#x27;</span><br>    ]<br>    <span class="hljs-keyword">return</span> statusMap[status] ?: <span class="hljs-string">&#x27;4&#x27;</span> <span class="hljs-comment">// 默认为InProgress</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>类似地，可以开发与其他系统集成的函数：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/slack.groovy</span><br><span class="hljs-keyword">def</span> sendNotification(String channel, String message, String color = <span class="hljs-string">&#x27;#FFFF00&#x27;</span>) &#123;<br>    withCredentials([string(<span class="hljs-attr">credentialsId:</span> <span class="hljs-string">&#x27;slack-token&#x27;</span>, <span class="hljs-attr">variable:</span> <span class="hljs-string">&#x27;SLACK_TOKEN&#x27;</span>)]) &#123;<br>        sh <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">            curl -X POST \</span><br><span class="hljs-string">            -H &#x27;Content-type: application/json&#x27; \</span><br><span class="hljs-string">            --data &#x27;&#123;&quot;channel&quot;:&quot;$&#123;channel&#125;&quot;,&quot;attachments&quot;:[&#123;&quot;color&quot;:&quot;$&#123;color&#125;&quot;,&quot;text&quot;:&quot;$&#123;message&#125;&quot;&#125;]&#125;&#x27; \</span><br><span class="hljs-string">            https://hooks.slack.com/services/\$&#123;SLACK_TOKEN&#125;</span><br><span class="hljs-string">        &quot;&quot;&quot;</span><br>    &#125;<br>&#125;<br><br><span class="hljs-comment">// vars/sonar.groovy</span><br><span class="hljs-keyword">def</span> analyze(Map config = [:]) &#123;<br>    <span class="hljs-keyword">def</span> scannerHome = tool <span class="hljs-string">&#x27;SonarQubeScanner&#x27;</span><br>    withSonarQubeEnv(<span class="hljs-string">&#x27;SonarQube&#x27;</span>) &#123;<br>        sh <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">            $&#123;scannerHome&#125;/bin/sonar-scanner \</span><br><span class="hljs-string">            -Dsonar.projectKey=$&#123;config.projectKey ?: env.JOB_NAME&#125; \</span><br><span class="hljs-string">            -Dsonar.projectName=&#x27;$&#123;config.projectName ?: env.JOB_NAME&#125;&#x27; \</span><br><span class="hljs-string">            -Dsonar.projectVersion=$&#123;config.version ?: env.BUILD_NUMBER&#125; \</span><br><span class="hljs-string">            $&#123;config.additionalParams ?: &#x27;&#x27;&#125;</span><br><span class="hljs-string">        &quot;&quot;&quot;</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h2 id="6-测试与调试共享库"><a href="#6-测试与调试共享库" class="headerlink" title="6. 测试与调试共享库"></a>6. 测试与调试共享库</h2><h3 id="6-1-单元测试共享库代码"><a href="#6-1-单元测试共享库代码" class="headerlink" title="6.1 单元测试共享库代码"></a>6.1 单元测试共享库代码</h3><p>为共享库编写单元测试是确保质量的关键措施：</p>
+<pre><code class="hljs mermaid">graph TD
+    A[共享库测试] --&gt; B[单元测试]
+    A --&gt; C[集成测试]
+    A --&gt; D[本地开发测试]
+
+    B --&gt; B1[JUnit测试框架]
+    B --&gt; B2[Spock测试框架]
+    B --&gt; B3[JenkinsPipelineUnit]
+
+    C --&gt; C1[在Jenkins上测试]
+    C --&gt; C2[使用测试专用分支]
+
+    D --&gt; D1[模拟Jenkins环境]
+    D --&gt; D2[使用Docker工具链]
+    D --&gt; D3[IDE工具支持]</code></pre>
+
+<h4 id="6-1-1-使用JenkinsPipelineUnit框架"><a href="#6-1-1-使用JenkinsPipelineUnit框架" class="headerlink" title="6.1.1 使用JenkinsPipelineUnit框架"></a>6.1.1 使用JenkinsPipelineUnit框架</h4><p>可以使用<a target="_blank" rel="noopener" href="https://github.com/jenkinsci/JenkinsPipelineUnit">JenkinsPipelineUnit</a>框架测试共享库:</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// 测试vars/sayHello.groovy</span><br><span class="hljs-keyword">import</span> com.lesfurets.jenkins.unit.BasePipelineTest<br><span class="hljs-keyword">import</span> org.junit.Before<br><span class="hljs-keyword">import</span> org.junit.Test<br><br><span class="hljs-keyword">class</span> <span class="hljs-title class_">SayHelloTest</span> <span class="hljs-keyword">extends</span> <span class="hljs-title class_">BasePipelineTest</span> &#123;<br>    <span class="hljs-meta">@Before</span><br>    <span class="hljs-type">void</span> setUp() &#123;<br>        <span class="hljs-variable language_">super</span>.setUp()<br>        <span class="hljs-comment">// 加载共享库</span><br>        helper.registerAllowedMethod(<span class="hljs-string">&quot;echo&quot;</span>, [String.<span class="hljs-keyword">class</span>], &#123; s -&gt; println s &#125;)<br>    &#125;<br><br>    <span class="hljs-meta">@Test</span><br>    <span class="hljs-type">void</span> testSayHelloWithDefaultValue() &#123;<br>        <span class="hljs-comment">// 加载要测试的库脚本</span><br>        <span class="hljs-keyword">def</span> sayHello = loadScript(<span class="hljs-string">&quot;vars/sayHello.groovy&quot;</span>)<br><br>        <span class="hljs-comment">// 调用并测试</span><br>        sayHello()<br><br>        <span class="hljs-comment">// 验证结果</span><br>        printCallStack()<br>        <span class="hljs-keyword">assert</span> helper.callStack.findAll &#123; call -&gt;<br>            call.methodName == <span class="hljs-string">&#x27;echo&#x27;</span> &amp;&amp; call.args[<span class="hljs-number">0</span>] == <span class="hljs-string">&#x27;Hello, human!&#x27;</span><br>        &#125;.size() == <span class="hljs-number">1</span><br>    &#125;<br><br>    <span class="hljs-meta">@Test</span><br>    <span class="hljs-type">void</span> testSayHelloWithParameter() &#123;<br>        <span class="hljs-keyword">def</span> sayHello = loadScript(<span class="hljs-string">&quot;vars/sayHello.groovy&quot;</span>)<br>        sayHello(<span class="hljs-string">&#x27;Jenkins&#x27;</span>)<br><br>        printCallStack()<br>        <span class="hljs-keyword">assert</span> helper.callStack.findAll &#123; call -&gt;<br>            call.methodName == <span class="hljs-string">&#x27;echo&#x27;</span> &amp;&amp; call.args[<span class="hljs-number">0</span>] == <span class="hljs-string">&#x27;Hello, Jenkins!&#x27;</span><br>        &#125;.size() == <span class="hljs-number">1</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="6-1-2-使用Spock测试框架"><a href="#6-1-2-使用Spock测试框架" class="headerlink" title="6.1.2 使用Spock测试框架"></a>6.1.2 使用Spock测试框架</h4><p>Spock框架提供更现代的测试体验：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// 测试vars/buildApp.groovy</span><br><span class="hljs-keyword">import</span> com.lesfurets.jenkins.unit.BasePipelineTest<br><span class="hljs-keyword">import</span> spock.lang.Specification<br><span class="hljs-keyword">import</span> spock.lang.Subject<br><br><span class="hljs-keyword">class</span> <span class="hljs-title class_">BuildAppTest</span> <span class="hljs-keyword">extends</span> <span class="hljs-title class_">Specification</span> &#123;<br>    <span class="hljs-keyword">def</span> pipelineTestHelper<br>    <span class="hljs-keyword">def</span> buildApp<br><br>    <span class="hljs-type">void</span> setup() &#123;<br>        pipelineTestHelper = <span class="hljs-keyword">new</span> PipelineTestHelper()<br>        <span class="hljs-comment">// 注册允许的方法</span><br>        pipelineTestHelper.registerAllowedMethod(<span class="hljs-string">&quot;sh&quot;</span>, [String.<span class="hljs-keyword">class</span>], &#123; s -&gt; <span class="hljs-keyword">return</span> s &#125;)<br>        pipelineTestHelper.registerAllowedMethod(<span class="hljs-string">&quot;error&quot;</span>, [String.<span class="hljs-keyword">class</span>], &#123; msg -&gt; <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> Exception(msg) &#125;)<br><br>        <span class="hljs-comment">// 加载被测试脚本</span><br>        buildApp = pipelineTestHelper.loadScript(<span class="hljs-string">&quot;vars/buildApp.groovy&quot;</span>)<br>    &#125;<br><br>    <span class="hljs-type">void</span> <span class="hljs-string">&quot;test default parameters&quot;</span>() &#123;<br>        <span class="hljs-symbol">when:</span><br>        buildApp()<br><br>        <span class="hljs-symbol">then:</span><br>        pipelineTestHelper.callStack.findAll &#123; call -&gt;<br>            call.methodName == <span class="hljs-string">&#x27;sh&#x27;</span> &amp;&amp; call.args[<span class="hljs-number">0</span>] == <span class="hljs-string">&#x27;mvn package &#x27;</span><br>        &#125;.size() == <span class="hljs-number">1</span><br>    &#125;<br><br>    <span class="hljs-type">void</span> <span class="hljs-string">&quot;test custom parameters&quot;</span>() &#123;<br>        <span class="hljs-symbol">when:</span><br>        buildApp(<span class="hljs-attr">tool:</span> <span class="hljs-string">&#x27;gradle&#x27;</span>, <span class="hljs-attr">command:</span> <span class="hljs-string">&#x27;build&#x27;</span>, <span class="hljs-attr">options:</span> <span class="hljs-string">&#x27;--info&#x27;</span>)<br><br>        <span class="hljs-symbol">then:</span><br>        pipelineTestHelper.callStack.findAll &#123; call -&gt;<br>            call.methodName == <span class="hljs-string">&#x27;sh&#x27;</span> &amp;&amp; call.args[<span class="hljs-number">0</span>] == <span class="hljs-string">&#x27;gradle build --info&#x27;</span><br>        &#125;.size() == <span class="hljs-number">1</span><br>    &#125;<br><br>    <span class="hljs-type">void</span> <span class="hljs-string">&quot;test unsupported build tool&quot;</span>() &#123;<br>        <span class="hljs-symbol">when:</span><br>        buildApp(<span class="hljs-attr">tool:</span> <span class="hljs-string">&#x27;unsupported&#x27;</span>)<br><br>        <span class="hljs-symbol">then:</span><br>        thrown(Exception)<br>        pipelineTestHelper.callStack.findAll &#123; call -&gt;<br>            call.methodName == <span class="hljs-string">&#x27;error&#x27;</span> &amp;&amp; call.args[<span class="hljs-number">0</span>].contains(<span class="hljs-string">&#x27;Unsupported build tool&#x27;</span>)<br>        &#125;.size() == <span class="hljs-number">1</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-2-调试共享库技巧"><a href="#6-2-调试共享库技巧" class="headerlink" title="6.2 调试共享库技巧"></a>6.2 调试共享库技巧</h3><p>在开发共享库时，可以使用多种技巧进行调试：</p>
+<h4 id="6-2-1-本地开发和测试"><a href="#6-2-1-本地开发和测试" class="headerlink" title="6.2.1 本地开发和测试"></a>6.2.1 本地开发和测试</h4><p>使用<code>@Library</code>的本地文件形式进行快速迭代：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy">library <span class="hljs-attr">identifier:</span> <span class="hljs-string">&#x27;local-lib@master&#x27;</span>,<br>        <span class="hljs-symbol">retriever:</span> modernSCM([<span class="hljs-attr">$class:</span> <span class="hljs-string">&#x27;FileSystemSCMSource&#x27;</span>, <span class="hljs-attr">remote:</span> <span class="hljs-string">&#x27;/path/to/local/lib&#x27;</span>]),<br>        <span class="hljs-symbol">changelog:</span> <span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="6-2-2-打印调试信息"><a href="#6-2-2-打印调试信息" class="headerlink" title="6.2.2 打印调试信息"></a>6.2.2 打印调试信息</h4><p>在共享库代码中添加调试输出：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-keyword">def</span> call() &#123;<br>    <span class="hljs-keyword">def</span> config = readJSON <span class="hljs-attr">file:</span> <span class="hljs-string">&#x27;config.json&#x27;</span><br>    echo <span class="hljs-string">&quot;调试: 配置内容 = $&#123;config&#125;&quot;</span><br><br>    <span class="hljs-keyword">for</span> (item <span class="hljs-keyword">in</span> config.items) &#123;<br>        echo <span class="hljs-string">&quot;调试: 处理项目 $&#123;item.name&#125;&quot;</span><br>        <span class="hljs-comment">// ...处理逻辑...</span><br>    &#125;<br><br>    <span class="hljs-comment">// 使用库中的log函数</span><br>    log.debug(<span class="hljs-string">&quot;这是一条调试信息&quot;</span>)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="6-2-3-使用开发分支"><a href="#6-2-3-使用开发分支" class="headerlink" title="6.2.3 使用开发分支"></a>6.2.3 使用开发分支</h4><p>在不影响生产环境的情况下测试开发中的库：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// 使用开发分支的库</span><br><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;shared-lib@feature/new-feature&#x27;</span>) _<br><br>pipeline &#123;<br>    <span class="hljs-comment">// ...pipeline定义...</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-3-故障排查和常见问题"><a href="#6-3-故障排查和常见问题" class="headerlink" title="6.3 故障排查和常见问题"></a>6.3 故障排查和常见问题</h3><p>处理共享库开发中的常见问题：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>可能原因</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>库加载失败</td>
+<td>库名称错误或不存在</td>
+<td>检查库名称是否正确配置，确认Git仓库可访问</td>
+</tr>
+<tr>
+<td>方法找不到</td>
+<td>文件命名或路径问题</td>
+<td>确保vars目录下文件名与调用方法名匹配</td>
+</tr>
+<tr>
+<td>序列化错误</td>
+<td>共享库中的类未实现Serializable</td>
+<td>为src目录下的类添加<code>implements Serializable</code></td>
+</tr>
+<tr>
+<td>沙箱安全拦截</td>
+<td>方法需要脚本审批</td>
+<td>在Jenkins脚本安全管理中批准方法调用</td>
+</tr>
+<tr>
+<td>依赖加载失败</td>
+<td>缺少必要的插件或库</td>
+<td>安装所需插件，或在共享库中内联依赖代码</td>
+</tr>
+</tbody></table>
+<pre><code class="hljs mermaid">flowchart TD
+    A[库相关错误] --&gt; B&#123;加载问题?&#125;
+    B --&gt;|是| C[检查库配置]
+    C --&gt; C1[验证库名称]
+    C --&gt; C2[检查版本/分支]
+    C --&gt; C3[验证SCM连接]
+
+    B --&gt;|否| D&#123;方法调用错误?&#125;
+    D --&gt;|是| E[检查方法定义]
+    E --&gt; E1[确认文件名与方法名]
+    E --&gt; E2[检查call方法签名]
+    E --&gt; E3[验证参数传递]
+
+    D --&gt;|否| F&#123;序列化错误?&#125;
+    F --&gt;|是| G[检查序列化支持]
+    G --&gt; G1[添加Serializable接口]
+    G --&gt; G2[避免非序列化字段]
+    G --&gt; G3[使用@NonCPS标记]
+
+    F --&gt;|否| H&#123;安全问题?&#125;
+    H --&gt;|是| I[处理脚本安全]
+    I --&gt; I1[在Jenkins批准签名]
+    I --&gt; I2[使用安全替代方法]</code></pre>
+
+<h2 id="7-实际应用案例"><a href="#7-实际应用案例" class="headerlink" title="7. 实际应用案例"></a>7. 实际应用案例</h2><h3 id="7-1-构建流水线标准化"><a href="#7-1-构建流水线标准化" class="headerlink" title="7.1 构建流水线标准化"></a>7.1 构建流水线标准化</h3><p>使用共享库标准化不同团队的CI&#x2F;CD流程：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/standardPipeline.groovy</span><br><span class="hljs-keyword">def</span> call(Map config = [:]) &#123;<br>    <span class="hljs-comment">// 确保必须参数存在</span><br>    <span class="hljs-keyword">assert</span> config.<span class="hljs-attr">type :</span> <span class="hljs-string">&quot;Pipeline type must be specified&quot;</span><br><br>    <span class="hljs-comment">// 根据项目类型选择构建流程</span><br>    <span class="hljs-keyword">switch</span>(config.type) &#123;<br>        <span class="hljs-keyword">case</span> <span class="hljs-string">&#x27;java&#x27;</span>:<br>            <span class="hljs-keyword">return</span> javaStandardPipeline(config)<br>        <span class="hljs-keyword">case</span> <span class="hljs-string">&#x27;node&#x27;</span>:<br>            <span class="hljs-keyword">return</span> nodeStandardPipeline(config)<br>        <span class="hljs-keyword">case</span> <span class="hljs-string">&#x27;python&#x27;</span>:<br>            <span class="hljs-keyword">return</span> pythonStandardPipeline(config)<br>        <span class="hljs-symbol">default:</span><br>            error <span class="hljs-string">&quot;Unsupported project type: $&#123;config.type&#125;&quot;</span><br>    &#125;<br>&#125;<br><br><span class="hljs-comment">// vars/javaStandardPipeline.groovy</span><br><span class="hljs-keyword">def</span> call(Map config = [:]) &#123;<br>    <span class="hljs-keyword">def</span> mvnGoals = config.mvnGoals ?: <span class="hljs-string">&#x27;clean verify&#x27;</span><br>    <span class="hljs-keyword">def</span> javaVersion = config.javaVersion ?: <span class="hljs-string">&#x27;11&#x27;</span><br><br>    pipeline &#123;<br>        agent any<br><br>        tools &#123;<br>            jdk <span class="hljs-string">&quot;JDK-$&#123;javaVersion&#125;&quot;</span><br>            maven <span class="hljs-string">&#x27;Maven-3.8.6&#x27;</span><br>        &#125;<br><br>        stages &#123;<br>            stage(<span class="hljs-string">&#x27;检出&#x27;</span>) &#123;<br>                steps &#123;<br>                    checkout scm<br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;编译&#x27;</span>) &#123;<br>                steps &#123;<br>                    sh <span class="hljs-string">&quot;mvn -B compile&quot;</span><br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;测试&#x27;</span>) &#123;<br>                steps &#123;<br>                    sh <span class="hljs-string">&quot;mvn -B test&quot;</span><br>                &#125;<br>                post &#123;<br>                    always &#123;<br>                        junit <span class="hljs-string">&#x27;**/target/surefire-reports/*.xml&#x27;</span><br>                    &#125;<br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;代码质量&#x27;</span>) &#123;<br>                when &#123; expression &#123; <span class="hljs-keyword">return</span> config.sonarQube != <span class="hljs-literal">false</span> &#125; &#125;<br>                steps &#123;<br>                    withSonarQubeEnv(<span class="hljs-string">&#x27;SonarQube&#x27;</span>) &#123;<br>                        sh <span class="hljs-string">&quot;mvn sonar:sonar&quot;</span><br>                    &#125;<br>                    waitForQualityGate <span class="hljs-attr">abortPipeline:</span> <span class="hljs-literal">true</span><br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;构建&#x27;</span>) &#123;<br>                steps &#123;<br>                    sh <span class="hljs-string">&quot;mvn -B $&#123;mvnGoals&#125;&quot;</span><br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;部署&#x27;</span>) &#123;<br>                when &#123; expression &#123; <span class="hljs-keyword">return</span> config.deploy != <span class="hljs-literal">false</span> &#125; &#125;<br>                steps &#123;<br>                    <span class="hljs-comment">// 根据配置执行部署</span><br>                    script &#123;<br>                        <span class="hljs-keyword">if</span> (config.deployType == <span class="hljs-string">&#x27;k8s&#x27;</span>) &#123;<br>                            k8sDeploy(<br>                                <span class="hljs-symbol">namespace:</span> config.namespace ?: <span class="hljs-string">&#x27;default&#x27;</span>,<br>                                <span class="hljs-symbol">deployment:</span> config.deploymentName ?: env.JOB_NAME<br>                            )<br>                        &#125; <span class="hljs-keyword">else</span> &#123;<br>                            <span class="hljs-comment">// 默认部署方法</span><br>                            basicDeploy(config)<br>                        &#125;<br>                    &#125;<br>                &#125;<br>            &#125;<br>        &#125;<br><br>        post &#123;<br>            always &#123;<br>                <span class="hljs-comment">// 发送通知</span><br>                notifyBuild(currentBuild.result)<br>            &#125;<br>            success &#123;<br>                archiveArtifacts <span class="hljs-attr">artifacts:</span> <span class="hljs-string">&#x27;**/target/*.jar&#x27;</span>, <span class="hljs-attr">allowEmptyArchive:</span> <span class="hljs-literal">true</span><br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用示例：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;company-lib&#x27;</span>) _<br><br><span class="hljs-comment">// Java项目使用标准流水线</span><br>standardPipeline(<br>    <span class="hljs-symbol">type:</span> <span class="hljs-string">&#x27;java&#x27;</span>,<br>    <span class="hljs-symbol">javaVersion:</span> <span class="hljs-string">&#x27;17&#x27;</span>,<br>    <span class="hljs-symbol">mvnGoals:</span> <span class="hljs-string">&#x27;clean package&#x27;</span>,<br>    <span class="hljs-symbol">sonarQube:</span> <span class="hljs-literal">true</span>,<br>    <span class="hljs-symbol">deploy:</span> <span class="hljs-literal">true</span>,<br>    <span class="hljs-symbol">deployType:</span> <span class="hljs-string">&#x27;k8s&#x27;</span>,<br>    <span class="hljs-symbol">namespace:</span> <span class="hljs-string">&#x27;development&#x27;</span><br>)<br><br><span class="hljs-comment">// Node.js项目使用标准流水线</span><br>standardPipeline(<br>    <span class="hljs-symbol">type:</span> <span class="hljs-string">&#x27;node&#x27;</span>,<br>    <span class="hljs-symbol">nodeVersion:</span> <span class="hljs-string">&#x27;16&#x27;</span>,<br>    <span class="hljs-symbol">npmScript:</span> <span class="hljs-string">&#x27;build&#x27;</span>,<br>    <span class="hljs-symbol">deploy:</span> <span class="hljs-literal">true</span>,<br>    <span class="hljs-symbol">deployType:</span> <span class="hljs-string">&#x27;serverless&#x27;</span><br>)<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-2-微服务部署自动化"><a href="#7-2-微服务部署自动化" class="headerlink" title="7.2 微服务部署自动化"></a>7.2 微服务部署自动化</h3><p>为微服务架构创建标准化部署流程：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/microserviceDeploy.groovy</span><br><span class="hljs-keyword">def</span> call(Map config = [:]) &#123;<br>    pipeline &#123;<br>        agent any<br><br>        environment &#123;<br>            SERVICE_NAME = config.name ?: env.JOB_NAME.split(<span class="hljs-string">&#x27;/&#x27;</span>).last()<br>            VERSION = <span class="hljs-string">&quot;$&#123;env.BUILD_NUMBER&#125;&quot;</span><br>            NAMESPACE = config.namespace ?: <span class="hljs-string">&#x27;default&#x27;</span><br>            REGISTRY = config.registry ?: <span class="hljs-string">&#x27;registry.example.com&#x27;</span><br>        &#125;<br><br>        stages &#123;<br>            stage(<span class="hljs-string">&#x27;检出&#x27;</span>) &#123;<br>                steps &#123;<br>                    checkout scm<br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;构建&#x27;</span>) &#123;<br>                steps &#123;<br>                    script &#123;<br>                        <span class="hljs-keyword">if</span> (fileExists(<span class="hljs-string">&#x27;pom.xml&#x27;</span>)) &#123;<br>                            sh <span class="hljs-string">&#x27;mvn -B clean package&#x27;</span><br>                        &#125; <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> (fileExists(<span class="hljs-string">&#x27;build.gradle&#x27;</span>)) &#123;<br>                            sh <span class="hljs-string">&#x27;./gradlew build&#x27;</span><br>                        &#125; <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> (fileExists(<span class="hljs-string">&#x27;package.json&#x27;</span>)) &#123;<br>                            sh <span class="hljs-string">&#x27;npm ci &amp;&amp; npm run build&#x27;</span><br>                        &#125; <span class="hljs-keyword">else</span> &#123;<br>                            error <span class="hljs-string">&quot;Unsupported project structure&quot;</span><br>                        &#125;<br>                    &#125;<br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;容器化&#x27;</span>) &#123;<br>                steps &#123;<br>                    script &#123;<br>                        dockerize(<br>                            <span class="hljs-symbol">imageName:</span> <span class="hljs-string">&quot;$&#123;REGISTRY&#125;/$&#123;SERVICE_NAME&#125;&quot;</span>,<br>                            <span class="hljs-symbol">tag:</span> <span class="hljs-string">&quot;$&#123;VERSION&#125;&quot;</span>,<br>                            <span class="hljs-symbol">buildArgs:</span> config.buildArgs ?: <span class="hljs-string">&#x27;&#x27;</span><br>                        )<br>                    &#125;<br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;部署到开发环境&#x27;</span>) &#123;<br>                when &#123;<br>                    anyOf &#123;<br>                        branch <span class="hljs-string">&#x27;develop&#x27;</span><br>                        expression &#123; <span class="hljs-keyword">return</span> config.deployToDev &#125;<br>                    &#125;<br>                &#125;<br>                steps &#123;<br>                    script &#123;<br>                        helmDeploy(<br>                            <span class="hljs-symbol">releaseName:</span> <span class="hljs-string">&quot;$&#123;SERVICE_NAME&#125;&quot;</span>,<br>                            <span class="hljs-symbol">chart:</span> config.helmChart ?: <span class="hljs-string">&#x27;./charts/$&#123;SERVICE_NAME&#125;&#x27;</span>,<br>                            <span class="hljs-symbol">namespace:</span> <span class="hljs-string">&#x27;development&#x27;</span>,<br>                            <span class="hljs-symbol">values:</span> [<br>                                <span class="hljs-string">&quot;image.repository&quot;</span>: <span class="hljs-string">&quot;$&#123;REGISTRY&#125;/$&#123;SERVICE_NAME&#125;&quot;</span>,<br>                                <span class="hljs-string">&quot;image.tag&quot;</span>: <span class="hljs-string">&quot;$&#123;VERSION&#125;&quot;</span><br>                            ]<br>                        )<br>                    &#125;<br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;部署到测试环境&#x27;</span>) &#123;<br>                when &#123;<br>                    anyOf &#123;<br>                        branch <span class="hljs-string">&#x27;release/*&#x27;</span><br>                        expression &#123; <span class="hljs-keyword">return</span> config.deployToTest &#125;<br>                    &#125;<br>                &#125;<br>                steps &#123;<br>                    script &#123;<br>                        helmDeploy(<br>                            <span class="hljs-symbol">releaseName:</span> <span class="hljs-string">&quot;$&#123;SERVICE_NAME&#125;&quot;</span>,<br>                            <span class="hljs-symbol">chart:</span> config.helmChart ?: <span class="hljs-string">&#x27;./charts/$&#123;SERVICE_NAME&#125;&#x27;</span>,<br>                            <span class="hljs-symbol">namespace:</span> <span class="hljs-string">&#x27;testing&#x27;</span>,<br>                            <span class="hljs-symbol">values:</span> [<br>                                <span class="hljs-string">&quot;image.repository&quot;</span>: <span class="hljs-string">&quot;$&#123;REGISTRY&#125;/$&#123;SERVICE_NAME&#125;&quot;</span>,<br>                                <span class="hljs-string">&quot;image.tag&quot;</span>: <span class="hljs-string">&quot;$&#123;VERSION&#125;&quot;</span><br>                            ]<br>                        )<br>                    &#125;<br>                &#125;<br>            &#125;<br><br>            stage(<span class="hljs-string">&#x27;部署到生产环境&#x27;</span>) &#123;<br>                when &#123;<br>                    anyOf &#123;<br>                        branch <span class="hljs-string">&#x27;main&#x27;</span><br>                        branch <span class="hljs-string">&#x27;master&#x27;</span><br>                    &#125;<br>                &#125;<br>                steps &#123;<br>                    <span class="hljs-comment">// 生产部署需要人工批准</span><br>                    input <span class="hljs-attr">message:</span> <span class="hljs-string">&quot;是否部署 $&#123;SERVICE_NAME&#125; v$&#123;VERSION&#125; 到生产环境?&quot;</span><br><br>                    script &#123;<br>                        helmDeploy(<br>                            <span class="hljs-symbol">releaseName:</span> <span class="hljs-string">&quot;$&#123;SERVICE_NAME&#125;&quot;</span>,<br>                            <span class="hljs-symbol">chart:</span> config.helmChart ?: <span class="hljs-string">&#x27;./charts/$&#123;SERVICE_NAME&#125;&#x27;</span>,<br>                            <span class="hljs-symbol">namespace:</span> <span class="hljs-string">&#x27;production&#x27;</span>,<br>                            <span class="hljs-symbol">values:</span> [<br>                                <span class="hljs-string">&quot;image.repository&quot;</span>: <span class="hljs-string">&quot;$&#123;REGISTRY&#125;/$&#123;SERVICE_NAME&#125;&quot;</span>,<br>                                <span class="hljs-string">&quot;image.tag&quot;</span>: <span class="hljs-string">&quot;$&#123;VERSION&#125;&quot;</span>,<br>                                <span class="hljs-string">&quot;replicaCount&quot;</span>: <span class="hljs-string">&quot;3&quot;</span>,<br>                                <span class="hljs-string">&quot;resources.limits.cpu&quot;</span>: <span class="hljs-string">&quot;1&quot;</span>,<br>                                <span class="hljs-string">&quot;resources.limits.memory&quot;</span>: <span class="hljs-string">&quot;1Gi&quot;</span><br>                            ]<br>                        )<br>                    &#125;<br>                &#125;<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-3-复杂部署策略实现"><a href="#7-3-复杂部署策略实现" class="headerlink" title="7.3 复杂部署策略实现"></a>7.3 复杂部署策略实现</h3><p>实现蓝绿部署、金丝雀发布等高级部署策略：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-comment">// vars/blueGreenDeploy.groovy</span><br><span class="hljs-keyword">def</span> call(Map config) &#123;<br>    <span class="hljs-keyword">def</span> namespace = config.namespace ?: <span class="hljs-string">&#x27;default&#x27;</span><br>    <span class="hljs-keyword">def</span> app = config.app<br>    <span class="hljs-keyword">def</span> version = config.version<br>    <span class="hljs-keyword">def</span> registry = config.registry ?: <span class="hljs-string">&#x27;docker.io&#x27;</span><br><br>    <span class="hljs-comment">// 确定当前活动环境</span><br>    <span class="hljs-keyword">def</span> activeEnv = sh(<br>        <span class="hljs-symbol">script:</span> <span class="hljs-string">&quot;kubectl get service $&#123;app&#125; -n $&#123;namespace&#125; -o jsonpath=&#x27;&#123;.spec.selector.environment&#125;&#x27;&quot;</span>,<br>        <span class="hljs-symbol">returnStdout:</span> <span class="hljs-literal">true</span><br>    ).trim()<br><br>    <span class="hljs-comment">// 确定新环境颜色</span><br>    <span class="hljs-keyword">def</span> newEnv = activeEnv == <span class="hljs-string">&#x27;blue&#x27;</span> ? <span class="hljs-string">&#x27;green&#x27;</span> : <span class="hljs-string">&#x27;blue&#x27;</span><br><br>    echo <span class="hljs-string">&quot;当前活动环境: $&#123;activeEnv&#125;, 新环境: $&#123;newEnv&#125;&quot;</span><br><br>    <span class="hljs-comment">// 部署到新环境</span><br>    sh <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">        kubectl set image deployment/$&#123;app&#125;-$&#123;newEnv&#125; $&#123;app&#125;=$&#123;registry&#125;/$&#123;app&#125;:$&#123;version&#125; -n $&#123;namespace&#125;</span><br><span class="hljs-string">        kubectl rollout status deployment/$&#123;app&#125;-$&#123;newEnv&#125; -n $&#123;namespace&#125; --timeout=300s</span><br><span class="hljs-string">    &quot;&quot;&quot;</span><br><br>    <span class="hljs-comment">// 验证新环境健康</span><br>    <span class="hljs-keyword">def</span> healthCheck = config.healthCheck<br>    <span class="hljs-keyword">if</span> (healthCheck) &#123;<br>        echo <span class="hljs-string">&quot;执行健康检查...&quot;</span><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-keyword">def</span> newServiceIP = sh(<br>                <span class="hljs-symbol">script:</span> <span class="hljs-string">&quot;kubectl get service $&#123;app&#125;-$&#123;newEnv&#125; -n $&#123;namespace&#125; -o jsonpath=&#x27;&#123;.status.loadBalancer.ingress[0].ip&#125;&#x27;&quot;</span>,<br>                <span class="hljs-symbol">returnStdout:</span> <span class="hljs-literal">true</span><br>            ).trim()<br><br>            sh <span class="hljs-string">&quot;curl -f $&#123;healthCheck.protocol ?: &#x27;http&#x27;&#125;://$&#123;newServiceIP&#125;:$&#123;healthCheck.port ?: 80&#125;$&#123;healthCheck.path ?: &#x27;/health&#x27;&#125;&quot;</span><br>            echo <span class="hljs-string">&quot;健康检查通过&quot;</span><br>        &#125; <span class="hljs-keyword">catch</span> (Exception e) &#123;<br>            error <span class="hljs-string">&quot;健康检查失败: $&#123;e.message&#125;&quot;</span><br>        &#125;<br>    &#125;<br><br>    <span class="hljs-comment">// 切换流量</span><br>    echo <span class="hljs-string">&quot;切换流量到 $&#123;newEnv&#125; 环境&quot;</span><br>    sh <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">        kubectl patch service $&#123;app&#125; -n $&#123;namespace&#125; -p &#x27;&#123;&quot;spec&quot;:&#123;&quot;selector&quot;:&#123;&quot;environment&quot;:&quot;$&#123;newEnv&#125;&quot;&#125;&#125;&#125;&#x27;</span><br><span class="hljs-string">    &quot;&quot;&quot;</span><br><br>    <span class="hljs-comment">// 根据配置决定是否保留旧环境</span><br>    <span class="hljs-keyword">if</span> (config.keepOldEnvironment != <span class="hljs-literal">true</span>) &#123;<br>        echo <span class="hljs-string">&quot;等待确认新环境稳定...&quot;</span><br>        sleep <span class="hljs-attr">time:</span> config.confirmationDelay ?: <span class="hljs-number">60</span>, <span class="hljs-attr">unit:</span> <span class="hljs-string">&#x27;SECONDS&#x27;</span><br><br>        echo <span class="hljs-string">&quot;移除旧环境 $&#123;activeEnv&#125;&quot;</span><br>        sh <span class="hljs-string">&quot;kubectl scale deployment/$&#123;app&#125;-$&#123;activeEnv&#125; -n $&#123;namespace&#125; --replicas=0&quot;</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用示例：</p>
+<figure class="highlight groovy"><table><tr><td class="code"><pre><code class="hljs groovy"><span class="hljs-meta">@Library</span>(<span class="hljs-string">&#x27;deployment-lib&#x27;</span>) _<br><br>pipeline &#123;<br>    agent any<br><br>    parameters &#123;<br>        string(<span class="hljs-attr">name:</span> <span class="hljs-string">&#x27;VERSION&#x27;</span>, <span class="hljs-attr">defaultValue:</span> <span class="hljs-string">&#x27;latest&#x27;</span>, <span class="hljs-attr">description:</span> <span class="hljs-string">&#x27;要部署的版本&#x27;</span>)<br>    &#125;<br><br>    stages &#123;<br>        stage(<span class="hljs-string">&#x27;蓝绿部署&#x27;</span>) &#123;<br>            steps &#123;<br>                blueGreenDeploy(<br>                    <span class="hljs-symbol">app:</span> <span class="hljs-string">&#x27;frontend&#x27;</span>,<br>                    <span class="hljs-symbol">namespace:</span> <span class="hljs-string">&#x27;production&#x27;</span>,<br>                    <span class="hljs-symbol">version:</span> params.VERSION,<br>                    <span class="hljs-symbol">registry:</span> <span class="hljs-string">&#x27;registry.example.com&#x27;</span>,<br>                    <span class="hljs-symbol">healthCheck:</span> [<br>                        <span class="hljs-symbol">protocol:</span> <span class="hljs-string">&#x27;https&#x27;</span>,<br>                        <span class="hljs-symbol">port:</span> <span class="hljs-number">443</span>,<br>                        <span class="hljs-symbol">path:</span> <span class="hljs-string">&#x27;/api/health&#x27;</span><br>                    ],<br>                    <span class="hljs-symbol">keepOldEnvironment:</span> <span class="hljs-literal">true</span>,<br>                    <span class="hljs-symbol">confirmationDelay:</span> <span class="hljs-number">120</span><br>                )<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h2 id="8-最佳实践与结论"><a href="#8-最佳实践与结论" class="headerlink" title="8. 最佳实践与结论"></a>8. 最佳实践与结论</h2><h3 id="8-1-共享库设计原则"><a href="#8-1-共享库设计原则" class="headerlink" title="8.1 共享库设计原则"></a>8.1 共享库设计原则</h3><pre><code class="hljs mermaid">mindmap
+  root((共享库设计原则))
+    简单性
+      单一职责函数
+      简洁的接口
+      良好的默认值
+    可维护性
+      完善的文档
+      一致的风格
+      适当的注释
+    可测试性
+      独立可测试
+      合理的抽象
+      避免副作用
+    可扩展性
+      参数化设计
+      可组合函数
+      避免硬编码
+    易用性
+      直观命名
+      渐进式暴露复杂性
+      有用的错误信息</code></pre>
+
+<p>设计共享库时的关键原则：</p>
+<ol>
+<li><strong>保持简单</strong>：每个函数专注于单一任务，避免过于复杂的代码</li>
+<li><strong>一致性</strong>：在命名、参数处理和返回值方面保持一致</li>
+<li><strong>文档完善</strong>：为每个函数提供清晰的用途、参数和返回值说明</li>
+<li><strong>参数化</strong>：尽可能通过参数配置行为，而不是硬编码</li>
+<li><strong>错误处理</strong>：提供清晰的错误信息和有用的调试信息</li>
+<li><strong>可测试性</strong>：设计代码便于单元测试和集成测试</li>
+<li><strong>版本兼容性</strong>：在进行重大更改时维护向后兼容性</li>
+</ol>
+<h3 id="8-2-共享库管理最佳实践"><a href="#8-2-共享库管理最佳实践" class="headerlink" title="8.2 共享库管理最佳实践"></a>8.2 共享库管理最佳实践</h3><pre><code class="hljs mermaid">graph TD
+    A[共享库管理最佳实践] --&gt; B[版本控制]
+    A --&gt; C[文档]
+    A --&gt; D[测试]
+    A --&gt; E[发布流程]
+    A --&gt; F[权限控制]
+
+    B --&gt; B1[语义化版本]
+    B --&gt; B2[版本标签]
+    B --&gt; B3[变更日志]
+
+    C --&gt; C1[README文件]
+    C --&gt; C2[函数文档]
+    C --&gt; C3[使用示例]
+
+    D --&gt; D1[单元测试]
+    D --&gt; D2[集成测试]
+    D --&gt; D3[CI流程]
+
+    E --&gt; E1[审查流程]
+    E --&gt; E2[阶段式部署]
+    E --&gt; E3[版本发布通知]
+
+    F --&gt; F1[受控的修改权限]
+    F --&gt; F2[变更审批流程]
+    F --&gt; F3[使用权限管理]</code></pre>
+
+<p>管理共享库的最佳实践：</p>
+<ol>
+<li><p><strong>版本控制策略</strong>：</p>
+<ul>
+<li>使用语义化版本(Semantic Versioning)</li>
+<li>为每个发布版本创建标签</li>
+<li>维护详细的变更日志</li>
+</ul>
+</li>
+<li><p><strong>文档</strong>：</p>
+<ul>
+<li>保持README文件更新</li>
+<li>为每个函数提供.txt文档</li>
+<li>包含用法示例和边界条件</li>
+</ul>
+</li>
+<li><p><strong>测试策略</strong>：</p>
+<ul>
+<li>实现自动化测试套件</li>
+<li>在合并前运行测试</li>
+<li>覆盖主要功能和边界情况</li>
+</ul>
+</li>
+<li><p><strong>质量控制</strong>：</p>
+<ul>
+<li>实施代码审查流程</li>
+<li>执行静态代码分析</li>
+<li>监控使用情况和问题报告</li>
+</ul>
+</li>
+<li><p><strong>发布流程</strong>：</p>
+<ul>
+<li>建立明确的发布周期</li>
+<li>在生产前在测试环境验证</li>
+<li>通知用户新版本和变更</li>
+</ul>
+</li>
+<li><p><strong>治理模型</strong>：</p>
+<ul>
+<li>明确谁可以贡献和批准更改</li>
+<li>建立贡献指南</li>
+<li>定期评审和清理废弃代码</li>
+</ul>
+</li>
+</ol>
+<h3 id="8-3-小结与展望"><a href="#8-3-小结与展望" class="headerlink" title="8.3 小结与展望"></a>8.3 小结与展望</h3><p>Jenkins共享库为团队提供了强大的工具，用于标准化CI&#x2F;CD流程并提高开发效率。通过本文介绍的概念、技术和最佳实践，可以开始构建和管理有效的共享库，从而：</p>
+<ul>
+<li>提高团队的生产力和一致性</li>
+<li>降低维护Jenkins Pipeline的成本</li>
+<li>促进组织内CI&#x2F;CD最佳实践的采用</li>
+<li>简化复杂部署流程的实现</li>
+</ul>
+<p>随着DevOps实践的持续演进，共享库也将不断发展。未来的趋势可能包括：</p>
+<ol>
+<li>更深入的测试框架集成</li>
+<li>与云原生技术的进一步整合</li>
+<li>更丰富的预构建库和社区共享</li>
+<li>更先进的版本管理和兼容性解决方案</li>
+</ol>
+<p>通过持续改进共享库实践，团队可以不断提升CI&#x2F;CD能力，更好地支持快速、可靠的软件交付。</p>
+<blockquote>
+<p>[!TIP] 建议<br>从小处着手，逐步构建共享库。先识别最常重复的Pipeline模式，将其提取为共享函数，然后随着经验积累扩展库的功能。定期收集团队反馈，持续优化，使共享库真正成为团队效率的倍增器。</p>
+</blockquote>
+<h2 id="参考资源"><a href="#参考资源" class="headerlink" title="参考资源"></a>参考资源</h2><ol>
+<li><a target="_blank" rel="noopener" href="https://www.jenkins.io/doc/book/pipeline/shared-libraries/">Jenkins 共享库官方文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.jenkins.io/doc/book/pipeline/syntax/">Jenkins Pipeline 语法参考</a></li>
+<li><a target="_blank" rel="noopener" href="https://groovy-lang.org/documentation.html">Groovy 语言文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/jenkinsci/JenkinsPipelineUnit">JenkinsPipelineUnit 测试框架</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.jenkins.io/blog/2017/10/02/pipeline-templates-with-shared-libraries/">Jenkins 共享库最佳实践博客</a></li>
+</ol>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/p/vjLRVYO1JSNB/">https://zeek-zhao.github.io/p/vjLRVYO1JSNB/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的学习与成长</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/devops/">devops</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/p/IWsbyxVNxtw1/" title="devops-jenkins插件全指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">devops-jenkins插件全指南</div></div><div class="info-2"><div class="info-item-1">devops-jenkins插件全指南Jenkins的强大之处在于其丰富的插件生态系统，本文将全面介绍Jenkins插件的分类、获取、配置和管理最佳实践。   一、Jenkins插件生态概述Jenkins拥有超过1800个插件，这些插件极大地扩展了Jenkins的功能，使其能够与几乎所有开发、测试和部署工具集成。 mindmap   root((Jenkins插件生态))     构建工具       Maven       Gradle       Ant       NPM     源代码管理       Git       SVN       GitHub       GitLab       Bitbucket     测试与质量       JUnit       SonarQube       Jacoco       Cobertura     部署与容器化       Docker       Kubernetes       AWS       Azure     通知与报告       Email       Slack       Teams       报...</div></div></div></a><a class="pagination-related" href="/p/ljItmVrRPtTK/" title="devops-jenkins与pipeline集成指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">devops-jenkins与pipeline集成指南</div></div><div class="info-2"><div class="info-item-1">devops-jenkins与pipeline集成指南文章摘要本文全面介绍Jenkins Pipeline的核心概念、配置方法、语法规则和最佳实践，从基础入门到高级主题，帮助团队构建高效、可靠的CI&#x2F;CD流水线。内容包括Pipeline类型对比、Jenkinsfile结构解析、共享库开发、多分支Pipeline配置、与Docker集成以及真实场景案例展示，适合DevOps工程师、Jenkins管理员和开发人员阅读参考。   1. Pipeline简介与核心理念1.1 什么是Jenkins PipelineJenkins Pipeline是一套插件，支持在Jenkins中实现和集成持续交付流水线。Pipeline提供了一组可扩展的工具，用于通过Pipeline DSL将简单到复杂的交付流水线建模为”代码”。 graph LR     A[传统Jenkins作业] --&gt;|演变| B[Pipeline作业]     B --&gt;|优势| C[版本控制]     B --&gt;|优势| D[代码复用]     B --&gt;|优势| E[可视化界面]     B...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/p/FKRr3MMcI5mK/" title="devops-dnsmasq-开发指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">devops-dnsmasq-开发指南</div></div><div class="info-2"><div class="info-item-1">devops-dnsmasq-开发指南1. Dnsmasq 简介Dnsmasq 是一个轻量级、易于配置的 DNS 转发器和 DHCP 服务器，专为小型网络设计。它提供 DNS 缓存功能，可以从上游 DNS 服务器获取记录并缓存，从而加快后续查询速度。同时，它还提供 DHCP 服务、TFTP 服务和 PXE（网络启动）支持。 1.1 Dnsmasq 的主要功能mindmap   root((Dnsmasq功能))     DNS服务       DNS转发       本地DNS记录       DNS缓存       DNS查询过滤       DNSSEC支持       正向/反向查询     DHCP服务       IP地址分配       静态IP绑定       DHCP选项       租约管理       地址池配置     PXE网络启动       启动文件服务       启动菜单配置       网络安装支持     TFTP服务       文件传输       配置管理       引导加载     IPv6支持       IPv6 DNS     ...</div></div></div></a><a class="pagination-related" href="/p/ZfaX4vV9VU5o/" title="devops-jenkins与gerrit集成指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">devops-jenkins与gerrit集成指南</div></div><div class="info-2"><div class="info-item-1">devops-jenkins与gerrit集成指南文章摘要本文详细介绍了Jenkins与Gerrit代码审查系统的集成配置及最佳实践，通过自动化构建验证提升代码审查效率。文章涵盖了两种集成方式（Gerrit触发器插件和Webhook机制），并提供了完整的配置步骤、工作流程、权限管理及问题排查方案，帮助团队建立高效的代码审查与持续集成流程。   1. 集成背景与价值1.1 为什么集成Jenkins和Gerrit在现代软件开发中，代码审查和持续集成是保障代码质量的两大关键环节。Gerrit提供精细的代码审查功能，而Jenkins则专注于自动化构建和测试。将二者集成可以实现： mindmap   root((Jenkins+Gerrit集成价值))     自动化构建验证       提交即触发构建       无需手动启动构建       验证结果自动反馈     提升代码质量       构建失败自动通知       测试覆盖率实时反馈       静态代码分析集成     加速审查流程       消除手动验证步骤       审查人专注代码逻辑       构建问题提前发现  ...</div></div></div></a><a class="pagination-related" href="/p/L375vzHctrrk/" title="devops-jira-开发指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">devops-jira-开发指南</div></div><div class="info-2"><div class="info-item-1">devops-jira-开发指南1. Jira 简介Jira 是 Atlassian 公司开发的一款专业的项目管理和问题跟踪工具，广泛应用于软件开发、项目管理、需求管理、任务跟踪等领域。Jira 的灵活性和可扩展性使其成为企业级项目管理的首选工具之一。 1.1 Jira 核心功能mindmap   root((Jira核心功能))     项目管理       项目创建与配置       项目组合管理       项目类型定制       看板和冲刺     问题跟踪       问题类型管理       工作流自定义       字段配置       状态转换     敏捷开发       Scrum管理       看板方法       冲刺计划       团队报告     报告分析       仪表板       图表与报告       时间跟踪       趋势分析     用户与权限       用户管理       组与角色       权限方案       安全管理     集成与扩展       REST API       插件开发       第三方集成  ...</div></div></div></a><a class="pagination-related" href="/p/IWsbyxVNxtw1/" title="devops-jenkins插件全指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">devops-jenkins插件全指南</div></div><div class="info-2"><div class="info-item-1">devops-jenkins插件全指南Jenkins的强大之处在于其丰富的插件生态系统，本文将全面介绍Jenkins插件的分类、获取、配置和管理最佳实践。   一、Jenkins插件生态概述Jenkins拥有超过1800个插件，这些插件极大地扩展了Jenkins的功能，使其能够与几乎所有开发、测试和部署工具集成。 mindmap   root((Jenkins插件生态))     构建工具       Maven       Gradle       Ant       NPM     源代码管理       Git       SVN       GitHub       GitLab       Bitbucket     测试与质量       JUnit       SonarQube       Jacoco       Cobertura     部署与容器化       Docker       Kubernetes       AWS       Azure     通知与报告       Email       Slack       Teams       报...</div></div></div></a><a class="pagination-related" href="/p/q4vGTBC8RoRM/" title="devops-gerrit企业级部署方案"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">devops-gerrit企业级部署方案</div></div><div class="info-2"><div class="info-item-1">devops-gerrit企业级部署方案文章摘要本文提供了Gerrit代码审查系统的企业级部署方案，包括多服务器部署架构、跨国同步机制、高可用保障和完整备份策略，适用于大型跨国企业的DevOps基础设施建设。   1. 项目背景与需求分析1.1 背景介绍Gerrit是基于Git的代码审查工具，可以帮助开发团队提高代码质量，加强协作。在全球化企业环境中，我们需要部署一套高性能、高可用的Gerrit服务，支持多区域、多团队的协同开发。 1.2 核心需求 多地域部署：支持亚洲、欧洲、北美多区域办公室访问 高可用性：确保99.9%以上的服务可用性 数据同步：各区域数据近实时同步 灾备恢复：完善的备份与恢复机制 性能优化：快速响应全球各地请求 访问控制：精细的权限管理    2. 总体架构设计2.1 全球部署架构flowchart TB     subgraph 亚太区域[&quot;亚太区域 (新加坡)&quot;]         direction TB         AP_LB[负载均衡器]         AP_G1[Gerrit主节点]         AP_G2[Gerri...</div></div></div></a><a class="pagination-related" href="/p/wCXgmMqvSxNS/" title="devops-nexus3-开发指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">devops-nexus3-开发指南</div></div><div class="info-2"><div class="info-item-1">devops-nexus3-开发指南1. Nexus Repository Manager 简介Nexus Repository Manager 是由 Sonatype 开发的一款功能强大的仓库管理器。它是一个多格式制品仓库，支持管理各种类型的软件构建制品，包括 Maven、npm、Docker、NuGet、PyPI 等。Nexus 3 是其完全重写的版本，基于 Eclipse 的 OSGi 框架和 OrientDB 图数据库构建，提供了更好的性能和扩展性。 1.1 核心功能mindmap   root((Nexus3核心功能))     多格式仓库       Maven       npm       Docker       NuGet       PyPI       Ruby Gems       Bower       Raw       Apt       Yum     仓库管理       代理仓库       托管仓库       组仓库       清理策略       安全控制     系统集成       REST API       CI/CD工具集成...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek</div><div class="author-info-description">记录知识管理、项目实践与个人成长的持续过程。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">128</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">20</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="Github"><i class="fab fa-github"></i></a><a class="social-icon" href="/zeek.zhao@outlook.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#devops-jenkins%E5%85%B1%E4%BA%AB%E5%BA%93%E5%AE%9E%E8%B7%B5%E6%8C%87%E5%8D%97"><span class="toc-number">1.</span> <span class="toc-text">devops-jenkins共享库实践指南</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%96%87%E7%AB%A0%E6%91%98%E8%A6%81"><span class="toc-number">1.1.</span> <span class="toc-text">文章摘要</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E5%85%B1%E4%BA%AB%E5%BA%93-Shared-Libraries-%E7%AE%80%E4%BB%8B"><span class="toc-number">1.2.</span> <span class="toc-text">1. 共享库(Shared Libraries)简介</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E4%BB%80%E4%B9%88%E6%98%AFJenkins%E5%85%B1%E4%BA%AB%E5%BA%93"><span class="toc-number">1.2.1.</span> <span class="toc-text">1.1 什么是Jenkins共享库</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E5%85%B1%E4%BA%AB%E5%BA%93%E7%9A%84%E6%A0%B8%E5%BF%83%E4%BB%B7%E5%80%BC"><span class="toc-number">1.2.2.</span> <span class="toc-text">1.2 共享库的核心价值</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E4%B8%8E%E4%BC%A0%E7%BB%9F%E6%96%B9%E5%BC%8F%E5%AF%B9%E6%AF%94"><span class="toc-number">1.2.3.</span> <span class="toc-text">1.3 与传统方式对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%85%B1%E4%BA%AB%E5%BA%93%E5%9F%BA%E6%9C%AC%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BB%84%E6%88%90"><span class="toc-number">1.3.</span> <span class="toc-text">2. 共享库基本结构与组成</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E7%9B%AE%E5%BD%95%E7%BB%93%E6%9E%84%E8%AF%B4%E6%98%8E"><span class="toc-number">1.3.1.</span> <span class="toc-text">2.1 目录结构说明</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%90%84%E7%9B%AE%E5%BD%95%E7%94%A8%E9%80%94%E8%AF%A6%E8%A7%A3"><span class="toc-number">1.3.2.</span> <span class="toc-text">2.2 各目录用途详解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2-1-vars%E7%9B%AE%E5%BD%95"><span class="toc-number">1.3.2.1.</span> <span class="toc-text">2.2.1 vars目录</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2-2-src%E7%9B%AE%E5%BD%95"><span class="toc-number">1.3.2.2.</span> <span class="toc-text">2.2.2 src目录</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2-3-resources%E7%9B%AE%E5%BD%95"><span class="toc-number">1.3.2.3.</span> <span class="toc-text">2.2.3 resources目录</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E5%85%B1%E4%BA%AB%E5%BA%93%E7%B1%BB%E5%9E%8B%E4%B8%8E%E4%BD%9C%E7%94%A8%E5%9F%9F"><span class="toc-number">1.3.3.</span> <span class="toc-text">2.3 共享库类型与作用域</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E9%85%8D%E7%BD%AE%E4%B8%8E%E7%AE%A1%E7%90%86%E5%85%B1%E4%BA%AB%E5%BA%93"><span class="toc-number">1.4.</span> <span class="toc-text">3. 配置与管理共享库</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E5%9C%A8Jenkins%E4%B8%AD%E9%85%8D%E7%BD%AE%E5%85%B1%E4%BA%AB%E5%BA%93"><span class="toc-number">1.4.1.</span> <span class="toc-text">3.1 在Jenkins中配置共享库</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-1-%E5%85%A8%E5%B1%80%E7%BA%A7%E5%88%AB%E9%85%8D%E7%BD%AE"><span class="toc-number">1.4.1.1.</span> <span class="toc-text">3.1.1 全局级别配置</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-2-%E6%96%87%E4%BB%B6%E5%A4%B9%E7%BA%A7%E5%88%AB%E9%85%8D%E7%BD%AE"><span class="toc-number">1.4.1.2.</span> <span class="toc-text">3.1.2 文件夹级别配置</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-3-%E9%A1%B9%E7%9B%AE%E7%BA%A7%E5%88%AB%E5%BC%95%E7%94%A8"><span class="toc-number">1.4.1.3.</span> <span class="toc-text">3.1.3 项目级别引用</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E7%89%88%E6%9C%AC%E6%8E%A7%E5%88%B6%E4%B8%8E%E7%AE%A1%E7%90%86%E7%AD%96%E7%95%A5"><span class="toc-number">1.4.2.</span> <span class="toc-text">3.2 版本控制与管理策略</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%AE%89%E5%85%A8%E6%80%A7%E4%B8%8E%E6%9D%83%E9%99%90%E8%80%83%E9%87%8F"><span class="toc-number">1.4.3.</span> <span class="toc-text">3.3 安全性与权限考量</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%BC%80%E5%8F%91%E5%85%B1%E4%BA%AB%E5%BA%93%E4%BB%A3%E7%A0%81"><span class="toc-number">1.5.</span> <span class="toc-text">4. 开发共享库代码</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E7%BC%96%E5%86%99%E5%9F%BA%E7%A1%80%E5%85%B1%E4%BA%AB%E5%BA%93%E5%87%BD%E6%95%B0"><span class="toc-number">1.5.1.</span> <span class="toc-text">4.1 编写基础共享库函数</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#4-1-1-vars%E7%9B%AE%E5%BD%95%E4%B8%8B%E7%9A%84%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F"><span class="toc-number">1.5.1.1.</span> <span class="toc-text">4.1.1 vars目录下的全局变量</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-1-2-%E5%8F%82%E6%95%B0%E5%8C%96%E7%9A%84%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F"><span class="toc-number">1.5.1.2.</span> <span class="toc-text">4.1.2 参数化的全局变量</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-1-3-%E8%BF%94%E5%9B%9E%E5%80%BC%E5%92%8CPipeline%E6%AD%A5%E9%AA%A4"><span class="toc-number">1.5.1.3.</span> <span class="toc-text">4.1.3 返回值和Pipeline步骤</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E5%BC%80%E5%8F%91src%E7%9B%AE%E5%BD%95%E4%B8%AD%E7%9A%84%E7%B1%BB"><span class="toc-number">1.5.2.</span> <span class="toc-text">4.2 开发src目录中的类</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#4-2-1-%E5%9F%BA%E7%A1%80%E7%B1%BB%E5%92%8C%E6%96%B9%E6%B3%95"><span class="toc-number">1.5.2.1.</span> <span class="toc-text">4.2.1 基础类和方法</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-2-2-%E9%9D%A2%E5%90%91%E5%AF%B9%E8%B1%A1%E7%BC%96%E7%A8%8B"><span class="toc-number">1.5.2.2.</span> <span class="toc-text">4.2.2 面向对象编程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E5%8A%A0%E8%BD%BDresources%E8%B5%84%E6%BA%90"><span class="toc-number">1.5.3.</span> <span class="toc-text">4.3 加载resources资源</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E9%AB%98%E7%BA%A7%E5%85%B1%E4%BA%AB%E5%BA%93%E6%8A%80%E5%B7%A7"><span class="toc-number">1.6.</span> <span class="toc-text">5. 高级共享库技巧</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E5%88%9B%E5%BB%BADSL%E5%92%8C%E6%B5%81%E6%B0%B4%E7%BA%BF%E6%9E%84%E5%BB%BA%E5%99%A8"><span class="toc-number">1.6.1.</span> <span class="toc-text">5.1 创建DSL和流水线构建器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E5%A4%9A%E5%B1%82%E7%BA%A7%E6%8A%BD%E8%B1%A1%E5%92%8C%E5%A4%8D%E5%90%88%E6%AD%A5%E9%AA%A4"><span class="toc-number">1.6.2.</span> <span class="toc-text">5.2 多层级抽象和复合步骤</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-%E9%94%99%E8%AF%AF%E5%A4%84%E7%90%86%E4%B8%8E%E6%97%A5%E5%BF%97%E7%AE%A1%E7%90%86"><span class="toc-number">1.6.3.</span> <span class="toc-text">5.3 错误处理与日志管理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-4-%E4%B8%8E%E5%A4%96%E9%83%A8%E7%B3%BB%E7%BB%9F%E4%BA%A4%E4%BA%92"><span class="toc-number">1.6.4.</span> <span class="toc-text">5.4 与外部系统交互</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E6%B5%8B%E8%AF%95%E4%B8%8E%E8%B0%83%E8%AF%95%E5%85%B1%E4%BA%AB%E5%BA%93"><span class="toc-number">1.7.</span> <span class="toc-text">6. 测试与调试共享库</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95%E5%85%B1%E4%BA%AB%E5%BA%93%E4%BB%A3%E7%A0%81"><span class="toc-number">1.7.1.</span> <span class="toc-text">6.1 单元测试共享库代码</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#6-1-1-%E4%BD%BF%E7%94%A8JenkinsPipelineUnit%E6%A1%86%E6%9E%B6"><span class="toc-number">1.7.1.1.</span> <span class="toc-text">6.1.1 使用JenkinsPipelineUnit框架</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#6-1-2-%E4%BD%BF%E7%94%A8Spock%E6%B5%8B%E8%AF%95%E6%A1%86%E6%9E%B6"><span class="toc-number">1.7.1.2.</span> <span class="toc-text">6.1.2 使用Spock测试框架</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E8%B0%83%E8%AF%95%E5%85%B1%E4%BA%AB%E5%BA%93%E6%8A%80%E5%B7%A7"><span class="toc-number">1.7.2.</span> <span class="toc-text">6.2 调试共享库技巧</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#6-2-1-%E6%9C%AC%E5%9C%B0%E5%BC%80%E5%8F%91%E5%92%8C%E6%B5%8B%E8%AF%95"><span class="toc-number">1.7.2.1.</span> <span class="toc-text">6.2.1 本地开发和测试</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#6-2-2-%E6%89%93%E5%8D%B0%E8%B0%83%E8%AF%95%E4%BF%A1%E6%81%AF"><span class="toc-number">1.7.2.2.</span> <span class="toc-text">6.2.2 打印调试信息</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#6-2-3-%E4%BD%BF%E7%94%A8%E5%BC%80%E5%8F%91%E5%88%86%E6%94%AF"><span class="toc-number">1.7.2.3.</span> <span class="toc-text">6.2.3 使用开发分支</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E5%92%8C%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.7.3.</span> <span class="toc-text">6.3 故障排查和常见问题</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%AE%9E%E9%99%85%E5%BA%94%E7%94%A8%E6%A1%88%E4%BE%8B"><span class="toc-number">1.8.</span> <span class="toc-text">7. 实际应用案例</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%9E%84%E5%BB%BA%E6%B5%81%E6%B0%B4%E7%BA%BF%E6%A0%87%E5%87%86%E5%8C%96"><span class="toc-number">1.8.1.</span> <span class="toc-text">7.1 构建流水线标准化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E9%83%A8%E7%BD%B2%E8%87%AA%E5%8A%A8%E5%8C%96"><span class="toc-number">1.8.2.</span> <span class="toc-text">7.2 微服务部署自动化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E5%A4%8D%E6%9D%82%E9%83%A8%E7%BD%B2%E7%AD%96%E7%95%A5%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.8.3.</span> <span class="toc-text">7.3 复杂部署策略实现</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5%E4%B8%8E%E7%BB%93%E8%AE%BA"><span class="toc-number">1.9.</span> <span class="toc-text">8. 最佳实践与结论</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#8-1-%E5%85%B1%E4%BA%AB%E5%BA%93%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99"><span class="toc-number">1.9.1.</span> <span class="toc-text">8.1 共享库设计原则</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#8-2-%E5%85%B1%E4%BA%AB%E5%BA%93%E7%AE%A1%E7%90%86%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="toc-number">1.9.2.</span> <span class="toc-text">8.2 共享库管理最佳实践</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#8-3-%E5%B0%8F%E7%BB%93%E4%B8%8E%E5%B1%95%E6%9C%9B"><span class="toc-number">1.9.3.</span> <span class="toc-text">8.3 小结与展望</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%BA%90"><span class="toc-number">1.10.</span> <span class="toc-text">参考资源</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/rru5P0RkLmUF/" title="iot-index">iot-index</a><time datetime="2026-05-29T12:48:08.200Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/MbWgYzuEQAg7/" title="iot-esp32开发指南">iot-esp32开发指南</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/u8hEXDRsQRRC/" title="iot-树莓派与openmv集成指南">iot-树莓派与openmv集成指南</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/1BrlXS9KPiTd/" title="iot-传感器技术详解">iot-传感器技术详解</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/wdVSgejL7Pmy/" title="iot-常用资源链接">iot-常用资源链接</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div><div class="footer_custom_text">基于 Obsidian + Hexo 持续迭代</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.iife.min.js"></script><div class="js-pjax"></div><script src="/js/mermaid-plaintext-compat.js"></script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div><!-- hexo injector body_end start -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    mermaid.initialize({"startOnLoad":true,"theme":"default"});
+  });
+</script>
+<!-- hexo injector body_end end --><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/miku.model.json"},"display":{"position":"right","width":300,"height":400},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body></html>

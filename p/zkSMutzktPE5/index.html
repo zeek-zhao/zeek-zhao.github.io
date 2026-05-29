@@ -1,0 +1,300 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>13-Kubernetes集群安全机制 | Zeek 的学习与成长</title><meta name="author" content="Zeek"><meta name="copyright" content="Zeek"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="13-Kubernetes集群安全机制概述当我们访问K8S集群时，需要经过三个步骤完成具体操作  认证 鉴权【授权】 准入控制  进行访问的时候，都需要经过 apiserver， apiserver做统一协调，比如门卫  访问过程中，需要证书、token、或者用户名和密码 如果访问pod需要serviceAccount   认证对外不暴露8080端口，只能内部访问，对外使用的端口6443 客户端身">
+<meta property="og:type" content="article">
+<meta property="og:title" content="13-Kubernetes集群安全机制">
+<meta property="og:url" content="https://zeek-zhao.github.io/p/zkSMutzktPE5/index.html">
+<meta property="og:site_name" content="Zeek 的学习与成长">
+<meta property="og:description" content="13-Kubernetes集群安全机制概述当我们访问K8S集群时，需要经过三个步骤完成具体操作  认证 鉴权【授权】 准入控制  进行访问的时候，都需要经过 apiserver， apiserver做统一协调，比如门卫  访问过程中，需要证书、token、或者用户名和密码 如果访问pod需要serviceAccount   认证对外不暴露8080端口，只能内部访问，对外使用的端口6443 客户端身">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-05-29T12:48:08.183Z">
+<meta property="article:modified_time" content="2026-05-12T16:00:00.000Z">
+<meta property="article:author" content="Zeek">
+<meta property="article:tag" content="kubernetes">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "13-Kubernetes集群安全机制",
+  "url": "https://zeek-zhao.github.io/p/zkSMutzktPE5/",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-05-29T12:48:08.183Z",
+  "dateModified": "2026-05-12T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.svg"><link rel="canonical" href="https://zeek-zhao.github.io/p/zkSMutzktPE5/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '13-Kubernetes集群安全机制',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">128</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">20</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> 目录</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div></div></div><div class="post type-kubernetes" id="body-wrap"><header class="post-bg fixed" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的学习与成长</span></a><a class="nav-page-title" href="/"><span class="site-name">13-Kubernetes集群安全机制</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> 目录</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">13-Kubernetes集群安全机制</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-29T12:48:08.183Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-12T16:00:00.000Z" title="更新于 2026-05-13 00:00:00">2026-05-13</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Devops/">Devops</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Devops/kubernetes/">kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="13-Kubernetes集群安全机制"><a href="#13-Kubernetes集群安全机制" class="headerlink" title="13-Kubernetes集群安全机制"></a>13-Kubernetes集群安全机制</h1><h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>当我们访问K8S集群时，需要经过三个步骤完成具体操作</p>
+<ul>
+<li>认证</li>
+<li>鉴权【授权】</li>
+<li>准入控制</li>
+</ul>
+<p>进行访问的时候，都需要经过 apiserver， apiserver做统一协调，比如门卫</p>
+<ul>
+<li>访问过程中，需要证书、token、或者用户名和密码</li>
+<li>如果访问pod需要serviceAccount</li>
+</ul>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118092356107.png" alt="image-20201118092356107"></p>
+<h3 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h3><p>对外不暴露8080端口，只能内部访问，对外使用的端口6443</p>
+<p>客户端身份认证常用方式</p>
+<ul>
+<li>https证书认证，基于ca证书</li>
+<li>http token认证，通过token来识别用户</li>
+<li>http基本认证，用户名 + 密码认证</li>
+</ul>
+<h3 id="鉴权"><a href="#鉴权" class="headerlink" title="鉴权"></a>鉴权</h3><p>基于RBAC进行鉴权操作</p>
+<p>基于角色访问控制</p>
+<h3 id="准入控制"><a href="#准入控制" class="headerlink" title="准入控制"></a>准入控制</h3><p>就是准入控制器的列表，如果列表有请求内容就通过，没有的话 就拒绝</p>
+<h2 id="RBAC介绍"><a href="#RBAC介绍" class="headerlink" title="RBAC介绍"></a>RBAC介绍</h2><p>基于角色的访问控制，为某个角色设置访问内容，然后用户分配该角色后，就拥有该角色的访问权限</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118093949893.png" alt="image-20201118093949893"></p>
+<p>k8s中有默认的几个角色</p>
+<ul>
+<li>role：特定命名空间访问权限</li>
+<li>ClusterRole：所有命名空间的访问权限</li>
+</ul>
+<p>角色绑定</p>
+<ul>
+<li>roleBinding：角色绑定到主体</li>
+<li>ClusterRoleBinding：集群角色绑定到主体</li>
+</ul>
+<p>主体</p>
+<ul>
+<li>user：用户</li>
+<li>group：用户组</li>
+<li>serviceAccount：服务账号</li>
+</ul>
+<h2 id="RBAC实现鉴权"><a href="#RBAC实现鉴权" class="headerlink" title="RBAC实现鉴权"></a>RBAC实现鉴权</h2><ul>
+<li>创建命名空间</li>
+</ul>
+<h3 id="创建命名空间"><a href="#创建命名空间" class="headerlink" title="创建命名空间"></a>创建命名空间</h3><p>我们可以首先查看已经存在的命名空间</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubectl get namespace<br></code></pre></td></tr></table></figure>
+
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118094516426.png" alt="image-20201118094516426"></p>
+<p>然后我们创建一个自己的命名空间  roledemo</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubectl create ns roledemo<br></code></pre></td></tr></table></figure>
+
+<h3 id="命名空间创建Pod"><a href="#命名空间创建Pod" class="headerlink" title="命名空间创建Pod"></a>命名空间创建Pod</h3><p>为什么要创建命名空间？因为如果不创建命名空间的话，默认是在default下</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubectl run nginx --image=nginx -n roledemo<br></code></pre></td></tr></table></figure>
+
+<h3 id="创建角色"><a href="#创建角色" class="headerlink" title="创建角色"></a>创建角色</h3><p>我们通过 rbac-role.yaml进行创建</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118094851338.png" alt="image-20201118094851338"></p>
+<p>tip：这个角色只对pod 有 get、list权限</p>
+<p>然后通过 yaml创建我们的role</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 创建</span><br>kubectl apply -f rbac-role.yaml<br><span class="hljs-comment"># 查看</span><br>kubectl get role -n roledemo<br></code></pre></td></tr></table></figure>
+
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118095141786.png" alt="image-20201118095141786"></p>
+<h3 id="创建角色绑定"><a href="#创建角色绑定" class="headerlink" title="创建角色绑定"></a>创建角色绑定</h3><p>我们还是通过 role-rolebinding.yaml 的方式，来创建我们的角色绑定</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118095248052.png" alt="image-20201118095248052"></p>
+<p>然后创建我们的角色绑定</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 创建角色绑定</span><br>kubectl apply -f rbac-rolebinding.yaml<br><span class="hljs-comment"># 查看角色绑定</span><br>kubectl get role, rolebinding -n roledemo<br></code></pre></td></tr></table></figure>
+
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118095357067.png" alt="image-20201118095357067"></p>
+<h3 id="使用证书识别身份"><a href="#使用证书识别身份" class="headerlink" title="使用证书识别身份"></a>使用证书识别身份</h3><p>我们首先得有一个 rbac-user.sh 证书脚本</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118095541427.png" alt="image-20201118095541427"></p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118095627954.png" alt="image-20201118095627954"></p>
+<p>这里包含了很多证书文件，在TSL目录下，需要复制过来</p>
+<p>通过下面命令执行我们的脚本</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">./rbac-user.sh<br></code></pre></td></tr></table></figure>
+
+<p>最后我们进行测试</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 用get命令查看 pod 【有权限】</span><br>kubectl get pods -n roledemo<br><span class="hljs-comment"># 用get命令查看svc 【没权限】</span><br>kubectl get svc -n roledmeo<br></code></pre></td></tr></table></figure>
+
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201118100051043.png" alt="image-20201118100051043"></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/p/zkSMutzktPE5/">https://zeek-zhao.github.io/p/zkSMutzktPE5/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的学习与成长</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/kubernetes/">kubernetes</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/p/RJICHtOzRpUd/" title="14-Kubernetes核心技术Ingress"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">14-Kubernetes核心技术Ingress</div></div><div class="info-2"><div class="info-item-1">14-Kubernetes核心技术Ingress前言原来我们需要将端口号对外暴露，通过 ip + 端口号就可以进行访问 原来是使用Service中的NodePort来实现  在每个节点上都会启动端口 在访问的时候通过任何节点，通过ip + 端口号就能实现访问  但是NodePort还存在一些缺陷  因为端口不能重复，所以每个端口只能使用一次，一个端口对应一个应用 实际访问中都是用域名，根据不同域名跳转到不同端口服务中  Ingress和Pod关系pod 和 ingress 是通过service进行关联的，而ingress作为统一入口，由service关联一组pod中   首先service就是关联我们的pod 然后ingress作为入口，首先需要到service，然后发现一组pod 发现pod后，就可以做负载均衡等操作  Ingress工作流程在实际的访问中，我们都是需要维护很多域名， a.com  和  b.com 然后不同的域名对应的不同的Service，然后service管理不同的pod  需要注意，ingress不是内置的组件，需要我们单独的安装 使用Ingress步骤如...</div></div></div></a><a class="pagination-related" href="/p/K4gDfvXlKpXq/" title="11-Kubernetes控制器Controller详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">11-Kubernetes控制器Controller详解</div></div><div class="info-2"><div class="info-item-1">11-Kubernetes控制器Controller详解StatefulsetStatefulset主要是用来部署有状态应用 对于StatefulSet中的Pod，每个Pod挂载自己独立的存储，如果一个Pod出现故障，从其他节点启动一个同样名字的Pod，要挂载上原来Pod的存储继续以它的状态提供服务。 无状态应用我们原来使用 deployment，部署的都是无状态的应用，那什么是无状态应用？  认为Pod都是一样的 没有顺序要求 不考虑应用在哪个node上运行 能够进行随意伸缩和扩展  有状态应用上述的因素都需要考虑到  让每个Pod独立的 让每个Pod独立的，保持Pod启动顺序和唯一性 唯一的网络标识符，持久存储 有序，比如mysql中的主从  适合StatefulSet的业务包括数据库服务MySQL 和 PostgreSQL，集群化管理服务Zookeeper、etcd等有状态服务 StatefulSet的另一种典型应用场景是作为一种比普通容器更稳定可靠的模拟虚拟机的机制。传统的虚拟机正是一种有状态的宠物，运维人员需要不断地维护它，容器刚开始流行时，我们用容器来模拟虚拟机使用，...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/p/8y3g7O1rsZ7i/" title="20-Kubernetes可视化界面kubesphere"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">20-Kubernetes可视化界面kubesphere</div></div><div class="info-2"><div class="info-item-1">20-Kubernetes可视化界面kubesphere前言Kubernetes也提供了默认的dashboard页面，但是功能不是很强大，这里就不使用了 而是采用Kubesphere大桶全部的devops链路，通过kubesphere集成了很多套件  https://kubesphere.io/zh/ ：集群要求高 https://kuboard.cn/：kuboard也不错，集群要求不高【轻量级】  简介KubeSphere是一款面向云原生设计的开源项目，在目前主流容器调度平台Kubernetes之上构建的分布式多租户容器管理平台，提供简单易用的操作界面以及向导式操作方式，在降低用户使用容器调度平台学习成本的同时，极大降低开发、测试、运维的日常工作的复杂度。 安装前提条件https://kubesphere.com.cn/docs/quick-start/minimal-kubesphere-on-k8s/  Kubernetes 版本必须为 “1.15.x，1.16.x，1.17.x 或 1.18.x”； 确保您的计算机满足最低硬件要求：CPU &gt; 1 核，内存 &gt...</div></div></div></a><a class="pagination-related" href="/p/1Icu8I9gpCkL/" title="15-Kubernetes核心技术Helm"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">15-Kubernetes核心技术Helm</div></div><div class="info-2"><div class="info-item-1">15-Kubernetes核心技术HelmHelm就是一个包管理工具【类似于npm】  为什么引入Helm首先在原来项目中都是基于yaml文件来进行部署发布的，而目前项目大部分微服务化或者模块化，会分成很多个组件来部署，每个组件可能对应一个deployment.yaml,一个service.yaml,一个Ingress.yaml还可能存在各种依赖关系，这样一个项目如果有5个组件，很可能就有15个不同的yaml文件，这些yaml分散存放，如果某天进行项目恢复的话，很难知道部署顺序，依赖关系等，而所有这些包括  基于yaml配置的集中存放 基于项目的打包 组件间的依赖  但是这种方式部署，会有什么问题呢？  如果使用之前部署单一应用，少数服务的应用，比较合适 但如果部署微服务项目，可能有几十个服务，每个服务都有一套yaml文件，需要维护大量的yaml文件，版本管理特别不方便  Helm的引入，就是为了解决这个问题  使用Helm可以把这些YAML文件作为整体管理 实现YAML文件高效复用 使用helm应用级别的版本管理  Helm介绍Helm是一个Kubernetes的包管理工具，就...</div></div></div></a><a class="pagination-related" href="/p/auTC77Ig5Gep/" title="16-Kubernetes持久化存储"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">16-Kubernetes持久化存储</div></div><div class="info-2"><div class="info-item-1">16-Kubernetes持久化存储前言之前我们有提到数据卷：emptydir ，是本地存储，pod重启，数据就不存在了，需要对数据持久化存储 对于数据持久化存储【pod重启，数据还存在】，有两种方式  nfs：网络存储【通过一台服务器来存储】  步骤持久化服务器上操作 找一台新的服务器nfs服务端，安装nfs 设置挂载路径  使用命令安装nfs yum install -y nfs-utils  首先创建存放数据的目录 mkdir -p /data/nfx  设置挂载路径 # 打开文件vim /etc/exports# 添加如下内容/data/nfs *(rw,no_root_squash)  执行完成后，即部署完我们的持久化服务器 Node节点上操作然后需要在k8s集群node节点上安装nfs，这里需要在 node1 和 node2节点上安装 yum install -y nfs-utils  执行完成后，会自动帮我们挂载上 启动nfs服务端下面我们回到nfs服务端，启动我们的nfs服务 systemctl start nfs   K8s集群部署应用最后我们在k8s集群上部署...</div></div></div></a><a class="pagination-related" href="/p/ZDvcRTSjuW8I/" title="12-Kubernetes配置管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">12-Kubernetes配置管理</div></div><div class="info-2"><div class="info-item-1">12-Kubernetes配置管理SecretSecret的主要作用就是加密数据，然后存在etcd里面，让Pod容器以挂载Volume方式进行访问 场景：用户名 和 密码进行加密 一般场景的是对某个字符串进行base64编码 进行加密 echo -n &#x27;admin&#x27; | base64   变量形式挂载到Pod 创建secret加密数据的yaml文件    secret.yaml   然后使用下面命令创建一个pod kubectl create -f secret.yaml  通过get命令查看 kubectl get pods   然后我们通过下面的命令，进入到我们的容器内部 kubectl exec -it mypod bash  然后我们就可以输出我们的值，这就是以变量的形式挂载到我们的容器中 # 输出用户echo $SECRET_USERNAME# 输出密码echo $SECRET_PASSWORD   最后如果我们要删除这个Pod，就可以使用这个命令 kubectl delete -f secret-val.yaml  数据卷形式挂载首先我们创建一个 ...</div></div></div></a><a class="pagination-related" href="/p/olB4W8tb8lnO/" title="7-Kubernetes集群YAML文件详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">7-Kubernetes集群YAML文件详解</div></div><div class="info-2"><div class="info-item-1">7-Kubernetes集群YAML文件详解概述k8s 集群中对资源管理和资源对象编排部署都可以通过声明样式（YAML）文件来解决，也就是可以把需要对资源对象操作编辑到YAML 格式文件中，我们把这种文件叫做资源清单文件，通过kubectl 命令直接使用资源清单文件就可以实现对大量的资源对象进行编排部署了。一般在我们开发的时候，都是通过配置YAML文件来部署集群的。 YAML文件：就是资源清单文件，用于资源编排 YAML文件介绍YAML概述YAML ：仍是一种标记语言。为了强调这种语言以数据做为中心，而不是以标记语言为重点。 YAML 是一个可读性高，用来表达数据序列的格式。 YAML 基本语法 使用空格做为缩进 缩进的空格数目不重要，只要相同层级的元素左侧对齐即可 低版本缩进时不允许使用Tab 键，只允许使用空格 使用#标识注释，从这个字符一直到行尾，都会被解释器忽略 使用 — 表示新的yaml文件开始  YAML 支持的数据结构对象键值对的集合，又称为映射(mapping) &#x2F; 哈希（hashes） &#x2F; 字典（dictionary） # 对象类型：对象的一...</div></div></div></a><a class="pagination-related" href="/p/ky1TEvVfBjbR/" title="6-Kubernetes集群管理工具kubectl"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">6-Kubernetes集群管理工具kubectl</div></div><div class="info-2"><div class="info-item-1">6-Kubernetes集群管理工具kubectl概述kubectl是Kubernetes集群的命令行工具，通过kubectl能够对集群本身进行管理，并能够在集群上进行容器化应用的安装和部署 命令格式命令格式如下 kubectl [command] [type] [name] [flags]  参数  command：指定要对资源执行的操作，例如create、get、describe、delete type：指定资源类型，资源类型是大小写敏感的，开发者能够以单数 、复数 和 缩略的形式  例如： kubectl get pod pod1kubectl get pods pod1kubectl get po pod1    name：指定资源的名称，名称也是大小写敏感的，如果省略名称，则会显示所有的资源，例如  kubectl get pods   flags：指定可选的参数，例如，可用 -s 或者 -server参数指定Kubernetes API server的地址和端口  常见命令kubectl help 获取更多信息通过 help命令，能够获取帮助信息 # 获取kubect...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek</div><div class="author-info-description">记录知识管理、项目实践与个人成长的持续过程。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">128</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">20</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="Github"><i class="fab fa-github"></i></a><a class="social-icon" href="/zeek.zhao@outlook.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#13-Kubernetes%E9%9B%86%E7%BE%A4%E5%AE%89%E5%85%A8%E6%9C%BA%E5%88%B6"><span class="toc-number">1.</span> <span class="toc-text">13-Kubernetes集群安全机制</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A6%82%E8%BF%B0"><span class="toc-number">1.1.</span> <span class="toc-text">概述</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%AE%A4%E8%AF%81"><span class="toc-number">1.1.1.</span> <span class="toc-text">认证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%89%B4%E6%9D%83"><span class="toc-number">1.1.2.</span> <span class="toc-text">鉴权</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%87%86%E5%85%A5%E6%8E%A7%E5%88%B6"><span class="toc-number">1.1.3.</span> <span class="toc-text">准入控制</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#RBAC%E4%BB%8B%E7%BB%8D"><span class="toc-number">1.2.</span> <span class="toc-text">RBAC介绍</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#RBAC%E5%AE%9E%E7%8E%B0%E9%89%B4%E6%9D%83"><span class="toc-number">1.3.</span> <span class="toc-text">RBAC实现鉴权</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%9B%E5%BB%BA%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4"><span class="toc-number">1.3.1.</span> <span class="toc-text">创建命名空间</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%E5%88%9B%E5%BB%BAPod"><span class="toc-number">1.3.2.</span> <span class="toc-text">命名空间创建Pod</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%9B%E5%BB%BA%E8%A7%92%E8%89%B2"><span class="toc-number">1.3.3.</span> <span class="toc-text">创建角色</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%9B%E5%BB%BA%E8%A7%92%E8%89%B2%E7%BB%91%E5%AE%9A"><span class="toc-number">1.3.4.</span> <span class="toc-text">创建角色绑定</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8%E8%AF%81%E4%B9%A6%E8%AF%86%E5%88%AB%E8%BA%AB%E4%BB%BD"><span class="toc-number">1.3.5.</span> <span class="toc-text">使用证书识别身份</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/rru5P0RkLmUF/" title="iot-index">iot-index</a><time datetime="2026-05-29T12:48:08.200Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/MbWgYzuEQAg7/" title="iot-esp32开发指南">iot-esp32开发指南</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/u8hEXDRsQRRC/" title="iot-树莓派与openmv集成指南">iot-树莓派与openmv集成指南</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/1BrlXS9KPiTd/" title="iot-传感器技术详解">iot-传感器技术详解</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/wdVSgejL7Pmy/" title="iot-常用资源链接">iot-常用资源链接</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div><div class="footer_custom_text">基于 Obsidian + Hexo 持续迭代</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.iife.min.js"></script><div class="js-pjax"></div><script src="/js/mermaid-plaintext-compat.js"></script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div><!-- hexo injector body_end start -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    mermaid.initialize({"startOnLoad":true,"theme":"default"});
+  });
+</script>
+<!-- hexo injector body_end end --><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/miku.model.json"},"display":{"position":"right","width":300,"height":400},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body></html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>52-Kubernetes中的CRI | Zeek 的学习与成长</title><meta name="author" content="Zeek"><meta name="copyright" content="Zeek"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="52-Kubernetes中的CRI前言Kubernetes 节点的底层由一个叫做容器运行时的软件进行支撑，它主要负责启停容器。 Docker 是目前最广为人知的容器运行时软件，但是它并非唯一。在这几年中，容器运行时这个领域发展的迅速。为了使得 Kubernetes 的扩展变得更加容易，一直在打磨支持容器运行时的 K8S插件 API，也就是 容器运行时接口 ( Container Runtime">
+<meta property="og:type" content="article">
+<meta property="og:title" content="52-Kubernetes中的CRI">
+<meta property="og:url" content="https://zeek-zhao.github.io/p/b6IOHFWMj7AA/index.html">
+<meta property="og:site_name" content="Zeek 的学习与成长">
+<meta property="og:description" content="52-Kubernetes中的CRI前言Kubernetes 节点的底层由一个叫做容器运行时的软件进行支撑，它主要负责启停容器。 Docker 是目前最广为人知的容器运行时软件，但是它并非唯一。在这几年中，容器运行时这个领域发展的迅速。为了使得 Kubernetes 的扩展变得更加容易，一直在打磨支持容器运行时的 K8S插件 API，也就是 容器运行时接口 ( Container Runtime">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-05-29T12:48:08.186Z">
+<meta property="article:modified_time" content="2026-05-12T16:00:00.000Z">
+<meta property="article:author" content="Zeek">
+<meta property="article:tag" content="kubernetes">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "52-Kubernetes中的CRI",
+  "url": "https://zeek-zhao.github.io/p/b6IOHFWMj7AA/",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-05-29T12:48:08.186Z",
+  "dateModified": "2026-05-12T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.svg"><link rel="canonical" href="https://zeek-zhao.github.io/p/b6IOHFWMj7AA/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '52-Kubernetes中的CRI',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">128</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">20</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> 目录</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div></div></div><div class="post type-kubernetes" id="body-wrap"><header class="post-bg fixed" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的学习与成长</span></a><a class="nav-page-title" href="/"><span class="site-name">52-Kubernetes中的CRI</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> 目录</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">52-Kubernetes中的CRI</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-29T12:48:08.186Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-12T16:00:00.000Z" title="更新于 2026-05-13 00:00:00">2026-05-13</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Devops/">Devops</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Devops/kubernetes/">kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="52-Kubernetes中的CRI"><a href="#52-Kubernetes中的CRI" class="headerlink" title="52-Kubernetes中的CRI"></a>52-Kubernetes中的CRI</h1><h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p><strong>Kubernetes</strong> 节点的底层由一个叫做<strong>容器运行时</strong>的软件进行支撑，它主要负责启停容器。</p>
+<p><strong>Docker</strong> 是目前最广为人知的容器运行时软件，但是它并非唯一。在这几年中，容器运行时这个领域发展的迅速。为了使得 <strong>Kubernetes</strong> 的扩展变得更加容易，一直在打磨支持容器运行时的 <strong>K8S</strong>插件 <strong>API</strong>，也就是 容器运行时接口 ( Container Runtime Interface, CRI) 。</p>
+<h2 id="k8s架构"><a href="#k8s架构" class="headerlink" title="k8s架构"></a>k8s架构</h2><p>这里通过分析 <strong>k8s</strong> 目前默认的一种容器运行时架构，来帮助我们更好的理解 <strong>k8s</strong> 运行时的背后逻辑，同时引出 <strong>CRI</strong> 和 <strong>OCI</strong> 提出的背景。</p>
+<p>我们在创建 <strong>k8s</strong> 集群的时候，首先需要搭建 <strong>master</strong> 节点，其次需要创建 <strong>node</strong> 节点，并将 <strong>node</strong> 节点加入到 <strong>k8s</strong> 集群中。当我们构建好 <strong>k8s</strong> 集群后，可以通过 下面命令来创建应用对应的pod</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubectl create -f nginx.yml<br></code></pre></td></tr></table></figure>
+
+<p>执行完成后，该命令首先会提交给 <strong>API Server</strong> ，然后解析 <strong>yml</strong> 文件，并对其以 <strong>API</strong> 对象的形式存到 <strong>etcd</strong> 里。</p>
+<p>这时候，<strong>master</strong> 组件中的 <strong>Controller Manager</strong> 会通过控制循环的方式来做编排工作，创建应用所需的Pod。同时 <strong>Scheduler</strong> 会 <strong>watch etcd</strong> 中新 <strong>pod</strong> 的变化，如果他发现有一个新的 <strong>pod</strong> 的变化。</p>
+<p>如果 <strong>Scheduler</strong> 发现有一个新的 <strong>pod</strong> 出现，它会运行调度算法，然后选择出最佳的 <strong>Node</strong> 节点，并将这个节点的名字写到 <strong>pod</strong> 对象的 <strong>NodeName</strong> 字段上，这一步就是所谓的 <strong>Bind Pod to Node</strong>，然后把 <strong>bind</strong> 的结果写到 <strong>etcd</strong>。</p>
+<p>其次，当我们在构建 <strong>k8s</strong> 集群的时候，默认每个节点都会初始化创建一个 <strong>kubectl</strong> 进程，<strong>kubectl</strong> 进程会  <strong>watch etcd</strong> 中 <strong>pod</strong> 的变化，当 <strong>kubectl</strong> 进程监听到 <strong>pod</strong> 的 <strong>bind</strong> 的更新操作，并且 <strong>bind</strong> 的节点是本节点时，它会接管接下来的所有事情，如镜像下载，创建容器等。</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/595328-20190924154453278-2062939099.jpg" alt="img"></p>
+<h2 id="k8s默认容器运行时架构"><a href="#k8s默认容器运行时架构" class="headerlink" title="k8s默认容器运行时架构"></a>k8s默认容器运行时架构</h2><p>接下来将通过 <strong>k8s</strong> 默认集成的容器运行时架构，来看 <strong>kubernetes</strong> 如何创建一个容器 （如下图）</p>
+<ul>
+<li><strong>kubernetes</strong> 通过 <strong>CRI</strong> (Container Runtime Interface) 接口调用 <strong>dockershim</strong>，请求创建一个容器。这一步中，<strong>Kubectl</strong> 可以视作一个简单的 <strong>CRI Client</strong>，而 <strong>dockershim</strong> 就是接收的 <strong>Server</strong>。</li>
+<li><strong>dockershim</strong> 收到请求后，通过适配的方式，适配成 <strong>Docker Daemon</strong> 的请求格式，发到 <strong>Docker Daemon</strong> 上请求创建一个容器。在 docker 1.12 后的版本，docker daemon 被拆分成了 <strong>dockerd</strong> 和 <strong>containerd</strong>，其中，<strong>containerd</strong> 负责操作容器。</li>
+<li><strong>dockerd</strong> 收到请求后，会调用 <strong>containerd</strong> 进程去创建一个容器</li>
+<li><strong>containerd</strong> 收到请求后，并不会自己直接去操作容器，而是创建一个叫做 <strong>containerd-shim</strong> 的进程，让 <strong>containerd-shim</strong> 去操作容器，创建 <strong>containerd-shim</strong> 的目的主要有以下几个<ul>
+<li>让 <strong>containerd-shim</strong> 做诸如收集状态，维持 stdin 等 fd 打开等工作。</li>
+<li>允许容器运行时( <strong>runC</strong> ) 启动容器后退出，不必为每个容器一直运行一个容器运行时的 <strong>runC</strong></li>
+<li>即使在 <strong>containerd</strong> 和 <strong>dockerd</strong> 都挂掉的情况下，容器的标准 IO 和其它的文件描述符也是可以用的</li>
+<li>向 <strong>containerd</strong> 报告容器的退出状态</li>
+<li>在不中断容器运行时的情况下，升级或重启 <strong>dockerd</strong></li>
+</ul>
+</li>
+<li>而 <strong>containerd-shim</strong> 在这一步需要调用 <strong>runC</strong> 这个命令行工具，来启动容器，<strong>runC</strong> 是 <strong>OCI</strong> (Open Container Initiative， 开放标准协议) 的一个参考实现。主要用来设置 <strong>namespaces</strong> 和 <strong>cgroups</strong>，挂载 root filesystem等操作。</li>
+<li><strong>runC</strong> 启动完容器后，本身会直接退出。<strong>containerd-shim</strong> 则会成为容器进程的父进程，负责收集容器进程的状态，上报给 <strong>containerd</strong>，并在容器中的 <strong>pid</strong> 为 <strong>1</strong> 的进程退出后接管容器中的子进程进行清理，确保不会出现僵尸进程 (关闭进程描述符)。</li>
+</ul>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/595328-20190924162334102-1814702716.png" alt="img"></p>
+<h2 id="容器与容器编排背景"><a href="#容器与容器编排背景" class="headerlink" title="容器与容器编排背景"></a>容器与容器编排背景</h2><p>从 <strong>k8s</strong> 的容器运行时可以看出，<strong>kubectl</strong> 启动容器的过程经过了很长的一段调用链路。这个是由于在容器及编排领域各大厂商与 <strong>docker</strong> 之间的竞争以及 <strong>docker</strong> 公司为了抢占 <strong>Pass</strong> ( Platform-as-a-service，平台服务)  领域市场，对架构做出的一系列调整。</p>
+<p>其实 <strong>k8s</strong> 最开始的运行时架构链路调用没有这么复杂：kubelet想要创建容器直接通过 <strong>docker api</strong> 调用 <strong>Docker Daemon</strong> ， 然后Docker Daemon 调用 libcontainer 这个库来启动容器。</p>
+<p>后面为了防止 <strong>docker</strong> 垄断以及受控 docker 运行时，各大厂商于是就联合起来，制订出 开放容器标准<strong>OCI</strong> ( Open Containers Initiative ) 。大家可以基于这个标准开发自己的容器运行时。Docker公司则把 <strong>libcontainer</strong> 做了一层封装，变成 <strong>runC</strong> 捐献给 <strong>CNCF</strong> 作为 <strong>OCI</strong> 的参考实现。</p>
+<p>接下来就是 <strong>Docker</strong> 要搞 <strong>Swarm</strong> 进军 <strong>PaaS</strong> 市场，于是做了个架构切分，把容器操作都移动到一个单独的 <strong>Daemon</strong> 进程的 <strong>containerd</strong> 中去，让 Docker Daemon专门负责上层封装编排，但是最终 <strong>Swarm</strong> 败给了 <strong>K8S</strong> ，于是Docker公司就把 <strong>Containerd</strong> 捐给了 CNCF，专注于搞 <strong>Docker</strong> 企业版了。</p>
+<p>与此同时，容器领域 <strong>core os</strong> 公司推出了 <strong>rkt</strong> 容器运行时，希望 <strong>k8s</strong> 原生支持 <strong>rkt</strong> 作为运行时，由于 <strong>core os</strong> 与 <strong>Google</strong> 的关系，最终 <strong>rkt</strong> 运行时的支持在 <strong>2016</strong> 年也被合并进 <strong>kubelet</strong> 主干代码里，这样做反而给 <strong>k8s</strong> 中负责维护 <strong>kubelet</strong> 的小组 <strong>SIG-Node</strong> 带来了更大的负担，每一次 <strong>kubectl</strong> 的更新都要维护 <strong>docker</strong> 和 <strong>rkt</strong> 作为两部分代码。与此同时，随着虚拟化技术强隔离容器技术 <strong>runV</strong> (Kata Containers 前身, 后与 intel clear container 合并)的逐渐成熟。<strong>K8S</strong> 上游对虚拟化容器的支持很快被提上日程。为了从集成每一种运行时都要维护的一份代码中解救出来，<strong>K8S SIG-Node</strong> 工作组决定对容器的操作统一地抽象成一个接口，这样 <strong>kubelet</strong> 只需要跟这个接口打交道，而具体地容器运行时，他们只需要实现该接口，并对kubelet暴露 <strong>gRPC</strong> 服务即可。这个统一地抽象的接口就是 <strong>k8s</strong> 中俗称的 <strong>CRI</strong>。</p>
+<h2 id="CRI接口"><a href="#CRI接口" class="headerlink" title="CRI接口"></a>CRI接口</h2><p><strong>CRI</strong> (容器运行时接口)基于 <strong>gRPC</strong> 定义了 <strong>RuntimeService</strong> 和 <strong>ImageService</strong> 等两个 <strong>gRPC</strong> 服务，分别用于容器运行时和镜像的管理。如下所示</p>
+<figure class="highlight go"><table><tr><td class="code"><pre><code class="hljs go"><span class="hljs-comment">// Runtime service defines the public APIs for remote container runtimes</span><br>service RuntimeService &#123;<br>    <span class="hljs-comment">// Version returns the runtime name, runtime version, and runtime API version.</span><br>    rpc Version(VersionRequest) returns (VersionResponse) &#123;&#125;<br><br>    <span class="hljs-comment">// RunPodSandbox creates and starts a pod-level sandbox. Runtimes must ensure</span><br>    <span class="hljs-comment">// the sandbox is in the ready state on success.</span><br>    rpc RunPodSandbox(RunPodSandboxRequest) returns (RunPodSandboxResponse) &#123;&#125;<br>    <span class="hljs-comment">// StopPodSandbox stops any running process that is part of the sandbox and</span><br>    <span class="hljs-comment">// reclaims network resources (e.g., IP addresses) allocated to the sandbox.</span><br>    <span class="hljs-comment">// If there are any running containers in the sandbox, they must be forcibly</span><br>    <span class="hljs-comment">// terminated.</span><br>    <span class="hljs-comment">// This call is idempotent, and must not return an error if all relevant</span><br>    <span class="hljs-comment">// resources have already been reclaimed. kubelet will call StopPodSandbox</span><br>    <span class="hljs-comment">// at least once before calling RemovePodSandbox. It will also attempt to</span><br>    <span class="hljs-comment">// reclaim resources eagerly, as soon as a sandbox is not needed. Hence,</span><br>    <span class="hljs-comment">// multiple StopPodSandbox calls are expected.</span><br>    rpc StopPodSandbox(StopPodSandboxRequest) returns (StopPodSandboxResponse) &#123;&#125;<br>    <span class="hljs-comment">// RemovePodSandbox removes the sandbox. If there are any running containers</span><br>    <span class="hljs-comment">// in the sandbox, they must be forcibly terminated and removed.</span><br>    <span class="hljs-comment">// This call is idempotent, and must not return an error if the sandbox has</span><br>    <span class="hljs-comment">// already been removed.</span><br>    rpc RemovePodSandbox(RemovePodSandboxRequest) returns (RemovePodSandboxResponse) &#123;&#125;<br>    <span class="hljs-comment">// PodSandboxStatus returns the status of the PodSandbox. If the PodSandbox is not</span><br>    <span class="hljs-comment">// present, returns an error.</span><br>    rpc PodSandboxStatus(PodSandboxStatusRequest) returns (PodSandboxStatusResponse) &#123;&#125;<br>    <span class="hljs-comment">// ListPodSandbox returns a list of PodSandboxes.</span><br>    rpc ListPodSandbox(ListPodSandboxRequest) returns (ListPodSandboxResponse) &#123;&#125;<br><br>    <span class="hljs-comment">// CreateContainer creates a new container in specified PodSandbox</span><br>    rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse) &#123;&#125;<br>    <span class="hljs-comment">// StartContainer starts the container.</span><br>    rpc StartContainer(StartContainerRequest) returns (StartContainerResponse) &#123;&#125;<br>    <span class="hljs-comment">// StopContainer stops a running container with a grace period (i.e., timeout).</span><br>    <span class="hljs-comment">// This call is idempotent, and must not return an error if the container has</span><br>    <span class="hljs-comment">// already been stopped.</span><br>    <span class="hljs-comment">// <span class="hljs-doctag">TODO:</span> what must the runtime do after the grace period is reached?</span><br>    rpc StopContainer(StopContainerRequest) returns (StopContainerResponse) &#123;&#125;<br>    <span class="hljs-comment">// RemoveContainer removes the container. If the container is running, the</span><br>    <span class="hljs-comment">// container must be forcibly removed.</span><br>    <span class="hljs-comment">// This call is idempotent, and must not return an error if the container has</span><br>    <span class="hljs-comment">// already been removed.</span><br>    rpc RemoveContainer(RemoveContainerRequest) returns (RemoveContainerResponse) &#123;&#125;<br>    <span class="hljs-comment">// ListContainers lists all containers by filters.</span><br>    rpc ListContainers(ListContainersRequest) returns (ListContainersResponse) &#123;&#125;<br>    <span class="hljs-comment">// ContainerStatus returns status of the container. If the container is not</span><br>    <span class="hljs-comment">// present, returns an error.</span><br>    rpc ContainerStatus(ContainerStatusRequest) returns (ContainerStatusResponse) &#123;&#125;<br>    <span class="hljs-comment">// UpdateContainerResources updates ContainerConfig of the container.</span><br>    rpc UpdateContainerResources(UpdateContainerResourcesRequest) returns (UpdateContainerResourcesResponse) &#123;&#125;<br>    <span class="hljs-comment">// ReopenContainerLog asks runtime to reopen the stdout/stderr log file</span><br>    <span class="hljs-comment">// for the container. This is often called after the log file has been</span><br>    <span class="hljs-comment">// rotated. If the container is not running, container runtime can choose</span><br>    <span class="hljs-comment">// to either create a new log file and return nil, or return an error.</span><br>    <span class="hljs-comment">// Once it returns error, new container log file MUST NOT be created.</span><br>    rpc ReopenContainerLog(ReopenContainerLogRequest) returns (ReopenContainerLogResponse) &#123;&#125;<br><br>    <span class="hljs-comment">// ExecSync runs a command in a container synchronously.</span><br>    rpc ExecSync(ExecSyncRequest) returns (ExecSyncResponse) &#123;&#125;<br>    <span class="hljs-comment">// Exec prepares a streaming endpoint to execute a command in the container.</span><br>    rpc Exec(ExecRequest) returns (ExecResponse) &#123;&#125;<br>    <span class="hljs-comment">// Attach prepares a streaming endpoint to attach to a running container.</span><br>    rpc Attach(AttachRequest) returns (AttachResponse) &#123;&#125;<br>    <span class="hljs-comment">// PortForward prepares a streaming endpoint to forward ports from a PodSandbox.</span><br>    rpc PortForward(PortForwardRequest) returns (PortForwardResponse) &#123;&#125;<br><br>    <span class="hljs-comment">// ContainerStats returns stats of the container. If the container does not</span><br>    <span class="hljs-comment">// exist, the call returns an error.</span><br>    rpc ContainerStats(ContainerStatsRequest) returns (ContainerStatsResponse) &#123;&#125;<br>    <span class="hljs-comment">// ListContainerStats returns stats of all running containers.</span><br>    rpc ListContainerStats(ListContainerStatsRequest) returns (ListContainerStatsResponse) &#123;&#125;<br><br>    <span class="hljs-comment">// UpdateRuntimeConfig updates the runtime configuration based on the given request.</span><br>    rpc UpdateRuntimeConfig(UpdateRuntimeConfigRequest) returns (UpdateRuntimeConfigResponse) &#123;&#125;<br><br>    <span class="hljs-comment">// Status returns the status of the runtime.</span><br>    rpc Status(StatusRequest) returns (StatusResponse) &#123;&#125;<br>&#125;<br><br><span class="hljs-comment">// ImageService defines the public APIs for managing images.</span><br>service ImageService &#123;<br>    <span class="hljs-comment">// ListImages lists existing images.</span><br>    rpc ListImages(ListImagesRequest) returns (ListImagesResponse) &#123;&#125;<br>    <span class="hljs-comment">// ImageStatus returns the status of the image. If the image is not</span><br>    <span class="hljs-comment">// present, returns a response with ImageStatusResponse.Image set to</span><br>    <span class="hljs-comment">// nil.</span><br>    rpc ImageStatus(ImageStatusRequest) returns (ImageStatusResponse) &#123;&#125;<br>    <span class="hljs-comment">// PullImage pulls an image with authentication config.</span><br>    rpc PullImage(PullImageRequest) returns (PullImageResponse) &#123;&#125;<br>    <span class="hljs-comment">// RemoveImage removes the image.</span><br>    <span class="hljs-comment">// This call is idempotent, and must not return an error if the image has</span><br>    <span class="hljs-comment">// already been removed.</span><br>    rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse) &#123;&#125;<br>    <span class="hljs-comment">// ImageFSInfo returns information of the filesystem that is used to store images.</span><br>    rpc ImageFsInfo(ImageFsInfoRequest) returns (ImageFsInfoResponse) &#123;&#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>具体容器运行时则需要实现 <strong>CRI</strong> 定义的接口（即 <strong>gRPC Server</strong>，通常称为 <strong>CRI shim</strong>）。容器运行时在启动 <strong>gRPC server</strong> 时需要监听在本地的 <strong>Unix Socket</strong> （Windows 使用 tcp 格式）。</p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><p><a target="_blank" rel="noopener" href="https://www.kubernetes.org.cn/1079.html">https://www.kubernetes.org.cn/1079.html</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/justinli/p/11578951.html">https://www.cnblogs.com/justinli/p/11578951.html</a></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/p/b6IOHFWMj7AA/">https://zeek-zhao.github.io/p/b6IOHFWMj7AA/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的学习与成长</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/kubernetes/">kubernetes</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/p/X7ixOMRwrvpm/" title="9-Kubernetes核心技术Controller"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">9-Kubernetes核心技术Controller</div></div><div class="info-2"><div class="info-item-1">9-Kubernetes核心技术Controller内容 什么是Controller Pod和Controller的关系 Deployment控制器应用场景 yaml文件字段说明 Deployment控制器部署应用 升级回滚 弹性伸缩  什么是ControllerController是在集群上管理和运行容器的对象，Controller是实际存在的，Pod是虚拟机的 Pod和Controller的关系Pod是通过Controller实现应用的运维，比如弹性伸缩，滚动升级等 Pod 和 Controller之间是通过label标签来建立关系，同时Controller又被称为控制器工作负载  Deployment控制器应用 Deployment控制器可以部署无状态应用 管理Pod和ReplicaSet 部署，滚动升级等功能 应用场景：web服务，微服务  Deployment表示用户对K8S集群的一次更新操作。Deployment是一个比RS( Replica Set, RS) 应用模型更广的 API 对象，可以是创建一个新的服务，更新一个新的服务，也可以是滚动升级一个服务。滚动升级一...</div></div></div></a><a class="pagination-related" href="/p/olB4W8tb8lnO/" title="7-Kubernetes集群YAML文件详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">7-Kubernetes集群YAML文件详解</div></div><div class="info-2"><div class="info-item-1">7-Kubernetes集群YAML文件详解概述k8s 集群中对资源管理和资源对象编排部署都可以通过声明样式（YAML）文件来解决，也就是可以把需要对资源对象操作编辑到YAML 格式文件中，我们把这种文件叫做资源清单文件，通过kubectl 命令直接使用资源清单文件就可以实现对大量的资源对象进行编排部署了。一般在我们开发的时候，都是通过配置YAML文件来部署集群的。 YAML文件：就是资源清单文件，用于资源编排 YAML文件介绍YAML概述YAML ：仍是一种标记语言。为了强调这种语言以数据做为中心，而不是以标记语言为重点。 YAML 是一个可读性高，用来表达数据序列的格式。 YAML 基本语法 使用空格做为缩进 缩进的空格数目不重要，只要相同层级的元素左侧对齐即可 低版本缩进时不允许使用Tab 键，只允许使用空格 使用#标识注释，从这个字符一直到行尾，都会被解释器忽略 使用 — 表示新的yaml文件开始  YAML 支持的数据结构对象键值对的集合，又称为映射(mapping) &#x2F; 哈希（hashes） &#x2F; 字典（dictionary） # 对象类型：对象的一...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/p/5VFQnmODrN5m/" title="5-Kubeadm和二进制方式对比"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">5-Kubeadm和二进制方式对比</div></div><div class="info-2"><div class="info-item-1">5-Kubeadm和二进制方式对比学习目标 理解 kubeadm 与二进制部署在复杂度与可控性上的差异。 根据团队阶段选择合适的集群部署方式。 建立“先快后稳”的落地策略。  对比结论kubeadm 优点：部署快、标准化程度高、适合快速起集群。 缺点：抽象较多，复杂故障排查需要更多经验。 适用：学习环境、测试环境、中小规模快速落地。  二进制部署 优点：每个组件可控，便于深度定制和问题定位。 缺点：部署和维护复杂，要求运维能力更高。 适用：对可控性和合规要求高的生产环境。  关键步骤对比kubeadm 路线 节点初始化。 安装容器运行时和 kubeadm&#x2F;kubelet&#x2F;kubectl。 kubeadm init 初始化控制平面。 部署 CNI 网络插件。 kubeadm join 加入工作节点。  二进制路线 节点初始化与系统参数配置。 证书体系生成（CA、server、client）。 etcd 集群部署。 控制平面组件部署（apiserver&#x2F;controller-manager&#x2F;scheduler）。 节点组件部署（kubelet&...</div></div></div></a><a class="pagination-related" href="/p/auTC77Ig5Gep/" title="16-Kubernetes持久化存储"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">16-Kubernetes持久化存储</div></div><div class="info-2"><div class="info-item-1">16-Kubernetes持久化存储前言之前我们有提到数据卷：emptydir ，是本地存储，pod重启，数据就不存在了，需要对数据持久化存储 对于数据持久化存储【pod重启，数据还存在】，有两种方式  nfs：网络存储【通过一台服务器来存储】  步骤持久化服务器上操作 找一台新的服务器nfs服务端，安装nfs 设置挂载路径  使用命令安装nfs yum install -y nfs-utils  首先创建存放数据的目录 mkdir -p /data/nfx  设置挂载路径 # 打开文件vim /etc/exports# 添加如下内容/data/nfs *(rw,no_root_squash)  执行完成后，即部署完我们的持久化服务器 Node节点上操作然后需要在k8s集群node节点上安装nfs，这里需要在 node1 和 node2节点上安装 yum install -y nfs-utils  执行完成后，会自动帮我们挂载上 启动nfs服务端下面我们回到nfs服务端，启动我们的nfs服务 systemctl start nfs   K8s集群部署应用最后我们在k8s集群上部署...</div></div></div></a><a class="pagination-related" href="/p/K4gDfvXlKpXq/" title="11-Kubernetes控制器Controller详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">11-Kubernetes控制器Controller详解</div></div><div class="info-2"><div class="info-item-1">11-Kubernetes控制器Controller详解StatefulsetStatefulset主要是用来部署有状态应用 对于StatefulSet中的Pod，每个Pod挂载自己独立的存储，如果一个Pod出现故障，从其他节点启动一个同样名字的Pod，要挂载上原来Pod的存储继续以它的状态提供服务。 无状态应用我们原来使用 deployment，部署的都是无状态的应用，那什么是无状态应用？  认为Pod都是一样的 没有顺序要求 不考虑应用在哪个node上运行 能够进行随意伸缩和扩展  有状态应用上述的因素都需要考虑到  让每个Pod独立的 让每个Pod独立的，保持Pod启动顺序和唯一性 唯一的网络标识符，持久存储 有序，比如mysql中的主从  适合StatefulSet的业务包括数据库服务MySQL 和 PostgreSQL，集群化管理服务Zookeeper、etcd等有状态服务 StatefulSet的另一种典型应用场景是作为一种比普通容器更稳定可靠的模拟虚拟机的机制。传统的虚拟机正是一种有状态的宠物，运维人员需要不断地维护它，容器刚开始流行时，我们用容器来模拟虚拟机使用，...</div></div></div></a><a class="pagination-related" href="/p/4b9t547AL5AE/" title="19-Kubernetes容器交付介绍"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">19-Kubernetes容器交付介绍</div></div><div class="info-2"><div class="info-item-1">19-Kubernetes容器交付介绍如何在k8s集群中部署Java项目 容器交付流程 开发代码阶段 编写代码 编写Dockerfile【打镜像做准备】   持续交付&#x2F;集成 代码编译打包 制作镜像 上传镜像仓库   应用部署 环境准备 Pod Service Ingress   运维 监控 故障排查 应用升级    k8s部署Java项目流程 制作镜像【Dockerfile】 上传到镜像仓库【Dockerhub、阿里云、网易】 控制器部署镜像【Deployment】 对外暴露应用【Service、Ingress】 运维【监控、升级】  k8s部署Java项目准备Java项目第一步，准备java项目，把java进行打包【jar包或者war包】  依赖环境在打包java项目的时候，我们首先需要两个环境  java环境【JDK】 maven环境  然后把java项目打包成jar包 mvn clean install   编写Dockerfile文件Dockerfile 内容如下所示 FROM openjdk:8-jdk-alpineVOLUME /tmpADD ./targe...</div></div></div></a><a class="pagination-related" href="/p/RJICHtOzRpUd/" title="14-Kubernetes核心技术Ingress"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">14-Kubernetes核心技术Ingress</div></div><div class="info-2"><div class="info-item-1">14-Kubernetes核心技术Ingress前言原来我们需要将端口号对外暴露，通过 ip + 端口号就可以进行访问 原来是使用Service中的NodePort来实现  在每个节点上都会启动端口 在访问的时候通过任何节点，通过ip + 端口号就能实现访问  但是NodePort还存在一些缺陷  因为端口不能重复，所以每个端口只能使用一次，一个端口对应一个应用 实际访问中都是用域名，根据不同域名跳转到不同端口服务中  Ingress和Pod关系pod 和 ingress 是通过service进行关联的，而ingress作为统一入口，由service关联一组pod中   首先service就是关联我们的pod 然后ingress作为入口，首先需要到service，然后发现一组pod 发现pod后，就可以做负载均衡等操作  Ingress工作流程在实际的访问中，我们都是需要维护很多域名， a.com  和  b.com 然后不同的域名对应的不同的Service，然后service管理不同的pod  需要注意，ingress不是内置的组件，需要我们单独的安装 使用Ingress步骤如...</div></div></div></a><a class="pagination-related" href="/p/dM9KZffcIs2x/" title="3-使用kubeadm方式搭建K8S集群"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">3-使用kubeadm方式搭建K8S集群</div></div><div class="info-2"><div class="info-item-1">3-使用kubeadm方式搭建K8S集群kubeadm是官方社区推出的一个用于快速部署kubernetes集群的工具。 这个工具能通过两条指令完成一个kubernetes集群的部署： # 创建一个 Master 节点kubeadm init# 将一个 Node 节点加入到当前集群中kubeadm join &lt;Master节点的IP和端口 &gt;  Kubeadm方式搭建K8S集群使用kubeadm方式搭建K8s集群主要分为以下几步  准备三台虚拟机，同时安装操作系统CentOS 7.x 对三个安装之后的操作系统进行初始化操作 在三个节点安装 docker kubelet kubeadm kubectl 在master节点执行kubeadm init命令初始化 在node节点上执行 kubeadm join命令，把node节点添加到当前集群 配置CNI网络插件，用于节点之间的连通【失败了可以多试几次】 通过拉取一个nginx进行测试，能否进行外网测试  安装要求在开始之前，部署Kubernetes集群机器需要满足以下几个条件：  一台或多台机器，操作系统 CentOS7.x...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek</div><div class="author-info-description">记录知识管理、项目实践与个人成长的持续过程。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">128</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">20</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="Github"><i class="fab fa-github"></i></a><a class="social-icon" href="/zeek.zhao@outlook.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#52-Kubernetes%E4%B8%AD%E7%9A%84CRI"><span class="toc-number">1.</span> <span class="toc-text">52-Kubernetes中的CRI</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#k8s%E6%9E%B6%E6%9E%84"><span class="toc-number">1.2.</span> <span class="toc-text">k8s架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#k8s%E9%BB%98%E8%AE%A4%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">k8s默认容器运行时架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E4%B8%8E%E5%AE%B9%E5%99%A8%E7%BC%96%E6%8E%92%E8%83%8C%E6%99%AF"><span class="toc-number">1.4.</span> <span class="toc-text">容器与容器编排背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#CRI%E6%8E%A5%E5%8F%A3"><span class="toc-number">1.5.</span> <span class="toc-text">CRI接口</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E8%80%83"><span class="toc-number">1.6.</span> <span class="toc-text">参考</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/rru5P0RkLmUF/" title="iot-index">iot-index</a><time datetime="2026-05-29T12:48:08.200Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/MbWgYzuEQAg7/" title="iot-esp32开发指南">iot-esp32开发指南</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/u8hEXDRsQRRC/" title="iot-树莓派与openmv集成指南">iot-树莓派与openmv集成指南</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/1BrlXS9KPiTd/" title="iot-传感器技术详解">iot-传感器技术详解</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/wdVSgejL7Pmy/" title="iot-常用资源链接">iot-常用资源链接</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div><div class="footer_custom_text">基于 Obsidian + Hexo 持续迭代</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.iife.min.js"></script><div class="js-pjax"></div><script src="/js/mermaid-plaintext-compat.js"></script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div><!-- hexo injector body_end start -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    mermaid.initialize({"startOnLoad":true,"theme":"default"});
+  });
+</script>
+<!-- hexo injector body_end end --><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/miku.model.json"},"display":{"position":"right","width":300,"height":400},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body></html>

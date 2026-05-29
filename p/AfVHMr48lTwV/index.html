@@ -1,0 +1,347 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>18-Kubernetes搭建高可用集群 | Zeek 的学习与成长</title><meta name="author" content="Zeek"><meta name="copyright" content="Zeek"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="18-Kubernetes搭建高可用集群前言之前我们搭建的集群，只有一个master节点，当master节点宕机的时候，通过node将无法继续访问，而master主要是管理作用，所以整个集群将无法提供服务  高可用集群下面我们就需要搭建一个多master节点的高可用集群，不会存在单点故障问题 但是在node 和 master节点之间，需要存在一个 LoadBalancer组件，作用如下：  负载">
+<meta property="og:type" content="article">
+<meta property="og:title" content="18-Kubernetes搭建高可用集群">
+<meta property="og:url" content="https://zeek-zhao.github.io/p/AfVHMr48lTwV/index.html">
+<meta property="og:site_name" content="Zeek 的学习与成长">
+<meta property="og:description" content="18-Kubernetes搭建高可用集群前言之前我们搭建的集群，只有一个master节点，当master节点宕机的时候，通过node将无法继续访问，而master主要是管理作用，所以整个集群将无法提供服务  高可用集群下面我们就需要搭建一个多master节点的高可用集群，不会存在单点故障问题 但是在node 和 master节点之间，需要存在一个 LoadBalancer组件，作用如下：  负载">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-05-29T12:48:08.184Z">
+<meta property="article:modified_time" content="2026-05-12T16:00:00.000Z">
+<meta property="article:author" content="Zeek">
+<meta property="article:tag" content="kubernetes">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "18-Kubernetes搭建高可用集群",
+  "url": "https://zeek-zhao.github.io/p/AfVHMr48lTwV/",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-05-29T12:48:08.184Z",
+  "dateModified": "2026-05-12T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.svg"><link rel="canonical" href="https://zeek-zhao.github.io/p/AfVHMr48lTwV/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '18-Kubernetes搭建高可用集群',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">128</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">20</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> 目录</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div></div></div><div class="post type-kubernetes" id="body-wrap"><header class="post-bg fixed" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的学习与成长</span></a><a class="nav-page-title" href="/"><span class="site-name">18-Kubernetes搭建高可用集群</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> 目录</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></li><li><a class="site-page child" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">18-Kubernetes搭建高可用集群</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-29T12:48:08.184Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-12T16:00:00.000Z" title="更新于 2026-05-13 00:00:00">2026-05-13</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Devops/">Devops</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Devops/kubernetes/">kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="18-Kubernetes搭建高可用集群"><a href="#18-Kubernetes搭建高可用集群" class="headerlink" title="18-Kubernetes搭建高可用集群"></a>18-Kubernetes搭建高可用集群</h1><h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>之前我们搭建的集群，只有一个master节点，当master节点宕机的时候，通过node将无法继续访问，而master主要是管理作用，所以整个集群将无法提供服务</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201121164522945.png" alt="image-20201121164522945"></p>
+<h2 id="高可用集群"><a href="#高可用集群" class="headerlink" title="高可用集群"></a>高可用集群</h2><p>下面我们就需要搭建一个多master节点的高可用集群，不会存在单点故障问题</p>
+<p>但是在node 和 master节点之间，需要存在一个 LoadBalancer组件，作用如下：</p>
+<ul>
+<li>负载</li>
+<li>检查master节点的状态</li>
+</ul>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201121164931760.png" alt="image-20201121164931760"></p>
+<p>对外有一个统一的VIP：虚拟ip来对外进行访问</p>
+<h2 id="高可用集群技术细节"><a href="#高可用集群技术细节" class="headerlink" title="高可用集群技术细节"></a>高可用集群技术细节</h2><p>高可用集群技术细节如下所示：</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201121165325194.png" alt="image-20201121165325194"></p>
+<ul>
+<li>keepalived：配置虚拟ip，检查节点的状态</li>
+<li>haproxy：负载均衡服务【类似于nginx】</li>
+<li>apiserver：</li>
+<li>controller：</li>
+<li>manager：</li>
+<li>scheduler：</li>
+</ul>
+<h2 id="高可用集群步骤"><a href="#高可用集群步骤" class="headerlink" title="高可用集群步骤"></a>高可用集群步骤</h2><p>我们采用2个master节点，一个node节点来搭建高可用集群，下面给出了每个节点需要做的事情</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201121170351461.png" alt="image-20201121170351461"></p>
+<h2 id="初始化操作"><a href="#初始化操作" class="headerlink" title="初始化操作"></a>初始化操作</h2><p>我们需要在这三个节点上进行操作</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 关闭防火墙</span><br>systemctl stop firewalld<br>systemctl <span class="hljs-built_in">disable</span> firewalld<br><br><span class="hljs-comment"># 关闭selinux</span><br><span class="hljs-comment"># 永久关闭</span><br>sed -i <span class="hljs-string">&#x27;s/enforcing/disabled/&#x27;</span> /etc/selinux/config<br><span class="hljs-comment"># 临时关闭</span><br>setenforce 0<br><br><span class="hljs-comment"># 关闭swap</span><br><span class="hljs-comment"># 临时</span><br>swapoff -a<br><span class="hljs-comment"># 永久关闭</span><br>sed -ri <span class="hljs-string">&#x27;s/.*swap.*/#&amp;/&#x27;</span> /etc/fstab<br><br><span class="hljs-comment"># 根据规划设置主机名【master1节点上操作】</span><br>hostnamectl set-hostname master1<br><span class="hljs-comment"># 根据规划设置主机名【master2节点上操作】</span><br>hostnamectl set-hostname master1<br><span class="hljs-comment"># 根据规划设置主机名【node1节点操作】</span><br>hostnamectl set-hostname node1<br><br><span class="hljs-comment"># r添加hosts</span><br><span class="hljs-built_in">cat</span> &gt;&gt; /etc/hosts &lt;&lt; <span class="hljs-string">EOF</span><br><span class="hljs-string">192.168.44.158  k8smaster</span><br><span class="hljs-string">192.168.44.155 master01.k8s.io master1</span><br><span class="hljs-string">192.168.44.156 master02.k8s.io master2</span><br><span class="hljs-string">192.168.44.157 node01.k8s.io node1</span><br><span class="hljs-string">EOF</span><br><br><br><span class="hljs-comment"># 将桥接的IPv4流量传递到iptables的链【3个节点上都执行】</span><br><span class="hljs-built_in">cat</span> &gt; /etc/sysctl.d/k8s.conf &lt;&lt; <span class="hljs-string">EOF</span><br><span class="hljs-string">net.bridge.bridge-nf-call-ip6tables = 1</span><br><span class="hljs-string">net.bridge.bridge-nf-call-iptables = 1</span><br><span class="hljs-string">EOF</span><br><br><span class="hljs-comment"># 生效</span><br>sysctl --system<br><br><span class="hljs-comment"># 时间同步</span><br>yum install ntpdate -y<br>ntpdate time.windows.com<br></code></pre></td></tr></table></figure>
+
+<h2 id="部署keepAlived"><a href="#部署keepAlived" class="headerlink" title="部署keepAlived"></a>部署keepAlived</h2><p>下面我们需要在所有的master节点【master1和master2】上部署keepAlive</p>
+<h3 id="安装相关包"><a href="#安装相关包" class="headerlink" title="安装相关包"></a>安装相关包</h3><figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 安装相关工具</span><br>yum install -y conntrack-tools libseccomp libtool-ltdl<br><span class="hljs-comment"># 安装keepalived</span><br>yum install -y keepalived<br></code></pre></td></tr></table></figure>
+
+<h3 id="配置master节点"><a href="#配置master节点" class="headerlink" title="配置master节点"></a>配置master节点</h3><p>添加master1的配置</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt; /etc/keepalived/keepalived.conf &lt;&lt;<span class="hljs-string">EOF</span><br><span class="hljs-string">! Configuration File for keepalived</span><br><span class="hljs-string"></span><br><span class="hljs-string">global_defs &#123;</span><br><span class="hljs-string">   router_id k8s</span><br><span class="hljs-string">&#125;</span><br><span class="hljs-string"></span><br><span class="hljs-string">vrrp_script check_haproxy &#123;</span><br><span class="hljs-string">    script &quot;killall -0 haproxy&quot;</span><br><span class="hljs-string">    interval 3</span><br><span class="hljs-string">    weight -2</span><br><span class="hljs-string">    fall 10</span><br><span class="hljs-string">    rise 2</span><br><span class="hljs-string">&#125;</span><br><span class="hljs-string"></span><br><span class="hljs-string">vrrp_instance VI_1 &#123;</span><br><span class="hljs-string">    state MASTER</span><br><span class="hljs-string">    interface ens33</span><br><span class="hljs-string">    virtual_router_id 51</span><br><span class="hljs-string">    priority 250</span><br><span class="hljs-string">    advert_int 1</span><br><span class="hljs-string">    authentication &#123;</span><br><span class="hljs-string">        auth_type PASS</span><br><span class="hljs-string">        auth_pass ceb1b3ec013d66163d6ab</span><br><span class="hljs-string">    &#125;</span><br><span class="hljs-string">    virtual_ipaddress &#123;</span><br><span class="hljs-string">        192.168.44.158</span><br><span class="hljs-string">    &#125;</span><br><span class="hljs-string">    track_script &#123;</span><br><span class="hljs-string">        check_haproxy</span><br><span class="hljs-string">    &#125;</span><br><span class="hljs-string"></span><br><span class="hljs-string">&#125;</span><br><span class="hljs-string">EOF</span><br></code></pre></td></tr></table></figure>
+
+<p>添加master2的配置</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt; /etc/keepalived/keepalived.conf &lt;&lt;<span class="hljs-string">EOF</span><br><span class="hljs-string">! Configuration File for keepalived</span><br><span class="hljs-string"></span><br><span class="hljs-string">global_defs &#123;</span><br><span class="hljs-string">   router_id k8s</span><br><span class="hljs-string">&#125;</span><br><span class="hljs-string"></span><br><span class="hljs-string">vrrp_script check_haproxy &#123;</span><br><span class="hljs-string">    script &quot;killall -0 haproxy&quot;</span><br><span class="hljs-string">    interval 3</span><br><span class="hljs-string">    weight -2</span><br><span class="hljs-string">    fall 10</span><br><span class="hljs-string">    rise 2</span><br><span class="hljs-string">&#125;</span><br><span class="hljs-string"></span><br><span class="hljs-string">vrrp_instance VI_1 &#123;</span><br><span class="hljs-string">    state BACKUP</span><br><span class="hljs-string">    interface ens33</span><br><span class="hljs-string">    virtual_router_id 51</span><br><span class="hljs-string">    priority 200</span><br><span class="hljs-string">    advert_int 1</span><br><span class="hljs-string">    authentication &#123;</span><br><span class="hljs-string">        auth_type PASS</span><br><span class="hljs-string">        auth_pass ceb1b3ec013d66163d6ab</span><br><span class="hljs-string">    &#125;</span><br><span class="hljs-string">    virtual_ipaddress &#123;</span><br><span class="hljs-string">        192.168.44.158</span><br><span class="hljs-string">    &#125;</span><br><span class="hljs-string">    track_script &#123;</span><br><span class="hljs-string">        check_haproxy</span><br><span class="hljs-string">    &#125;</span><br><span class="hljs-string"></span><br><span class="hljs-string">&#125;</span><br><span class="hljs-string">EOF</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="启动和检查"><a href="#启动和检查" class="headerlink" title="启动和检查"></a>启动和检查</h3><p>在两台master节点都执行</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 启动keepalived</span><br>systemctl start keepalived.service<br><span class="hljs-comment"># 设置开机启动</span><br>systemctl <span class="hljs-built_in">enable</span> keepalived.service<br><span class="hljs-comment"># 查看启动状态</span><br>systemctl status keepalived.service<br></code></pre></td></tr></table></figure>
+
+<p>启动后查看master的网卡信息</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">ip a s ens33<br></code></pre></td></tr></table></figure>
+
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201121171619497.png" alt="image-20201121171619497"></p>
+<h2 id="部署haproxy"><a href="#部署haproxy" class="headerlink" title="部署haproxy"></a>部署haproxy</h2><p>haproxy主要做负载的作用，将我们的请求分担到不同的node节点上</p>
+<h3 id="安装"><a href="#安装" class="headerlink" title="安装"></a>安装</h3><p>在两个master节点安装 haproxy</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 安装haproxy</span><br>yum install -y haproxy<br><span class="hljs-comment"># 启动 haproxy</span><br>systemctl start haproxy<br><span class="hljs-comment"># 开启自启</span><br>systemctl <span class="hljs-built_in">enable</span> haproxy<br></code></pre></td></tr></table></figure>
+
+<p>启动后，我们查看对应的端口是否包含 16443</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">netstat -tunlp | grep haproxy<br></code></pre></td></tr></table></figure>
+
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201121181803128.png" alt="image-20201121181803128"></p>
+<h3 id="配置"><a href="#配置" class="headerlink" title="配置"></a>配置</h3><p>两台master节点的配置均相同，配置中声明了后端代理的两个master节点服务器，指定了haproxy运行的端口为16443等，因此16443端口为集群的入口</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt; /etc/haproxy/haproxy.cfg &lt;&lt; <span class="hljs-string">EOF</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string"># Global settings</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string">global</span><br><span class="hljs-string">    # to have these messages end up in /var/log/haproxy.log you will</span><br><span class="hljs-string">    # need to:</span><br><span class="hljs-string">    # 1) configure syslog to accept network log events.  This is done</span><br><span class="hljs-string">    #    by adding the &#x27;-r&#x27; option to the SYSLOGD_OPTIONS in</span><br><span class="hljs-string">    #    /etc/sysconfig/syslog</span><br><span class="hljs-string">    # 2) configure local2 events to go to the /var/log/haproxy.log</span><br><span class="hljs-string">    #   file. A line like the following can be added to</span><br><span class="hljs-string">    #   /etc/sysconfig/syslog</span><br><span class="hljs-string">    #</span><br><span class="hljs-string">    #    local2.*                       /var/log/haproxy.log</span><br><span class="hljs-string">    #</span><br><span class="hljs-string">    log         127.0.0.1 local2</span><br><span class="hljs-string"></span><br><span class="hljs-string">    chroot      /var/lib/haproxy</span><br><span class="hljs-string">    pidfile     /var/run/haproxy.pid</span><br><span class="hljs-string">    maxconn     4000</span><br><span class="hljs-string">    user        haproxy</span><br><span class="hljs-string">    group       haproxy</span><br><span class="hljs-string">    daemon</span><br><span class="hljs-string"></span><br><span class="hljs-string">    # turn on stats unix socket</span><br><span class="hljs-string">    stats socket /var/lib/haproxy/stats</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string"># common defaults that all the &#x27;listen&#x27; and &#x27;backend&#x27; sections will</span><br><span class="hljs-string"># use if not designated in their block</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string">defaults</span><br><span class="hljs-string">    mode                    http</span><br><span class="hljs-string">    log                     global</span><br><span class="hljs-string">    option                  httplog</span><br><span class="hljs-string">    option                  dontlognull</span><br><span class="hljs-string">    option http-server-close</span><br><span class="hljs-string">    option forwardfor       except 127.0.0.0/8</span><br><span class="hljs-string">    option                  redispatch</span><br><span class="hljs-string">    retries                 3</span><br><span class="hljs-string">    timeout http-request    10s</span><br><span class="hljs-string">    timeout queue           1m</span><br><span class="hljs-string">    timeout connect         10s</span><br><span class="hljs-string">    timeout client          1m</span><br><span class="hljs-string">    timeout server          1m</span><br><span class="hljs-string">    timeout http-keep-alive 10s</span><br><span class="hljs-string">    timeout check           10s</span><br><span class="hljs-string">    maxconn                 3000</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string"># kubernetes apiserver frontend which proxys to the backends</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string">frontend kubernetes-apiserver</span><br><span class="hljs-string">    mode                 tcp</span><br><span class="hljs-string">    bind                 *:16443</span><br><span class="hljs-string">    option               tcplog</span><br><span class="hljs-string">    default_backend      kubernetes-apiserver</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string"># round robin balancing between the various backends</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string">backend kubernetes-apiserver</span><br><span class="hljs-string">    mode        tcp</span><br><span class="hljs-string">    balance     roundrobin</span><br><span class="hljs-string">    server      master01.k8s.io   192.168.44.155:6443 check</span><br><span class="hljs-string">    server      master02.k8s.io   192.168.44.156:6443 check</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string"># collection haproxy statistics message</span><br><span class="hljs-string">#---------------------------------------------------------------------</span><br><span class="hljs-string">listen stats</span><br><span class="hljs-string">    bind                 *:1080</span><br><span class="hljs-string">    stats auth           admin:awesomePassword</span><br><span class="hljs-string">    stats refresh        5s</span><br><span class="hljs-string">    stats realm          HAProxy\ Statistics</span><br><span class="hljs-string">    stats uri            /admin?stats</span><br><span class="hljs-string">EOF</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="安装Docker、Kubeadm、kubectl"><a href="#安装Docker、Kubeadm、kubectl" class="headerlink" title="安装Docker、Kubeadm、kubectl"></a>安装Docker、Kubeadm、kubectl</h2><p>所有节点安装Docker&#x2F;kubeadm&#x2F;kubelet ，Kubernetes默认CRI（容器运行时）为Docker，因此先安装Docker</p>
+<h3 id="安装Docker"><a href="#安装Docker" class="headerlink" title="安装Docker"></a>安装Docker</h3><p>首先配置一下Docker的阿里yum源</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt;/etc/yum.repos.d/docker.repo&lt;&lt;<span class="hljs-string">EOF</span><br><span class="hljs-string">[docker-ce-edge]</span><br><span class="hljs-string">name=Docker CE Edge - \$basearch</span><br><span class="hljs-string">baseurl=https://mirrors.aliyun.com/docker-ce/linux/centos/7/\$basearch/edge</span><br><span class="hljs-string">enabled=1</span><br><span class="hljs-string">gpgcheck=1</span><br><span class="hljs-string">gpgkey=https://mirrors.aliyun.com/docker-ce/linux/centos/gpg</span><br><span class="hljs-string">EOF</span><br></code></pre></td></tr></table></figure>
+
+<p>然后yum方式安装docker</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># yum安装</span><br>yum -y install docker-ce<br><br><span class="hljs-comment"># 查看docker版本</span><br>docker --version<br><br><span class="hljs-comment"># 启动docker</span><br>systemctl <span class="hljs-built_in">enable</span> docker<br>systemctl start docker<br></code></pre></td></tr></table></figure>
+
+<p>配置docker的镜像源</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt;&gt; /etc/docker/daemon.json &lt;&lt; <span class="hljs-string">EOF</span><br><span class="hljs-string">&#123;</span><br><span class="hljs-string">  &quot;registry-mirrors&quot;: [&quot;https://b9pmyelo.mirror.aliyuncs.com&quot;]</span><br><span class="hljs-string">&#125;</span><br><span class="hljs-string">EOF</span><br></code></pre></td></tr></table></figure>
+
+<p>然后重启docker</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">systemctl restart docker<br></code></pre></td></tr></table></figure>
+
+<h3 id="添加kubernetes软件源"><a href="#添加kubernetes软件源" class="headerlink" title="添加kubernetes软件源"></a>添加kubernetes软件源</h3><p>然后我们还需要配置一下yum的k8s软件源</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt; /etc/yum.repos.d/kubernetes.repo &lt;&lt; <span class="hljs-string">EOF</span><br><span class="hljs-string">[kubernetes]</span><br><span class="hljs-string">name=Kubernetes</span><br><span class="hljs-string">baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64</span><br><span class="hljs-string">enabled=1</span><br><span class="hljs-string">gpgcheck=0</span><br><span class="hljs-string">repo_gpgcheck=0</span><br><span class="hljs-string">gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg</span><br><span class="hljs-string">EOF</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="安装kubeadm，kubelet和kubectl"><a href="#安装kubeadm，kubelet和kubectl" class="headerlink" title="安装kubeadm，kubelet和kubectl"></a>安装kubeadm，kubelet和kubectl</h3><p>由于版本更新频繁，这里指定版本号部署：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 安装kubelet、kubeadm、kubectl，同时指定版本</span><br>yum install -y kubelet-1.18.0 kubeadm-1.18.0 kubectl-1.18.0<br><span class="hljs-comment"># 设置开机启动</span><br>systemctl <span class="hljs-built_in">enable</span> kubelet<br></code></pre></td></tr></table></figure>
+
+<h2 id="部署Kubernetes-Master【master节点】"><a href="#部署Kubernetes-Master【master节点】" class="headerlink" title="部署Kubernetes Master【master节点】"></a>部署Kubernetes Master【master节点】</h2><h3 id="创建kubeadm配置文件"><a href="#创建kubeadm配置文件" class="headerlink" title="创建kubeadm配置文件"></a>创建kubeadm配置文件</h3><p>在具有vip的master上进行初始化操作，这里为master1</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 创建文件夹</span><br><span class="hljs-built_in">mkdir</span> /usr/local/kubernetes/manifests -p<br><span class="hljs-comment"># 到manifests目录</span><br><span class="hljs-built_in">cd</span> /usr/local/kubernetes/manifests/<br><span class="hljs-comment"># 新建yaml文件</span><br>vi kubeadm-config.yaml<br></code></pre></td></tr></table></figure>
+
+<p>yaml内容如下所示：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">apiServer:<br>  certSANs:<br>    - master1<br>    - master2<br>    - master.k8s.io<br>    - 192.168.44.158<br>    - 192.168.44.155<br>    - 192.168.44.156<br>    - 127.0.0.1<br>  extraArgs:<br>    authorization-mode: Node,RBAC<br>  timeoutForControlPlane: 4m0s<br>apiVersion: kubeadm.k8s.io/v1beta1<br>certificatesDir: /etc/kubernetes/pki<br>clusterName: kubernetes<br>controlPlaneEndpoint: <span class="hljs-string">&quot;master.k8s.io:16443&quot;</span><br>controllerManager: &#123;&#125;<br>dns:<br>  <span class="hljs-built_in">type</span>: CoreDNS<br>etcd:<br>  <span class="hljs-built_in">local</span>:<br>    dataDir: /var/lib/etcd<br>imageRepository: registry.aliyuncs.com/google_containers<br>kind: ClusterConfiguration<br>kubernetesVersion: v1.16.3<br>networking:<br>  dnsDomain: cluster.local<br>  podSubnet: 10.244.0.0/16<br>  serviceSubnet: 10.1.0.0/16<br>scheduler: &#123;&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后我们在 master1 节点执行</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubeadm init --config kubeadm-config.yaml<br></code></pre></td></tr></table></figure>
+
+<p>执行完成后，就会在拉取我们的进行了【需要等待…】</p>
+<p><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/image-20201121194928988.png" alt="image-20201121194928988"></p>
+<p>按照提示配置环境变量，使用kubectl工具</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 执行下方命令</span><br><span class="hljs-built_in">mkdir</span> -p <span class="hljs-variable">$HOME</span>/.kube<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">cp</span> -i /etc/kubernetes/admin.conf <span class="hljs-variable">$HOME</span>/.kube/config<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> $(<span class="hljs-built_in">id</span> -u):$(<span class="hljs-built_in">id</span> -g) <span class="hljs-variable">$HOME</span>/.kube/config<br><span class="hljs-comment"># 查看节点</span><br>kubectl get nodes<br><span class="hljs-comment"># 查看pod</span><br>kubectl get pods -n kube-system<br></code></pre></td></tr></table></figure>
+
+<p><strong>按照提示保存以下内容，一会要使用：</strong></p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubeadm <span class="hljs-built_in">join</span> master.k8s.io:16443 --token jv5z7n.3y1zi95p952y9p65 \<br>    --discovery-token-ca-cert-hash sha256:403bca185c2f3a4791685013499e7ce58f9848e2213e27194b75a2e3293d8812 \<br>    --control-plane<br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p>–control-plane ： 只有在添加master节点的时候才有</p>
+</blockquote>
+<p>查看集群状态</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 查看集群状态</span><br>kubectl get cs<br><span class="hljs-comment"># 查看pod</span><br>kubectl get pods -n kube-system<br></code></pre></td></tr></table></figure>
+
+<h2 id="安装集群网络"><a href="#安装集群网络" class="headerlink" title="安装集群网络"></a>安装集群网络</h2><p>从官方地址获取到flannel的yaml，在master1上执行</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 创建文件夹</span><br><span class="hljs-built_in">mkdir</span> flannel<br><span class="hljs-built_in">cd</span> flannel<br><span class="hljs-comment"># 下载yaml文件</span><br>wget -c https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml<br></code></pre></td></tr></table></figure>
+
+<p>安装flannel网络</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubectl apply -f kube-flannel.yml<br></code></pre></td></tr></table></figure>
+
+<p>检查</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubectl get pods -n kube-system<br></code></pre></td></tr></table></figure>
+
+<h2 id="master2节点加入集群"><a href="#master2节点加入集群" class="headerlink" title="master2节点加入集群"></a>master2节点加入集群</h2><h3 id="复制密钥及相关文件"><a href="#复制密钥及相关文件" class="headerlink" title="复制密钥及相关文件"></a>复制密钥及相关文件</h3><p>从master1复制密钥及相关文件到master2</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># ssh root@192.168.44.156 mkdir -p /etc/kubernetes/pki/etcd</span><br><br><span class="hljs-comment"># scp /etc/kubernetes/admin.conf root@192.168.44.156:/etc/kubernetes</span><br><br><span class="hljs-comment"># scp /etc/kubernetes/pki/&#123;ca.*,sa.*,front-proxy-ca.*&#125; root@192.168.44.156:/etc/kubernetes/pki</span><br><br><span class="hljs-comment"># scp /etc/kubernetes/pki/etcd/ca.* root@192.168.44.156:/etc/kubernetes/pki/etcd</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="master2加入集群"><a href="#master2加入集群" class="headerlink" title="master2加入集群"></a>master2加入集群</h3><p>执行在master1上init后输出的join命令,需要带上参数<code>--control-plane</code>表示把master控制节点加入集群</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubeadm <span class="hljs-built_in">join</span> master.k8s.io:16443 --token ckf7bs.30576l0okocepg8b     --discovery-token-ca-cert-hash sha256:19afac8b11182f61073e254fb57b9f19ab4d798b70501036fc69ebef46094aba --control-plane<br></code></pre></td></tr></table></figure>
+
+<p>检查状态</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubectl get node<br><br>kubectl get pods --all-namespaces<br></code></pre></td></tr></table></figure>
+
+<h2 id="加入Kubernetes-Node"><a href="#加入Kubernetes-Node" class="headerlink" title="加入Kubernetes Node"></a>加入Kubernetes Node</h2><p>在node1上执行</p>
+<p>向集群添加新节点，执行在kubeadm init输出的kubeadm join命令：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubeadm <span class="hljs-built_in">join</span> master.k8s.io:16443 --token ckf7bs.30576l0okocepg8b     --discovery-token-ca-cert-hash sha256:19afac8b11182f61073e254fb57b9f19ab4d798b70501036fc69ebef46094aba<br></code></pre></td></tr></table></figure>
+
+<p><strong>集群网络重新安装，因为添加了新的node节点</strong></p>
+<p>检查状态</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash">kubectl get node<br>kubectl get pods --all-namespaces<br></code></pre></td></tr></table></figure>
+
+<h2 id="测试kubernetes集群"><a href="#测试kubernetes集群" class="headerlink" title="测试kubernetes集群"></a>测试kubernetes集群</h2><p>在Kubernetes集群中创建一个pod，验证是否正常运行：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 创建nginx deployment</span><br>kubectl create deployment nginx --image=nginx<br><span class="hljs-comment"># 暴露端口</span><br>kubectl expose deployment nginx --port=80 --<span class="hljs-built_in">type</span>=NodePort<br><span class="hljs-comment"># 查看状态</span><br>kubectl get pod,svc<br></code></pre></td></tr></table></figure>
+
+<p>然后我们通过任何一个节点，都能够访问我们的nginx页面</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/p/AfVHMr48lTwV/">https://zeek-zhao.github.io/p/AfVHMr48lTwV/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的学习与成长</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/kubernetes/">kubernetes</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/p/lwjlRGX2zngJ/" title="17-Kubernetes集群资源监控"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">17-Kubernetes集群资源监控</div></div><div class="info-2"><div class="info-item-1">17-Kubernetes集群资源监控概述监控指标一个好的系统，主要监控以下内容  集群监控 节点资源利用率 节点数 运行Pods   Pod监控 容器指标 应用程序【程序占用多少CPU、内存】    监控平台使用普罗米修斯【prometheus】 + Grafana 搭建监控平台  prometheus【定时搜索被监控服务的状态】  开源的 监控、报警、数据库 以HTTP协议周期性抓取被监控组件状态 不需要复杂的集成过程，使用http接口接入即可   Grafana  开源的数据分析和可视化工具 支持多种数据源     部署prometheus首先需要部署一个守护进程  ---apiVersion: apps/v1kind: DaemonSetmetadata:  name: node-exporter  namespace: kube-system  labels:    k8s-app: node-exporterspec:  selector:    matchLabels:      k8s-app: node-exporter  template:    metada...</div></div></div></a><a class="pagination-related" href="/p/F9QXEKvbCyLO/" title="2-搭建K8S集群前置知识"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">2-搭建K8S集群前置知识</div></div><div class="info-2"><div class="info-item-1">2-搭建K8S集群前置知识学习目标 明确 K8S 集群部署前的架构与资源规划。 理解 kubeadm 与二进制部署的差异。 完成安装前检查清单，减少后续部署失败率。  学习前提 熟悉 Linux 基础运维。 已掌握容器基础（Docker 或 containerd）。  架构规划单 Master 集群 一个控制平面，多个工作节点。 适用于实验、学习、小规模环境。  多 Master 集群 多个控制平面 + 负载均衡。 适用于生产高可用场景。  资源建议测试环境 master: 2C4G20G node: 4C8G40G  生产环境 master: 8C16G100G node: 16C64G200G  部署路线选择kubeadm 优点：部署快、上手快。 缺点：细节抽象较多，复杂问题排查难。 文档：https://kubernetes.io/zh/docs/setup/production-environment/tools/kubeadm/install-kubeadm/  二进制包 优点：可控性高，便于理解组件工作原理。 缺点：部署步骤长，维护成本较高。  安装前检查清单 节点系...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/p/fhBQd6A6Hx8N/" title="50-使用Rancher搭建Kubernetes集群"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">50-使用Rancher搭建Kubernetes集群</div></div><div class="info-2"><div class="info-item-1">50-使用Rancher搭建Kubernetes集群中文文档：https://docs.rancher.cn/docs/rancher2 安装Rancher2.0使用下面命令，我们快速的安装 # 启动 rancher【没有的话会从后台拉取】docker run -d -p 80:80 -p 443:443 rancher/rancher:v2.0.0# 查看docker ps -a   我们可以来查看我们的日志 docker logs  eloquent_curie  同时，我们可以直接访问我们新建的Rancher集群 https://192.168.177.150/   第一次登录，需要我们填写密码，我们自己的密码后，点击下一步，完成后即可进入到我们的控制台  导入K8S集群在我们安装好Rancher2.0后，我们就可以导入我们的K8S集群进行管理了 首先我们点击 Add Cluster ，然后选择 IMPORT 导入我们的集群  然后会有Add Cluster页面，下面我们通过命令来添加  我们首先选择上面这条，在我们的master节点上执行，将我们的集群被Rancher接管...</div></div></div></a><a class="pagination-related" href="/p/V6fugQQj3j4q/" title="1-Kubernetes简介"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">1-Kubernetes简介</div></div><div class="info-2"><div class="info-item-1">1-Kubernetes简介学习目标 理解 Kubernetes 的定位、能力边界和核心组件。 具备从容器编排视角认识生产集群的能力。 为后续集群搭建与核心对象学习打下基础。  参考来源 Bilibili 尚硅谷 K8S 视频：https://www.bilibili.com/video/BV1GT4y1A756 Kubernetes 中文官网：https://kubernetes.io/zh Kubernetes 中文社区：https://www.kubernetes.org.cn/  前置知识 Linux 操作系统 容器基础（Docker 或 containerd）  本章学习路径 理解部署形态演进：传统部署 -&gt; 虚拟化 -&gt; 容器化。 理解 Kubernetes 的核心价值：调度、扩缩容、自愈、服务发现。 理解集群架构：控制平面（Master）与工作节点（Node）。 认识核心对象：Pod、Controller、Service、Namespace、Label。  课程全景 K8s 概念与架构 集群搭建（kubeadm 与二进制两条路线） 核心对象与配置管理 安...</div></div></div></a><a class="pagination-related" href="/p/ky1TEvVfBjbR/" title="6-Kubernetes集群管理工具kubectl"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">6-Kubernetes集群管理工具kubectl</div></div><div class="info-2"><div class="info-item-1">6-Kubernetes集群管理工具kubectl概述kubectl是Kubernetes集群的命令行工具，通过kubectl能够对集群本身进行管理，并能够在集群上进行容器化应用的安装和部署 命令格式命令格式如下 kubectl [command] [type] [name] [flags]  参数  command：指定要对资源执行的操作，例如create、get、describe、delete type：指定资源类型，资源类型是大小写敏感的，开发者能够以单数 、复数 和 缩略的形式  例如： kubectl get pod pod1kubectl get pods pod1kubectl get po pod1    name：指定资源的名称，名称也是大小写敏感的，如果省略名称，则会显示所有的资源，例如  kubectl get pods   flags：指定可选的参数，例如，可用 -s 或者 -server参数指定Kubernetes API server的地址和端口  常见命令kubectl help 获取更多信息通过 help命令，能够获取帮助信息 # 获取kubect...</div></div></div></a><a class="pagination-related" href="/p/9CJBsFBBSJEy/" title="10-Kubernetes核心技术Service"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">10-Kubernetes核心技术Service</div></div><div class="info-2"><div class="info-item-1">10-Kubernetes核心技术Service前言前面我们了解到 Deployment 只是保证了支撑服务的微服务Pod的数量，但是没有解决如何访问这些服务的问题。一个Pod只是一个运行服务的实例，随时可能在一个节点上停止，在另一个节点以一个新的IP启动一个新的Pod，因此不能以确定的IP和端口号提供服务。 要稳定地提供服务需要服务发现和负载均衡能力。服务发现完成的工作，是针对客户端访问的服务，找到对应的后端服务实例。在K8S集群中，客户端需要访问的服务就是Service对象。每个Service会对应一个集群内部有效的虚拟IP，集群内部通过虚拟IP访问一个服务。 在K8S集群中，微服务的负载均衡是由kube-proxy实现的。kube-proxy是k8s集群内部的负载均衡器。它是一个分布式代理服务器，在K8S的每个节点上都有一个；这一设计体现了它的伸缩性优势，需要访问服务的节点越多，提供负载均衡能力的kube-proxy就越多，高可用节点也随之增多。与之相比，我们平时在服务器端使用反向代理作负载均衡，还要进一步解决反向代理的高可用问题。 Service存在的意义防止Pod失联【...</div></div></div></a><a class="pagination-related" href="/p/8y3g7O1rsZ7i/" title="20-Kubernetes可视化界面kubesphere"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">20-Kubernetes可视化界面kubesphere</div></div><div class="info-2"><div class="info-item-1">20-Kubernetes可视化界面kubesphere前言Kubernetes也提供了默认的dashboard页面，但是功能不是很强大，这里就不使用了 而是采用Kubesphere大桶全部的devops链路，通过kubesphere集成了很多套件  https://kubesphere.io/zh/ ：集群要求高 https://kuboard.cn/：kuboard也不错，集群要求不高【轻量级】  简介KubeSphere是一款面向云原生设计的开源项目，在目前主流容器调度平台Kubernetes之上构建的分布式多租户容器管理平台，提供简单易用的操作界面以及向导式操作方式，在降低用户使用容器调度平台学习成本的同时，极大降低开发、测试、运维的日常工作的复杂度。 安装前提条件https://kubesphere.com.cn/docs/quick-start/minimal-kubesphere-on-k8s/  Kubernetes 版本必须为 “1.15.x，1.16.x，1.17.x 或 1.18.x”； 确保您的计算机满足最低硬件要求：CPU &gt; 1 核，内存 &gt...</div></div></div></a><a class="pagination-related" href="/p/1Icu8I9gpCkL/" title="15-Kubernetes核心技术Helm"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">15-Kubernetes核心技术Helm</div></div><div class="info-2"><div class="info-item-1">15-Kubernetes核心技术HelmHelm就是一个包管理工具【类似于npm】  为什么引入Helm首先在原来项目中都是基于yaml文件来进行部署发布的，而目前项目大部分微服务化或者模块化，会分成很多个组件来部署，每个组件可能对应一个deployment.yaml,一个service.yaml,一个Ingress.yaml还可能存在各种依赖关系，这样一个项目如果有5个组件，很可能就有15个不同的yaml文件，这些yaml分散存放，如果某天进行项目恢复的话，很难知道部署顺序，依赖关系等，而所有这些包括  基于yaml配置的集中存放 基于项目的打包 组件间的依赖  但是这种方式部署，会有什么问题呢？  如果使用之前部署单一应用，少数服务的应用，比较合适 但如果部署微服务项目，可能有几十个服务，每个服务都有一套yaml文件，需要维护大量的yaml文件，版本管理特别不方便  Helm的引入，就是为了解决这个问题  使用Helm可以把这些YAML文件作为整体管理 实现YAML文件高效复用 使用helm应用级别的版本管理  Helm介绍Helm是一个Kubernetes的包管理工具，就...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek</div><div class="author-info-description">记录知识管理、项目实践与个人成长的持续过程。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">128</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">20</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="Github"><i class="fab fa-github"></i></a><a class="social-icon" href="/zeek.zhao@outlook.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#18-Kubernetes%E6%90%AD%E5%BB%BA%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4"><span class="toc-number">1.</span> <span class="toc-text">18-Kubernetes搭建高可用集群</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4"><span class="toc-number">1.2.</span> <span class="toc-text">高可用集群</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E6%8A%80%E6%9C%AF%E7%BB%86%E8%8A%82"><span class="toc-number">1.3.</span> <span class="toc-text">高可用集群技术细节</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E6%AD%A5%E9%AA%A4"><span class="toc-number">1.4.</span> <span class="toc-text">高可用集群步骤</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96%E6%93%8D%E4%BD%9C"><span class="toc-number">1.5.</span> <span class="toc-text">初始化操作</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%83%A8%E7%BD%B2keepAlived"><span class="toc-number">1.6.</span> <span class="toc-text">部署keepAlived</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%89%E8%A3%85%E7%9B%B8%E5%85%B3%E5%8C%85"><span class="toc-number">1.6.1.</span> <span class="toc-text">安装相关包</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%85%8D%E7%BD%AEmaster%E8%8A%82%E7%82%B9"><span class="toc-number">1.6.2.</span> <span class="toc-text">配置master节点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%AF%E5%8A%A8%E5%92%8C%E6%A3%80%E6%9F%A5"><span class="toc-number">1.6.3.</span> <span class="toc-text">启动和检查</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%83%A8%E7%BD%B2haproxy"><span class="toc-number">1.7.</span> <span class="toc-text">部署haproxy</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%89%E8%A3%85"><span class="toc-number">1.7.1.</span> <span class="toc-text">安装</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%85%8D%E7%BD%AE"><span class="toc-number">1.7.2.</span> <span class="toc-text">配置</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%89%E8%A3%85Docker%E3%80%81Kubeadm%E3%80%81kubectl"><span class="toc-number">1.8.</span> <span class="toc-text">安装Docker、Kubeadm、kubectl</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%89%E8%A3%85Docker"><span class="toc-number">1.8.1.</span> <span class="toc-text">安装Docker</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B7%BB%E5%8A%A0kubernetes%E8%BD%AF%E4%BB%B6%E6%BA%90"><span class="toc-number">1.8.2.</span> <span class="toc-text">添加kubernetes软件源</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%89%E8%A3%85kubeadm%EF%BC%8Ckubelet%E5%92%8Ckubectl"><span class="toc-number">1.8.3.</span> <span class="toc-text">安装kubeadm，kubelet和kubectl</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%83%A8%E7%BD%B2Kubernetes-Master%E3%80%90master%E8%8A%82%E7%82%B9%E3%80%91"><span class="toc-number">1.9.</span> <span class="toc-text">部署Kubernetes Master【master节点】</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%9B%E5%BB%BAkubeadm%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="toc-number">1.9.1.</span> <span class="toc-text">创建kubeadm配置文件</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%89%E8%A3%85%E9%9B%86%E7%BE%A4%E7%BD%91%E7%BB%9C"><span class="toc-number">1.10.</span> <span class="toc-text">安装集群网络</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#master2%E8%8A%82%E7%82%B9%E5%8A%A0%E5%85%A5%E9%9B%86%E7%BE%A4"><span class="toc-number">1.11.</span> <span class="toc-text">master2节点加入集群</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%A4%8D%E5%88%B6%E5%AF%86%E9%92%A5%E5%8F%8A%E7%9B%B8%E5%85%B3%E6%96%87%E4%BB%B6"><span class="toc-number">1.11.1.</span> <span class="toc-text">复制密钥及相关文件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#master2%E5%8A%A0%E5%85%A5%E9%9B%86%E7%BE%A4"><span class="toc-number">1.11.2.</span> <span class="toc-text">master2加入集群</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8A%A0%E5%85%A5Kubernetes-Node"><span class="toc-number">1.12.</span> <span class="toc-text">加入Kubernetes Node</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95kubernetes%E9%9B%86%E7%BE%A4"><span class="toc-number">1.13.</span> <span class="toc-text">测试kubernetes集群</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/rru5P0RkLmUF/" title="iot-index">iot-index</a><time datetime="2026-05-29T12:48:08.200Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/MbWgYzuEQAg7/" title="iot-esp32开发指南">iot-esp32开发指南</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/u8hEXDRsQRRC/" title="iot-树莓派与openmv集成指南">iot-树莓派与openmv集成指南</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/1BrlXS9KPiTd/" title="iot-传感器技术详解">iot-传感器技术详解</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/p/wdVSgejL7Pmy/" title="iot-常用资源链接">iot-常用资源链接</a><time datetime="2026-05-29T12:48:08.199Z" title="发表于 2026-05-29 20:48:08">2026-05-29</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div><div class="footer_custom_text">基于 Obsidian + Hexo 持续迭代</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload@19.1.3/dist/lazyload.iife.min.js"></script><div class="js-pjax"></div><script src="/js/mermaid-plaintext-compat.js"></script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div><!-- hexo injector body_end start -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    mermaid.initialize({"startOnLoad":true,"theme":"default"});
+  });
+</script>
+<!-- hexo injector body_end end --><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/miku.model.json"},"display":{"position":"right","width":300,"height":400},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body></html>
