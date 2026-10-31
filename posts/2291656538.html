@@ -1,0 +1,736 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>07-高精地图HD Map | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="高精地图以厘米级精度描述车道几何、拓扑关系与交通语义，是 Apollo 定位、感知与规划的先验信息基础。本篇讲解 HD Map 的要素体系、数据结构、Map 模块架构与使用调试方法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="07-高精地图HD Map">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2291656538.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="高精地图以厘米级精度描述车道几何、拓扑关系与交通语义，是 Apollo 定位、感知与规划的先验信息基础。本篇讲解 HD Map 的要素体系、数据结构、Map 模块架构与使用调试方法。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "07-高精地图HD Map",
+  "url": "https://zeek-zhao.github.io/posts/2291656538.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/2291656538.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '07-高精地图HD Map',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">07-高精地图HD Map</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">07-高精地图HD Map</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>理解高精地图在自动驾驶系统中的定位与作用，掌握 Apollo 地图数据结构（map.proto）、Map 模块核心组件（HDMap&#x2F;PncMap&#x2F;RelativeMap）与地图查询、制作、调试的完整流程。</p>
+</blockquote>
+<h2 id="1-什么是高精地图"><a href="#1-什么是高精地图" class="headerlink" title="1. 什么是高精地图"></a>1. 什么是高精地图</h2><p>高精地图（HD Map）是精度达到<strong>厘米级</strong>的道路环境数字化表示。与传统导航地图只关心”从 A 到 B 怎么走”不同，高精地图精确描述每一条车道、每一根杆、每一盏信号灯的位置与语义，是自动驾驶系统的先验信息源。</p>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>传统导航地图</th>
+<th>高精地图</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>精度</td>
+<td>米级（3-5 m）</td>
+<td>厘米级（10-20 cm）</td>
+</tr>
+<tr>
+<td>更新频率</td>
+<td>季度&#x2F;年度</td>
+<td>日&#x2F;周级（部分要素实时）</td>
+</tr>
+<tr>
+<td>数据量</td>
+<td>相对较小</td>
+<td>巨大（约 1-2 GB&#x2F;公里）</td>
+</tr>
+<tr>
+<td>表示方式</td>
+<td>二维路网 + POI</td>
+<td>三维结构化场景</td>
+</tr>
+<tr>
+<td>交通规则</td>
+<td>有限</td>
+<td>完整（限速、转向、让行等）</td>
+</tr>
+<tr>
+<td>主要用途</td>
+<td>人类导航</td>
+<td>机器定位与决策</td>
+</tr>
+</tbody></table>
+<p>高精地图对系统的四大价值：</p>
+<ol>
+<li><strong>超视距感知</strong>：获取传感器范围之外的道路形状、坡度、曲率，不受天气与光照影响</li>
+<li><strong>厘米级定位</strong>：传感器观测与地图匹配，将定位误差压缩到厘米级</li>
+<li><strong>规则辅助决策</strong>：限速、转向许可、让行规则直接来自地图，不依赖实时识别</li>
+<li><strong>规划约束</strong>：车道中心线与边界构成轨迹生成的可行域</li>
+</ol>
+<h2 id="2-地图核心要素"><a href="#2-地图核心要素" class="headerlink" title="2. 地图核心要素"></a>2. 地图核心要素</h2><p>Apollo 地图以<strong>车道（Lane）为中心</strong>组织要素：</p>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>内容</th>
+<th>主要使用方</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>车道 Lane</td>
+<td>中心线、左右边界、宽度、限速、前后继&#x2F;邻接关系</td>
+<td>规划、定位</td>
+</tr>
+<tr>
+<td>道路 Road</td>
+<td>Section 划分、所属车道集合</td>
+<td>路由、规划</td>
+</tr>
+<tr>
+<td>路口 Junction</td>
+<td>多边形区域、重叠关系</td>
+<td>通行决策</td>
+</tr>
+<tr>
+<td>信号灯 Signal</td>
+<td>位置、子灯（Subsignal）、停止线关联</td>
+<td>感知关联、决策</td>
+</tr>
+<tr>
+<td>停车标志 StopSign &#x2F; 让行标志 YieldSign</td>
+<td>位置与关联车道</td>
+<td>决策</td>
+</tr>
+<tr>
+<td>人行横道 Crosswalk &#x2F; 减速带 SpeedBump &#x2F; 清除区 ClearArea</td>
+<td>区域多边形</td>
+<td>感知过滤、规划避让</td>
+</tr>
+<tr>
+<td>停车位 ParkingSpace</td>
+<td>多边形、朝向</td>
+<td>泊车规划</td>
+</tr>
+<tr>
+<td>重叠区 Overlap</td>
+<td>元素间的拓扑连接关系</td>
+<td>路由、参考线生成</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!tip] 学习提示<br>理解 Overlap 是读懂 Apollo 地图拓扑的关键：车道与车道、车道与路口、车道与信号灯之间的连接关系全部通过 Overlap 表达，路由模块正是沿 Overlap 链查找可达路径的。</p>
+</blockquote>
+<h2 id="3-数据结构：map-proto"><a href="#3-数据结构：map-proto" class="headerlink" title="3. 数据结构：map.proto"></a>3. 数据结构：map.proto</h2><p>Apollo 地图基于 protobuf 定义（<code>modules/map/proto/map.proto</code> 及其子文件），核心结构：</p>
+<figure class="highlight proto"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">message </span><span class="title class_">Map</span> &#123;</span><br><span class="line">  <span class="keyword">optional</span> Header header = <span class="number">1</span>;</span><br><span class="line">  <span class="keyword">repeated</span> Lane lane = <span class="number">2</span>;</span><br><span class="line">  <span class="keyword">repeated</span> Junction junction = <span class="number">3</span>;</span><br><span class="line">  <span class="keyword">repeated</span> Signal signal = <span class="number">4</span>;</span><br><span class="line">  <span class="keyword">repeated</span> StopSign stop_sign = <span class="number">5</span>;</span><br><span class="line">  <span class="keyword">repeated</span> YieldSign yield_sign = <span class="number">6</span>;</span><br><span class="line">  <span class="keyword">repeated</span> Overlap overlap = <span class="number">7</span>;</span><br><span class="line">  <span class="keyword">repeated</span> Road road = <span class="number">8</span>;</span><br><span class="line">  <span class="keyword">repeated</span> ParkingSpace parking_space = <span class="number">9</span>;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">message </span><span class="title class_">Lane</span> &#123;</span><br><span class="line">  <span class="keyword">optional</span> Id id = <span class="number">1</span>;</span><br><span class="line">  <span class="keyword">repeated</span> Id predecessor_id = <span class="number">5</span>;   <span class="comment">// 前继车道</span></span><br><span class="line">  <span class="keyword">repeated</span> Id successor_id = <span class="number">6</span>;     <span class="comment">// 后继车道</span></span><br><span class="line">  <span class="keyword">repeated</span> Id left_neighbor_forward_lane_id = <span class="number">7</span>;</span><br><span class="line">  <span class="keyword">repeated</span> Id right_neighbor_forward_lane_id = <span class="number">8</span>;</span><br><span class="line">  <span class="keyword">optional</span> LaneBoundary left_boundary = <span class="number">9</span>;</span><br><span class="line">  <span class="keyword">optional</span> LaneBoundary right_boundary = <span class="number">10</span>;</span><br><span class="line">  <span class="keyword">optional</span> Curve central_curve = <span class="number">12</span>;   <span class="comment">// 车道中心线</span></span><br><span class="line">  <span class="keyword">optional</span> <span class="type">double</span> length = <span class="number">13</span>;</span><br><span class="line">  <span class="keyword">optional</span> <span class="type">double</span> speed_limit = <span class="number">14</span>;</span><br><span class="line">  <span class="keyword">optional</span> LaneType type = <span class="number">22</span>;         <span class="comment">// 城市车道/高速车道/匝道等</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>地图文件以 <code>.bin</code>（二进制）或 <code>.txt</code>（文本）形式存放在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">modules/map/data/&#123;map_name&#125;/</span><br><span class="line">├── base_map.bin      # 底图：全部静态要素</span><br><span class="line">├── sim_map.bin       # 仿真精简地图</span><br><span class="line">└── routing_map.bin   # 路由用拓扑地图</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-1-坐标系"><a href="#3-1-坐标系" class="headerlink" title="3.1 坐标系"></a>3.1 坐标系</h3><ul>
+<li><strong>全局坐标系（XYZ）</strong>：UTM 或 ENU 局部投影坐标，地图要素的绝对位置</li>
+<li><strong>车道坐标系（SL）</strong>：S 为沿车道中心线的弧长，L 为相对中心线的横向偏移。规划模块在 SL 坐标系下生成轨迹，<code>map_xysl</code> 工具提供两种坐标互转</li>
+</ul>
+<h2 id="4-Map-模块架构"><a href="#4-Map-模块架构" class="headerlink" title="4. Map 模块架构"></a>4. Map 模块架构</h2><p>Map 模块（<code>modules/map/</code>）负责地图的加载、管理与查询，核心组件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">modules/map/</span><br><span class="line">├── hdmap/           # HDMap/HDMapImpl：地图加载与查询核心</span><br><span class="line">│   └── adapter/     # OpenDRIVE 适配器、XML 解析器</span><br><span class="line">├── pnc_map/         # PncMap：面向规划控制的路由段接口</span><br><span class="line">├── relative_map/    # RelativeMap：基于感知的相对地图</span><br><span class="line">├── proto/           # 地图消息定义</span><br><span class="line">└── tools/           # map_tool、map_datachecker、map_xysl 等工具</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">数据流：</span><br><span class="line">地图文件 ──加载──&gt; HDMapImpl（元素表 + R树索引）──查询──&gt; 定位/感知/规划</span><br><span class="line">路由响应 ──────&gt; PncMap ──RouteSegments──&gt; Planning（生成参考线）</span><br><span class="line">感知车道线 ────&gt; RelativeMap ──相对地图──&gt; Planning（导航模式）</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>HDMap&#x2F;HDMapImpl</strong>：加载地图构建内存表示，内部用哈希表（按 ID 查询）+ R 树空间索引（按位置查询）保证查询效率</li>
+<li><strong>PncMap</strong>：将路由响应转换为规划可直接使用的连续 RouteSegments</li>
+<li><strong>RelativeMap</strong>：无高精地图场景下的备选方案，用感知输出的车道线 + 导航线动态构建局部地图（导航模式）</li>
+</ul>
+<h3 id="4-1-查询接口示例"><a href="#4-1-查询接口示例" class="headerlink" title="4.1 查询接口示例"></a>4.1 查询接口示例</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;modules/map/hdmap/hdmap.h&quot;</span></span></span><br><span class="line"></span><br><span class="line">apollo::hdmap::HDMap map;</span><br><span class="line">map.<span class="built_in">LoadMapFromFile</span>(<span class="string">&quot;modules/map/data/sample/base_map.bin&quot;</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 按位置查询附近 10 米内的车道</span></span><br><span class="line">apollo::common::PointENU point;</span><br><span class="line">point.<span class="built_in">set_x</span>(<span class="number">587128.2</span>);</span><br><span class="line">point.<span class="built_in">set_y</span>(<span class="number">4141491.8</span>);</span><br><span class="line">std::vector&lt;apollo::hdmap::LaneInfoConstPtr&gt; lanes;</span><br><span class="line">map.<span class="built_in">GetLanes</span>(point, <span class="number">10.0</span>, &amp;lanes);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 按 ID 查询；沿车道拓扑查询前继/后继</span></span><br><span class="line">apollo::hdmap::LaneInfoConstPtr lane_info;</span><br><span class="line">map.<span class="built_in">GetLaneById</span>(lane_id, lane_info);</span><br><span class="line">std::vector&lt;apollo::hdmap::LaneInfoConstPtr&gt; preds, succs;</span><br><span class="line">lane_info-&gt;<span class="built_in">GetPredecessors</span>(&amp;preds);</span><br><span class="line">lane_info-&gt;<span class="built_in">GetSuccessors</span>(&amp;succs);</span><br></pre></td></tr></table></figure>
+
+<h2 id="5-地图的制作与使用"><a href="#5-地图的制作与使用" class="headerlink" title="5. 地图的制作与使用"></a>5. 地图的制作与使用</h2><h3 id="5-1-制作流程概览"><a href="#5-1-制作流程概览" class="headerlink" title="5.1 制作流程概览"></a>5.1 制作流程概览</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">采集（RTK/激光/相机）→ 点云拼接与配准 → 要素提取与标注 → 质检 → 发布</span><br></pre></td></tr></table></figure>
+
+<p>专业制图依赖移动测量系统与半自动标注；Apollo 另提供一条<strong>简易 RTK 制图路径</strong>，从录制的定位数据直接生成车道中心线地图：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 从 record 包提取车辆轨迹（订阅 /apollo/localization/pose）</span></span><br><span class="line">python modules/tools/map_gen/extract_path.py path.txt data/bag/record.bag</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 可视化轨迹</span></span><br><span class="line">python modules/tools/map_gen/plot_path.py path.txt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 由轨迹生成车道中心线地图</span></span><br><span class="line">python modules/tools/map_gen/map_gen.py path.txt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 查看生成的地图</span></span><br><span class="line">python modules/tools/mapshow/mapshow.py -m map_path.txt</span><br></pre></td></tr></table></figure>
+
+<p>该方式只含中心线，不包含信号灯等语义要素，适合园区测试与原型验证。</p>
+<h3 id="5-2-格式转换"><a href="#5-2-格式转换" class="headerlink" title="5.2 格式转换"></a>5.2 格式转换</h3><p>OpenDRIVE 等外部格式可通过适配器&#x2F;工具转为 Apollo 格式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 文本地图转二进制</span></span><br><span class="line">python modules/tools/create_map/convert_map_txt2bin.py -i map.txt -o map.bin</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成仿真地图</span></span><br><span class="line">./bazel-bin/modules/map/tools/sim_map_generator \</span><br><span class="line">    --map_dir=/apollo/modules/map/data/sample \</span><br><span class="line">    --output_dir=/apollo/modules/map/data/sample</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-配置与验证"><a href="#5-3-配置与验证" class="headerlink" title="5.3 配置与验证"></a>5.3 配置与验证</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 指定默认地图目录</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;--map_dir=/apollo/modules/map/data/&#123;map_name&#125;&quot;</span> \</span><br><span class="line">    &gt;&gt; modules/common/data/global_flagfile.txt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动系统后在 DreamView 中选择地图进行叠加检查</span></span><br><span class="line">bash scripts/bootstrap.sh   <span class="comment"># 访问 http://localhost:8888</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 常见调试问题</p>
+<ul>
+<li><strong>加载失败</strong>：检查 <code>--map_dir</code> 路径与文件格式（.bin&#x2F;.txt 需与加载接口匹配）</li>
+<li><strong>要素缺失</strong>：检查制图流程是否覆盖该要素类型（如信号灯漏标）</li>
+<li><strong>坐标偏移</strong>：核对地图坐标系配置与定位输出坐标系一致；用 DreamView 叠加点云与地图可快速发现错位</li>
+</ul>
+</blockquote>
+<p>地图质量直接决定定位与规划质量，建议在调试 <a href="/posts/1640301657.html">08-定位模块</a> 与规划前先完成地图对齐检查。</p>
+<h2 id="6-地图在下游模块中的应用"><a href="#6-地图在下游模块中的应用" class="headerlink" title="6. 地图在下游模块中的应用"></a>6. 地图在下游模块中的应用</h2><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>用法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定位</td>
+<td>点云&#x2F;视觉与地图匹配（见 <a href="/posts/1640301657.html">08-定位模块</a>）</td>
+</tr>
+<tr>
+<td>感知</td>
+<td>ROI 过滤缩小检测范围；信号灯位置先验（见 <a href="/posts/1643555401.html">14-调试与可视化工具（DreamView）</a> 可视化验证）</td>
+</tr>
+<tr>
+<td>规划</td>
+<td>PncMap 提供 RouteSegments → 参考线 → 轨迹；查询限速&#x2F;停止线等约束</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 2026 年更新<br>Apollo 9.0 起支持包化模块开发（package-based module development），地图作为包资源随模块分发，开发者可不再依赖完整源码仓库部署地图数据；同时相对地图与”无图化”趋势在低成本场景持续演进，但厘米级先验地图仍是 L4 高阶能力的基石。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/4189053877.html">06-核心模块总览</a>　下一篇：<a href="/posts/1640301657.html">08-定位模块</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/2291656538.html">https://zeek-zhao.github.io/posts/2291656538.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2437194236.html" title="08-Butterfly分类与标签系统"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">08-Butterfly分类与标签系统</div></div><div class="info-2"><div class="info-item-1">分类与标签系统 [!abstract] 一句话分类负责文章的”骨架”、标签负责文章的”血肉”，两者配合才能构建可浏览、可发现的知识库。  分类与标签的本质区别Hexo 提供两种内容组织维度，语义不同：  分类（Categories）：具有层级关系，类似目录树，反映文章的主要内容归属。一篇文章可以属于多个分类路径。 标签（Tags）：平行结构，无层级，用于标记文章涉及的各方面关键词。一篇文章通常带多个标签。  一个直观的类比：分类回答”这篇文章属于哪个领域”，标签回答”这篇文章谈到了什么”。以一篇《Vue 组件设计实践》为例：分类是”技术 &gt; 前端”，标签则是 Vue、组件设计、工程化。 分类语法：单分类、多分类与嵌套在文章 front-matter 中使用 categories 字段： 1234---title: 文章标题categories: 技术          # 单分类---  多个平级分类用数组语法，文章会同时出现在两个分类中： 123456---title: 文章标题categories:  - 技术  - 教程---  嵌套分类是 Hexo 的特色能力，用嵌...</div></div></div></a><a class="pagination-related" href="/posts/2926533160.html" title="07-操作符重载"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">07-操作符重载</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Groovy 如何将操作符映射为方法调用，并自定义运算行为。  1. 操作符与方法的映射Groovy 中操作符本质是方法调用：加法映射为 plus 方法，等号比较映射为 equals 或 compareTo 方法，索引映射为 getAt 方法。自定义类实现对应方法即可获得操作符支持。 这种映射机制让 DSL 与领域类型获得自然运算语义，如向量相加、矩阵乘、时间区间判断等。 2. 常用重载操作符算术操作符映射到 plus、minus、multiply、div、mod、power；比较映射到 compareTo 与 equals；索引映射到 getAt 与 putAt；一元操作符映射到 positive、negative、next、previous。 范围操作符映射到 rangeTo，包含端点的表达式非常直观。 3. 重载实现要点实现重载方法时注意参数类型匹配，Groovy 按运行时类型选择方法。equals 重载要满足一致性要求，hashCode 同步重写。 返回类型尽量保持运算语义正确，例如 minus 返回同类型对象，避免类型混乱。 4. 操作符...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/322975445.html" title="14-控制模块（横向纵向控制）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">14-控制模块（横向纵向控制）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 控制模块：横纵向控制策略、参数与调试。  1. 控制模块概述控制模块将规划轨迹转化为方向盘、油门、刹车指令，是自动驾驶执行末端。Apollo 控制基于横纵向解耦的控制器设计。 2. 横向控制横向控制保持车辆沿轨迹横向偏差最小，常用 LQR、MPC 等算法。输出前轮转角指令。    算法 特点    PID 简单、易调   LQR 状态反馈最优   MPC 带约束预测控制   3. 纵向控制纵向控制跟踪速度曲线，输出油门与刹车指令，通常采用 PID 加前馈补偿，并处理换挡与坡度。 4. 参数与调试控制器参数位于 modules&#x2F;control&#x2F;conf，可分别调整横纵向增益。调试常用 DreamView 观察跟踪误差，见 24-调试与可视化工具。车辆模型影响控制效果，见 16-车辆动力学基础。  [!note] 延伸控制指令通过 CAN 下发，见 19-CAN总线与车辆控制接口。  5. 控制器参数整定控制器参数整定是控制调试的核心工作：横向控制器需调整位置误差增益、航向误差增益与前馈系数；纵向控制器需调整速度误差增...</div></div></div></a><a class="pagination-related" href="/posts/3670574823.html" title="28-Cyber异步调用机制"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">28-Cyber异步调用机制</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Cyber RT 的异步编程层：Async&#x2F;Yield&#x2F;SleepFor 原语、TaskManager 的协程池与有界队列实现、实模式&#x2F;仿真模式双路径设计，以及 SysMo 对异步任务的监控手段。  本篇是第四阶段 Cyber RT 深度剖析的第四篇。组件的”消息驱动”路径由 29-Cyber数据系统详解 负责，本篇讲”代码主动并发”路径——cyber::Async 一行调用背后的完整基础设施，它同样构建在 26-Cyber调度系统详解 的协程之上。 1. 设计定位自动驾驶软件反复出现这类需求：点云预处理耗时但不挡主流程、MPC 求解可能超时、路径要并行生成多方案。Cyber 的异步机制围绕五个目标设计：  高性能：实模式下走协程，上下文切换开销近于零 易用：API 形态对齐 std::async，返回 std::future 灵活：协程&#x2F;线程双模型，按运行模式自动切换 资源可控：有界队列 + 池化协程，防任务风暴 可观测：SysMo 持续输出协程执行快照  源码目录：cyber/task/（task.h、t...</div></div></div></a><a class="pagination-related" href="/posts/1936881509.html" title="04-源码编译与部署"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">04-源码编译与部署</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Apollo 源码编译与部署流程，理解各构建目标与产物。  1. 编译准备编译前确认源码版本与 Docker 镜像版本匹配，检查磁盘空间与内存。Apollo 使用 Bazel 构建系统，首次构建耗时较长。 12# 查看构建帮助bash scripts/apollo_build.sh -h  2. 构建目标   目标 命令 说明    全部 bash scripts&#x2F;apollo_build.sh 编译全量模块   指定模块 bazel build &#x2F;&#x2F;modules&#x2F;perception:all 只编译感知模块   清理 bash scripts&#x2F;apollo_clean.sh 清理缓存   构建产物位于 &#x2F;apollo&#x2F;bazel-bin，模块二进制与配置文件按目录组织。 3. 常见构建问题   问题 原因与解法    空间不足 清理 bazel 缓存或扩容   内存不足 限制并行度：bazel build –jobs&#x3D;4   依赖缺失 检查 dev_start.sh...</div></div></div></a><a class="pagination-related" href="/posts/370472885.html" title="56-自动驾驶云服务与基础设施"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">56-自动驾驶云服务与基础设施</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解支撑自动驾驶研发与运营的云基础设施：平台分层架构、数据与算力底座、云端仿真、车云协同与安全合规。云平台是 55-标注工具与数据闭环 和 54-自动驾驶测试方法 的物质基础。  1. 云服务的角色自动驾驶云服务是连接车辆与后端系统的核心枢纽，覆盖全生命周期：    角色 功能 典型服务    数据中心 PB 级研发&#x2F;运行数据管理 数据湖、对象存储   计算中心 大规模分布式训练 GPU 集群、训练平台   研发中台 全流程工具链 开发环境、CI&#x2F;CD   仿真平台 虚拟测试与场景管理 云端仿真引擎   运营中心 车队监控与调度 监控系统   地图服务 高精地图分发与更新 地图云、增量更新   价值：突破本地算力限制、按需付费降低门槛、通过数据闭环加速迭代、支撑多车协同。 2. 平台分层架构1234567用户接入层（开发者门户 / 车队管理 / API 网关）    ↓应用服务层（地图 / 仿真 / 数据分析 / 训练 / OTA / 远程监控）    ↓平台中间件层（数据处理框架 / 模型管理 / 任务调度 / 认证 / 监控告警）...</div></div></div></a><a class="pagination-related" href="/posts/140110120.html" title="57-自动驾驶操作系统"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">57-自动驾驶操作系统</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶操作系统的独特需求（硬实时、功能安全、异构算力）、分层架构与调度&#x2F;优化技术，并对比主流方案。OS 之上的中间件层（运行时框架）见 58-自动驾驶运行时框架对比。  1. 为什么自动驾驶需要专门的 OS自动驾驶系统每秒处理 GB 级传感器数据、要求毫秒级响应、失效可能危及生命。这决定了车载 OS 必须同时具备性能、可靠性与安全性，远超一般嵌入式系统的要求。 1.1 实时性分层   层级 定义 例子    硬实时 必须在截止时间前完成 紧急制动控制   软实时 偶尔超时可接受 感知、规划   近实时 容忍度较高 HMI   各模块的实时性要求：    模块 典型周期 最大容忍延迟    控制模块 10ms &lt;5ms   定位模块 20-50ms &lt;20ms   规划模块 50-100ms &lt;20ms   感知模块 50-200ms &lt;50ms   HMI 100-500ms &lt;200ms   1.2 其他核心需求 可靠性：故障隔离（单模块失效不拖垮系统）、健康监控、快速恢复 资源管理：CPU 调度与核心隔离...</div></div></div></a><a class="pagination-related" href="/posts/3133762148.html" title="23-车辆动力学基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">23-车辆动力学基础</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶规划控制所需的车辆运动学与动力学模型：模型分类与适用场景、自行车模型推导、关键参数含义、实车参数辨识与验证方法。模型是 22-控制模块 的设计基础，也是 24-仿真平台与场景数据 中仿真保真度的来源。  1. 模型的作用规划与控制依赖车辆模型来描述运动与响应：规划用模型生成动力学可行的轨迹，控制用模型设计反馈律，仿真用模型模拟真实车辆响应。模型精度影响控制效果与仿真真实性——但不同环节对精度要求不同：    环节 需求    轨迹规划 较高保真度，保证轨迹可执行   控制设计 线性化模型便于分析（LQR 等）   仿真平台 高保真车辆模型模拟真实响应   参数标定 辨识模型参数本身   2. 模型体系   模型 描述 精确度 计算效率 用途    运动学模型 位置+航向的几何关系 低-中 高 低速场景、规划参考   自行车模型 左右轮合并的简化模型 中 高 Apollo 主力模型   线性动力学模型 力与加速度的线性化 中 中-高 高速控制设计   非线性&#x2F;轮胎动力学模型 侧偏特性、非线性力 高 低 极限工况、滑移控制   选型原则...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E4%BB%80%E4%B9%88%E6%98%AF%E9%AB%98%E7%B2%BE%E5%9C%B0%E5%9B%BE"><span class="toc-number">1.</span> <span class="toc-text">1. 什么是高精地图</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%9C%B0%E5%9B%BE%E6%A0%B8%E5%BF%83%E8%A6%81%E7%B4%A0"><span class="toc-number">2.</span> <span class="toc-text">2. 地图核心要素</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%EF%BC%9Amap-proto"><span class="toc-number">3.</span> <span class="toc-text">3. 数据结构：map.proto</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E5%9D%90%E6%A0%87%E7%B3%BB"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 坐标系</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-Map-%E6%A8%A1%E5%9D%97%E6%9E%B6%E6%9E%84"><span class="toc-number">4.</span> <span class="toc-text">4. Map 模块架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E6%9F%A5%E8%AF%A2%E6%8E%A5%E5%8F%A3%E7%A4%BA%E4%BE%8B"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 查询接口示例</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%9C%B0%E5%9B%BE%E7%9A%84%E5%88%B6%E4%BD%9C%E4%B8%8E%E4%BD%BF%E7%94%A8"><span class="toc-number">5.</span> <span class="toc-text">5. 地图的制作与使用</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E5%88%B6%E4%BD%9C%E6%B5%81%E7%A8%8B%E6%A6%82%E8%A7%88"><span class="toc-number">5.1.</span> <span class="toc-text">5.1 制作流程概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E6%A0%BC%E5%BC%8F%E8%BD%AC%E6%8D%A2"><span class="toc-number">5.2.</span> <span class="toc-text">5.2 格式转换</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-%E9%85%8D%E7%BD%AE%E4%B8%8E%E9%AA%8C%E8%AF%81"><span class="toc-number">5.3.</span> <span class="toc-text">5.3 配置与验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E5%9C%B0%E5%9B%BE%E5%9C%A8%E4%B8%8B%E6%B8%B8%E6%A8%A1%E5%9D%97%E4%B8%AD%E7%9A%84%E5%BA%94%E7%94%A8"><span class="toc-number">6.</span> <span class="toc-text">6. 地图在下游模块中的应用</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

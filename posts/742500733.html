@@ -1,0 +1,705 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>14-执行器与回调组 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Executor 负责调度节点的回调（订阅、服务、动作、定时器、参数回调）。回调不会自动并发执行，由 Executor 的线程模型决定。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="14-执行器与回调组">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/742500733.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="Executor 负责调度节点的回调（订阅、服务、动作、定时器、参数回调）。回调不会自动并发执行，由 Executor 的线程模型决定。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros2">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "14-执行器与回调组",
+  "url": "https://zeek-zhao.github.io/posts/742500733.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/742500733.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '14-执行器与回调组',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">14-执行器与回调组</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">14-执行器与回调组</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros2/">ros2</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="执行器与回调组"><a href="#执行器与回调组" class="headerlink" title="执行器与回调组"></a>执行器与回调组</h1><blockquote>
+<p>[!info] 本节目标<br>理解 ROS2 Executor 与回调组（Callback Group）机制，掌握多线程执行与并发控制方法。</p>
+</blockquote>
+<h2 id="1-Executor-概念"><a href="#1-Executor-概念" class="headerlink" title="1. Executor 概念"></a>1. Executor 概念</h2><p>Executor 负责调度节点的回调（订阅、服务、动作、定时器、参数回调）。回调不会自动并发执行，由 Executor 的线程模型决定。</p>
+<table>
+<thead>
+<tr>
+<th>Executor</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SingleThreadedExecutor</td>
+<td>默认，单线程串行处理所有回调</td>
+</tr>
+<tr>
+<td>MultiThreadedExecutor</td>
+<td>多线程，可并行不同回调组</td>
+</tr>
+<tr>
+<td>StaticSingleThreadedExecutor</td>
+<td>静态单线程，回调预注册，性能更佳</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!warning] 默认陷阱<br>默认单线程 Executor 下，耗时回调会阻塞其他所有回调（如 1 秒的 sleep 会拖慢订阅频率）。</p>
+</blockquote>
+<h2 id="2-回调组类型"><a href="#2-回调组类型" class="headerlink" title="2. 回调组类型"></a>2. 回调组类型</h2><table>
+<thead>
+<tr>
+<th>回调组</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>MutuallyExclusive（默认）</td>
+<td>组内回调串行执行</td>
+</tr>
+<tr>
+<td>Reentrant</td>
+<td>组内回调可并发执行（可重入）</td>
+</tr>
+</tbody></table>
+<p>每个节点可建多个回调组，将不同业务回调分到不同组，配合 MultiThreadedExecutor 实现并行。</p>
+<h2 id="3-Python-回调组示例"><a href="#3-Python-回调组示例" class="headerlink" title="3. Python 回调组示例"></a>3. Python 回调组示例</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"><span class="keyword">import</span> rclpy</span><br><span class="line"><span class="keyword">from</span> rclpy.node <span class="keyword">import</span> Node</span><br><span class="line"><span class="keyword">from</span> rclpy.callback_groups <span class="keyword">import</span> ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup</span><br><span class="line"><span class="keyword">from</span> rclpy.executors <span class="keyword">import</span> MultiThreadedExecutor</span><br><span class="line"><span class="keyword">from</span> std_msgs.msg <span class="keyword">import</span> String</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">MultiNode</span>(<span class="title class_ inherited__">Node</span>):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__(<span class="string">&#x27;multi_node&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.group_a = MutuallyExclusiveCallbackGroup()</span><br><span class="line">        <span class="variable language_">self</span>.group_b = ReentrantCallbackGroup()</span><br><span class="line"></span><br><span class="line">        <span class="variable language_">self</span>.sub1 = <span class="variable language_">self</span>.create_subscription(</span><br><span class="line">            String, <span class="string">&#x27;topic_a&#x27;</span>, <span class="variable language_">self</span>.cb_a, <span class="number">10</span>,</span><br><span class="line">            callback_group=<span class="variable language_">self</span>.group_a)</span><br><span class="line">        <span class="variable language_">self</span>.sub2 = <span class="variable language_">self</span>.create_subscription(</span><br><span class="line">            String, <span class="string">&#x27;topic_b&#x27;</span>, <span class="variable language_">self</span>.cb_b, <span class="number">10</span>,</span><br><span class="line">            callback_group=<span class="variable language_">self</span>.group_b)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">cb_a</span>(<span class="params">self, msg</span>):</span><br><span class="line">        <span class="variable language_">self</span>.get_logger().info(<span class="string">&#x27;A start&#x27;</span>)</span><br><span class="line">        <span class="comment"># 耗时操作会阻塞同组 A 的其他回调</span></span><br><span class="line">        time.sleep(<span class="number">1.0</span>)</span><br><span class="line">        <span class="variable language_">self</span>.get_logger().info(<span class="string">&#x27;A end&#x27;</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">cb_b</span>(<span class="params">self, msg</span>):</span><br><span class="line">        <span class="variable language_">self</span>.get_logger().info(<span class="string">&#x27;B: can run parallel to A&#x27;</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">main</span>(<span class="params">args=<span class="literal">None</span></span>):</span><br><span class="line">    rclpy.init(args=args)</span><br><span class="line">    node = MultiNode()</span><br><span class="line">    executor = MultiThreadedExecutor(num_threads=<span class="number">2</span>)</span><br><span class="line">    executor.add_node(node)</span><br><span class="line">    executor.spin()</span><br><span class="line">    node.destroy_node()</span><br><span class="line">    rclpy.shutdown()</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">&#x27;__main__&#x27;</span>:</span><br><span class="line">    main()</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 分组策略<br>高频传感器回调独立 Reentrant 组，低频控制回调独立组，避免互相阻塞。</p>
+</blockquote>
+<h2 id="4-C-回调组"><a href="#4-C-回调组" class="headerlink" title="4. C++ 回调组"></a>4. C++ 回调组</h2><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;rclcpp/rclcpp.hpp&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;std_msgs/msg/string.hpp&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">MultiNode</span> : <span class="keyword">public</span> rclcpp::Node</span><br><span class="line">&#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">  <span class="built_in">MultiNode</span>() : <span class="built_in">Node</span>(<span class="string">&quot;multi_node&quot;</span>)</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="keyword">auto</span> group_a = <span class="built_in">create_callback_group</span>(</span><br><span class="line">      rclcpp::CallbackGroupType::MutuallyExclusive);</span><br><span class="line">    <span class="keyword">auto</span> group_b = <span class="built_in">create_callback_group</span>(</span><br><span class="line">      rclcpp::CallbackGroupType::Reentrant);</span><br><span class="line"></span><br><span class="line">    sub_a_ = <span class="built_in">create_subscription</span>&lt;std_msgs::msg::String&gt;(</span><br><span class="line">      <span class="string">&quot;topic_a&quot;</span>, <span class="number">10</span>,</span><br><span class="line">      [<span class="keyword">this</span>](<span class="type">const</span> std_msgs::msg::String::SharedPtr msg)</span><br><span class="line">      &#123; <span class="built_in">RCLCPP_INFO</span>(<span class="built_in">get_logger</span>(), <span class="string">&quot;A&quot;</span>); &#125;,</span><br><span class="line">      rclcpp::<span class="built_in">SubscriptionOptions</span>().<span class="built_in">callback_group</span>(group_a));</span><br><span class="line"></span><br><span class="line">    sub_b_ = <span class="built_in">create_subscription</span>&lt;std_msgs::msg::String&gt;(</span><br><span class="line">      <span class="string">&quot;topic_b&quot;</span>, <span class="number">10</span>,</span><br><span class="line">      [<span class="keyword">this</span>](<span class="type">const</span> std_msgs::msg::String::SharedPtr msg)</span><br><span class="line">      &#123; <span class="built_in">RCLCPP_INFO</span>(<span class="built_in">get_logger</span>(), <span class="string">&quot;B&quot;</span>); &#125;,</span><br><span class="line">      rclcpp::<span class="built_in">SubscriptionOptions</span>().<span class="built_in">callback_group</span>(group_b));</span><br><span class="line">  &#125;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">  rclcpp::Subscription&lt;std_msgs::msg::String&gt;::SharedPtr sub_a_, sub_b_;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span>** argv)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  rclcpp::<span class="built_in">init</span>(argc, argv);</span><br><span class="line">  <span class="keyword">auto</span> node = std::<span class="built_in">make_shared</span>&lt;MultiNode&gt;();</span><br><span class="line">  rclcpp::executors::MultiThreadedExecutor executor;</span><br><span class="line">  executor.<span class="built_in">add_node</span>(node);</span><br><span class="line">  executor.<span class="built_in">spin</span>();</span><br><span class="line">  rclcpp::<span class="built_in">shutdown</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 回调组绑定<br>创建订阅&#x2F;服务&#x2F;定时器时通过 options 指定 callback_group；不指定则用节点默认 MutuallyExclusive 组。</p>
+</blockquote>
+<h2 id="5-线程安全注意事项"><a href="#5-线程安全注意事项" class="headerlink" title="5. 线程安全注意事项"></a>5. 线程安全注意事项</h2><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>跨回调组共享变量</td>
+<td>加锁（std::mutex &#x2F; threading.Lock）</td>
+</tr>
+<tr>
+<td>发布在任意回调</td>
+<td>Publisher 线程安全</td>
+</tr>
+<tr>
+<td>销毁实体</td>
+<td>在所属回调组内 destroy</td>
+</tr>
+<tr>
+<td>并发写日志</td>
+<td>无需加锁（日志本身线程安全）</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!tip] 发布线程安全<br>ROS2 的 Publisher&#x2F;Subscription 句柄在并发调用 publish 时安全，但共享的业务状态需自行加锁。</p>
+</blockquote>
+<h2 id="6-性能对比"><a href="#6-性能对比" class="headerlink" title="6. 性能对比"></a>6. 性能对比</h2><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>单线程</th>
+<th>多线程+分组</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>单传感器低频</td>
+<td>够用</td>
+<td>可</td>
+</tr>
+<tr>
+<td>多传感器+控制</td>
+<td>可能卡顿</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>长时间服务回调</td>
+<td>阻塞所有</td>
+<td>独立组并行</td>
+</tr>
+<tr>
+<td>高吞吐</td>
+<td>瓶颈</td>
+<td>需调线程数</td>
+</tr>
+</tbody></table>
+<h2 id="7-常见问题"><a href="#7-常见问题" class="headerlink" title="7. 常见问题"></a>7. 常见问题</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>排查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>回调互相阻塞</td>
+<td>使用多线程 Executor + 分组</td>
+</tr>
+<tr>
+<td>并发崩溃</td>
+<td>共享状态未加锁</td>
+</tr>
+<tr>
+<td>死锁</td>
+<td>回调内同步等待其他回调</td>
+</tr>
+<tr>
+<td>线程数过高</td>
+<td>一般 2-4 线程即可</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>回调组在 Nav2&#x2F;MoveIt2 大量使用；结合 QoS 与性能见 <a href="/posts/514195102.html">33-实时性与QoS策略</a>、<a href="/posts/4284941043.html">35-性能优化与Benchmark</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/3898278822.html">13-自定义消息接口</a>　下一篇：<a href="/posts/201369509.html">15-tf2坐标变换</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/742500733.html">https://zeek-zhao.github.io/posts/742500733.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros2/">ros2</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/322975445.html" title="14-控制模块（横向纵向控制）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">14-控制模块（横向纵向控制）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 控制模块：横纵向控制策略、参数与调试。  1. 控制模块概述控制模块将规划轨迹转化为方向盘、油门、刹车指令，是自动驾驶执行末端。Apollo 控制基于横纵向解耦的控制器设计。 2. 横向控制横向控制保持车辆沿轨迹横向偏差最小，常用 LQR、MPC 等算法。输出前轮转角指令。    算法 特点    PID 简单、易调   LQR 状态反馈最优   MPC 带约束预测控制   3. 纵向控制纵向控制跟踪速度曲线，输出油门与刹车指令，通常采用 PID 加前馈补偿，并处理换挡与坡度。 4. 参数与调试控制器参数位于 modules&#x2F;control&#x2F;conf，可分别调整横纵向增益。调试常用 DreamView 观察跟踪误差，见 24-调试与可视化工具。车辆模型影响控制效果，见 16-车辆动力学基础。  [!note] 延伸控制指令通过 CAN 下发，见 19-CAN总线与车辆控制接口。  5. 控制器参数整定控制器参数整定是控制调试的核心工作：横向控制器需调整位置误差增益、航向误差增益与前馈系数；纵向控制器需调整速度误差增...</div></div></div></a><a class="pagination-related" href="/posts/1877057279.html" title="14-性能调优"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">14-性能调优</div></div><div class="info-2"><div class="info-item-1">性能调优 [!abstract] 让仓库又快又稳性能瓶颈集中在 内存、磁盘、索引、并发。按”资源 → 存储 → 网络 → 监控”四层调优。  1. JVM 内存bin/nexus.vmoptions： 12345-Xms4g-Xmx4g-XX:+UseG1GC-XX:MaxDirectMemorySize=2g-XX:MaxGCPauseMillis=200   [!note] 内存建议制品库读多写多，堆内存给足；别超过物理内存（留系统&#x2F;磁盘缓存）。8G 起步，大制品（Docker）更高。  2. 文件句柄1234# /etc/security/limits.confnexus soft nofile 65536nexus hard nofile 65536# systemd 已设 LimitNOFILE=65536  3. 磁盘   优化 说明    Blob 目录放 SSD 上传&#x2F;下载吞吐关键   制品与系统盘分离 避免 IO 争抢   对象存储 超大制品库可缓解本地 IO   4. 索引（Elasticsearch） 大组件库（几十万）注意索引目录空间；...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1204306053.html" title="01-ROS2概述与生态"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">01-ROS2概述与生态</div></div><div class="info-2"><div class="info-item-1">ROS2 概述与生态 [!info] 本节目标理解 ROS2 为什么诞生、解决了 ROS1 的哪些问题、有哪些发行版与生态组件，为后续学习建立全局认知。  1. 什么是 ROS2ROS2（Robot Operating System 2）是新一代开源机器人软件框架。它在继承 ROS1 点对点通信、工具链与生态思想的同时，重构了通信中间件：基于 DDS（Data Distribution Service）标准，原生支持多机、实时、安全与产品化需求。 ROS2 的核心设计目标：  多机与分布式：DDS 自动发现，节点可跨主机无缝通信。 实时性：支持硬实时执行器与优先级调度。 安全：原生支持 TLS&#x2F;DTLS 加密与权限控制（SROS2）。 标准通信：DDS 是行业标准，可与非 ROS 系统互通。 跨平台：支持 Linux、Windows、macOS 及嵌入式 RTOS。  2. 诞生背景   时间 事件    2014 ROS2 设计提案（Design Articles）发布   2015 首个原型（Ardent 之前）   2017 首个发行版 Ardent Apalon...</div></div></div></a><a class="pagination-related" href="/posts/3503988486.html" title="19-launch系统"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">19-launch系统</div></div><div class="info-2"><div class="info-item-1">launch 系统 [!info] 本节目标掌握 ROS2 Python launch 文件：节点组合、参数、命名空间、条件与事件机制。  1. launch 概念launch 文件用于一次性启动多个节点、配置参数、设置命名空间并编排启动顺序。ROS2 推荐使用 Python launch（.launch.py）。 1ros2 launch my_pkg demo.launch.py   [!note] 对比 ROS1ROS2 弃用 XML launch，全面转向 Python 语法，可编程性更强。  2. 基础 launch12345678910111213141516171819# my_pkg/launch/demo.launch.pyfrom launch import LaunchDescriptionfrom launch_ros.actions import Nodedef generate_launch_description():    return LaunchDescription([        Node(            package=&#x2...</div></div></div></a><a class="pagination-related" href="/posts/2378366256.html" title="21-常用传感器驱动"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">21-常用传感器驱动</div></div><div class="info-2"><div class="info-item-1">常用传感器驱动 [!info] 本节目标掌握激光雷达、相机、IMU、里程计等常用传感器的 ROS2 驱动接入与数据校验。  1. 传感器接入流程1硬件 -&gt; 驱动节点 -&gt; 标准消息话题 -&gt; 应用（导航/视觉/定位）     传感器 典型消息 常用驱动    2D 激光雷达 sensor_msgs&#x2F;LaserScan rplidar_ros、ydlidar 等   3D 激光雷达 sensor_msgs&#x2F;PointCloud2 livox_ros_driver2 等   RGB 相机 sensor_msgs&#x2F;Image usb_cam、v4l2_camera   深度相机 Image + CameraInfo realsense2_camera 等   IMU sensor_msgs&#x2F;Imu imu_filter_madgwick 等   轮式里程计 nav_msgs&#x2F;Odometry 自研&#x2F;ros2_control    [!warning] 驱动来源多数厂商驱动为社区仓库，注意与发行版&#x2F;...</div></div></div></a><a class="pagination-related" href="/posts/512206225.html" title="36-常见问题排查"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">36-常见问题排查</div></div><div class="info-2"><div class="info-item-1">常见问题排查 [!info] 本节目标掌握 ROS2 常见问题诊断方法、常用排查命令与解决套路。  1. 排查思路123451. 确认环境（source、版本、domain）2. 确认发现（节点/话题是否可见）3. 确认通信（话题/服务/QoS）4. 确认资源（CPU/内存/网络）5. 确认日志（ros2 doctor、log）     工具 用途    ros2 doctor 综合诊断   ros2 node list &#x2F; info 发现与连接   ros2 topic list &#x2F; info -v 话题状态   ros2 service list 服务状态   ros2 daemon stop&#x2F;start 守护进程重置    [!tip] 万能三连遇到问题先跑：ros2 doctor、ros2 node list、ros2 topic info -v &lt;topic&gt;，多数问题可见端倪。  2. 环境与启动问题   错误 原因 解决    command not found 未 source source /opt/ros/humble...</div></div></div></a><a class="pagination-related" href="/posts/1182880406.html" title="16-URDF与xacro建模"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">16-URDF与xacro建模</div></div><div class="info-2"><div class="info-item-1">URDF 与 xacro 建模 [!info] 本节目标掌握 URDF 机器人模型编写与 xacro 宏建模，能在 rviz2 中加载并检查模型。  1. URDF 基础URDF（Unified Robot Description Format）用 XML 描述机器人运动学与外观：link（刚体）通过 joint（关节）连接。    标签 说明    link 刚体（质量、惯量、视觉、碰撞）   joint 关节（固定&#x2F;转动&#x2F;滑动等）   robot name 根节点   123456789101112131415161718192021&lt;robot name=&quot;my_robot&quot;&gt;  &lt;link name=&quot;base_link&quot;&gt;    &lt;visual&gt;      &lt;geometry&gt;        &lt;box size=&quot;0.4 0.3 0.2&quot;/&gt;      &lt;/geometry&gt;    &lt;/visual&gt;  &l...</div></div></div></a><a class="pagination-related" href="/posts/103591067.html" title="37-ROS2与ROS1桥接迁移"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">37-ROS2与ROS1桥接迁移</div></div><div class="info-2"><div class="info-item-1">ROS2 与 ROS1 桥接迁移 [!info] 本节目标理解 ROS1 与 ROS2 差异，掌握 ros1_bridge 桥接与渐进式迁移策略。  1. ROS1 vs ROS2   维度 ROS1 ROS2    架构 Master 中心化 DDS 去中心化   通信 TCPROS&#x2F;UDPROS DDS   语言 C++03&#x2F;Python2 C++17&#x2F;Python3   构建 catkin colcon&#x2F;ament   参数 parameter server 节点内参数   时间 rospy&#x2F;roscpp Time rclcpp&#x2F;rclpy Time   通信质量 无内置 QoS 完整 QoS    [!note] 迁移趋势官方已停止 ROS1 主流维护（Noetic 维护至 2025），新项目建议直接用 ROS2。  2. 桥接工具   工具 说明    ros1_bridge 官方桥，动态&#x2F;静态桥接话题服务   roscpp&#x2F;rosbag 工具 单侧转换   ros1_to_ros2 工具&...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%89%A7%E8%A1%8C%E5%99%A8%E4%B8%8E%E5%9B%9E%E8%B0%83%E7%BB%84"><span class="toc-number">1.</span> <span class="toc-text">执行器与回调组</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-Executor-%E6%A6%82%E5%BF%B5"><span class="toc-number">1.1.</span> <span class="toc-text">1. Executor 概念</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%9B%9E%E8%B0%83%E7%BB%84%E7%B1%BB%E5%9E%8B"><span class="toc-number">1.2.</span> <span class="toc-text">2. 回调组类型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-Python-%E5%9B%9E%E8%B0%83%E7%BB%84%E7%A4%BA%E4%BE%8B"><span class="toc-number">1.3.</span> <span class="toc-text">3. Python 回调组示例</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-C-%E5%9B%9E%E8%B0%83%E7%BB%84"><span class="toc-number">1.4.</span> <span class="toc-text">4. C++ 回调组</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="toc-number">1.5.</span> <span class="toc-text">5. 线程安全注意事项</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E6%80%A7%E8%83%BD%E5%AF%B9%E6%AF%94"><span class="toc-number">1.6.</span> <span class="toc-text">6. 性能对比</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.7.</span> <span class="toc-text">7. 常见问题</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

@@ -1,0 +1,745 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>11-Apollo Cyber RT框架 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Cyber RT 是百度自研的高性能自动驾驶运行时框架，替代 ROS 解决实时性、性能与可靠性瓶颈。本篇讲解其设计动机、分层架构、核心概念（Node&#x2F;Channel&#x2F;Component&#x2F;Scheduler）与基础使用。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="11-Apollo Cyber RT框架">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2682517011.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="Cyber RT 是百度自研的高性能自动驾驶运行时框架，替代 ROS 解决实时性、性能与可靠性瓶颈。本篇讲解其设计动机、分层架构、核心概念（Node&#x2F;Channel&#x2F;Component&#x2F;Scheduler）与基础使用。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "11-Apollo Cyber RT框架",
+  "url": "https://zeek-zhao.github.io/posts/2682517011.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/2682517011.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '11-Apollo Cyber RT框架',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">11-Apollo Cyber RT框架</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">11-Apollo Cyber RT框架</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>理解 Cyber RT 的诞生背景与设计目标，掌握其分层架构与核心概念（Node、Channel、Component、Scheduler、协程），能使用 cyber 命令行工具进行基础操作。Cyber 的调度、时间、异步等深度机制由第四阶段专题承载。</p>
+</blockquote>
+<h2 id="1-为什么需要-Cyber-RT"><a href="#1-为什么需要-Cyber-RT" class="headerlink" title="1. 为什么需要 Cyber RT"></a>1. 为什么需要 Cyber RT</h2><p>Apollo 早期版本（1.0-3.0）基于 ROS。随着系统规模扩大，ROS 在自动驾驶场景下的局限逐渐暴露：</p>
+<table>
+<thead>
+<tr>
+<th>局限</th>
+<th>具体表现</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>实时性不足</td>
+<td>调度依赖操作系统，消息延迟波动大，缺乏优先级调度</td>
+</tr>
+<tr>
+<td>性能瓶颈</td>
+<td>进程间通信开销大，高带宽传感器数据（点云&#x2F;图像）传输效率低</td>
+</tr>
+<tr>
+<td>可靠性问题</td>
+<td>错误隔离不完善，单点故障易扩散；缺乏故障检测恢复机制</td>
+</tr>
+<tr>
+<td>资源管理局限</td>
+<td>缺乏精细的资源分配与隔离，难以适应车载受限环境</td>
+</tr>
+</tbody></table>
+<p>Apollo 3.5 起引入自研的 Cyber RT（Runtime）框架，全面替换 ROS。</p>
+<h3 id="1-1-设计目标"><a href="#1-1-设计目标" class="headerlink" title="1.1 设计目标"></a>1.1 设计目标</h3><ul>
+<li><strong>高性能</strong>：低延迟、高吞吐通信，支持点云&#x2F;图像级大流量数据；共享内存零拷贝</li>
+<li><strong>确定性实时</strong>：基于协程的调度，可预测的任务执行时序，优先级保障关键任务</li>
+<li><strong>可靠性</strong>：模块间故障隔离，组件级错误检测与恢复</li>
+<li><strong>灵活性</strong>：组件化架构、插件式扩展、分布式部署能力</li>
+<li><strong>资源隔离</strong>：CPU 亲和性、优先级配额、过载保护</li>
+</ul>
+<blockquote>
+<p>[!tip] 学习提示<br>一句话概括 Cyber RT：<strong>用协程调度 + 共享内存通信 + 组件化编程模型，为自动驾驶定制的高性能运行时</strong>。后面的消息通信、组件开发都建立在这三个支点上。</p>
+</blockquote>
+<h2 id="2-核心概念"><a href="#2-核心概念" class="headerlink" title="2. 核心概念"></a>2. 核心概念</h2><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Node</td>
+<td>节点，通信基本单位；创建并管理 Writer&#x2F;Reader&#x2F;Service&#x2F;Client</td>
+</tr>
+<tr>
+<td>Channel</td>
+<td>通道，消息传递的逻辑媒介（类似话题 Topic）</td>
+</tr>
+<tr>
+<td>Writer &#x2F; Reader</td>
+<td>向通道发布 &#x2F; 从通道订阅消息</td>
+</tr>
+<tr>
+<td>Component</td>
+<td>数据驱动的可复用计算组件（见 <a href="/posts/1297150334.html">12-Cyber消息通信与组件开发</a>）</td>
+</tr>
+<tr>
+<td>TimerComponent</td>
+<td>定时器驱动的组件，按固定周期执行</td>
+</tr>
+<tr>
+<td>Scheduler</td>
+<td>调度器，基于协程管理任务执行</td>
+</tr>
+<tr>
+<td>CRoutine</td>
+<td>协程，Cyber 任务的最小执行单位</td>
+</tr>
+<tr>
+<td>Shared Memory</td>
+<td>共享内存传输，大流量数据零拷贝</td>
+</tr>
+<tr>
+<td>Service &#x2F; Client</td>
+<td>请求-响应式服务通信</td>
+</tr>
+<tr>
+<td>Parameter</td>
+<td>全局参数服务</td>
+</tr>
+</tbody></table>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">典型数据流：</span><br><span class="line">Writer ──Write──&gt; Channel ──&gt; Receiver ──&gt; 数据分发/融合 ──&gt; 协程回调 Proc()</span><br></pre></td></tr></table></figure>
+
+<h2 id="3-分层架构"><a href="#3-分层架构" class="headerlink" title="3. 分层架构"></a>3. 分层架构</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">┌────────────────────────────────────────────────┐</span><br><span class="line">│ 应用层：感知/规划/控制模块、用户自定义组件          │</span><br><span class="line">├────────────────────────────────────────────────┤</span><br><span class="line">│ 框架层：组件管理、通信模型（发布订阅/服务/参数）、    │</span><br><span class="line">│         服务发现                                 │</span><br><span class="line">├────────────────────────────────────────────────┤</span><br><span class="line">│ 运行时层：任务调度（协程）、内存管理、通信传输、      │</span><br><span class="line">│          时间系统、记录回放                        │</span><br><span class="line">├────────────────────────────────────────────────┤</span><br><span class="line">│ 硬件抽象层：操作系统抽象、硬件平台抽象（x86/ARM）    │</span><br><span class="line">└────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>应用层</strong>只面向框架层标准接口编程，不触碰底层实现——这正是各模块可独立开发测试的原因</li>
+<li><strong>运行时层</strong>是性能核心：协程调度降低上下文切换开销；进程内直接传指针、进程间共享内存、跨机走网络，传输路径自动选择</li>
+<li><strong>硬件抽象层</strong>保证框架可从工控机移植到 Orin 等 ARM 平台</li>
+</ul>
+<h3 id="3-1-调度器与协程（概览）"><a href="#3-1-调度器与协程（概览）" class="headerlink" title="3.1 调度器与协程（概览）"></a>3.1 调度器与协程（概览）</h3><p>Cyber RT 的调度器基于协程实现：组件回调以协程方式执行，协作式切换在用户态完成，避免线程频繁切换的内核开销。支持两种调度策略：</p>
+<ul>
+<li><strong>经典调度（Classic）</strong>：全局优先级队列统一调度</li>
+<li><strong>编排调度（Choreography）</strong>：特定任务绑定特定 CPU 核心，提高缓存亲和性与确定性</li>
+</ul>
+<p>调度策略通过配置文件指定，可设置核绑定与任务优先级。协程模型让开发者以同步方式写异步逻辑，是 Cyber RT 高性能的关键。调度系统、时间系统、异步机制的源码级解析见第四阶段专题（25-31 篇）。</p>
+<h3 id="3-2-通信机制概览"><a href="#3-2-通信机制概览" class="headerlink" title="3.2 通信机制概览"></a>3.2 通信机制概览</h3><table>
+<thead>
+<tr>
+<th>层级</th>
+<th>传输方式</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进程内</td>
+<td>共享指针直接传递，零拷贝</td>
+<td>同进程高频数据</td>
+</tr>
+<tr>
+<td>进程间</td>
+<td>共享内存</td>
+<td>同主机模块间（点云&#x2F;图像）</td>
+</tr>
+<tr>
+<td>跨机</td>
+<td>优化的网络协议</td>
+<td>多机部署</td>
+</tr>
+</tbody></table>
+<p>消息通信模型与代码级用法见 <a href="/posts/1297150334.html">12-Cyber消息通信与组件开发</a>。</p>
+<h2 id="4-与-ROS-的对比"><a href="#4-与-ROS-的对比" class="headerlink" title="4. 与 ROS 的对比"></a>4. 与 ROS 的对比</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>Cyber RT</th>
+<th>ROS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>通信性能</td>
+<td>共享内存优先，高效零拷贝</td>
+<td>TCP&#x2F;UDP 中间件，开销较大</td>
+</tr>
+<tr>
+<td>调度机制</td>
+<td>协程调度，低开销切换</td>
+<td>依赖 OS 线程调度</td>
+</tr>
+<tr>
+<td>实时性</td>
+<td>优先级调度，确定性保障</td>
+<td>实时性弱，不确定性高</td>
+</tr>
+<tr>
+<td>资源管理</td>
+<td>细粒度控制与隔离</td>
+<td>依赖 OS，粒度较粗</td>
+</tr>
+<tr>
+<td>生态</td>
+<td>聚焦自动驾驶，生态内聚</td>
+<td>通用机器人生态丰富</td>
+</tr>
+</tbody></table>
+<p>选型参考：产品化自动驾驶优先实时性选 Cyber RT；科研教学与快速原型可利用 ROS 生态。从 ROS 迁移的要点：节点 → Node&#x2F;Component、话题消息 → Cyber proto 定义、launch → Cyber launch 配置，迁移后验证消息频率、延迟与数据一致性。</p>
+<blockquote>
+<p>[!note] 2026 年更新</p>
+<ul>
+<li><strong>Apollo 10.0 打通了 ROS 软件生态</strong>，开发者可以将 ROS 工具与已有 ROS 代码更低成本地接入 Apollo 系统，软件复用成本显著下降</li>
+<li><strong>Apollo 9.0 起支持包化模块开发（package-based module development）</strong>，模块以独立包形式开发部署，不再强制依赖完整源码仓库，Cyber 组件的打包发布更加工程化</li>
+</ul>
+</blockquote>
+<h2 id="5-基础使用"><a href="#5-基础使用" class="headerlink" title="5. 基础使用"></a>5. 基础使用</h2><h3 id="5-1-常用命令行"><a href="#5-1-常用命令行" class="headerlink" title="5.1 常用命令行"></a>5.1 常用命令行</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 列出所有通道</span></span><br><span class="line">cyber_channel list</span><br><span class="line"></span><br><span class="line"><span class="comment"># 回显通道消息内容</span></span><br><span class="line">cyber_channel <span class="built_in">echo</span> /apollo/perception/obstacles</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看通道消息频率</span></span><br><span class="line">cyber_channel hz /apollo/localization/pose</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动组件（launch 配置文件）</span></span><br><span class="line">cyber_launch start modules/planning/launch/planning.launch</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动 Apollo 全栈</span></span><br><span class="line">bash scripts/bootstrap.sh    <span class="comment"># 含 DreamView，见 14 篇</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-系统监控"><a href="#5-2-系统监控" class="headerlink" title="5.2 系统监控"></a>5.2 系统监控</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 交互式监控：通道列表、频率、消息内容实时展示</span></span><br><span class="line">cyber_monitor</span><br></pre></td></tr></table></figure>
+
+<p><code>cyber_monitor</code> 是 Cyber RT 调试的第一入口：显示所有活跃通道，支持按键过滤与展开查看消息字段，配合 <code>cyber_channel hz</code> 可快速定位数据流断裂位置。记录回放工具 <code>cyber_recorder</code> 与可视化工具见 <a href="/posts/1643555401.html">14-调试与可视化工具（DreamView）</a>。</p>
+<h3 id="5-3-一个最小示例预览"><a href="#5-3-一个最小示例预览" class="headerlink" title="5.3 一个最小示例预览"></a>5.3 一个最小示例预览</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;cyber/cyber.h&quot;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span>* argv[])</span> </span>&#123;</span><br><span class="line">  apollo::cyber::<span class="built_in">Init</span>(argv[<span class="number">0</span>]);</span><br><span class="line">  <span class="comment">// 创建节点，向通道发布一条消息</span></span><br><span class="line">  <span class="keyword">auto</span> node = apollo::cyber::<span class="built_in">CreateNode</span>(<span class="string">&quot;hello_node&quot;</span>);</span><br><span class="line">  <span class="keyword">auto</span> writer = node-&gt;<span class="built_in">CreateWriter</span>&lt;apollo::cyber::proto::Chatter&gt;(<span class="string">&quot;channel/chatter&quot;</span>);</span><br><span class="line">  <span class="keyword">auto</span> msg = std::<span class="built_in">make_shared</span>&lt;apollo::cyber::proto::Chatter&gt;();</span><br><span class="line">  msg-&gt;<span class="built_in">set_content</span>(<span class="string">&quot;hello cyber&quot;</span>);</span><br><span class="line">  writer-&gt;<span class="built_in">Write</span>(msg);</span><br><span class="line">  <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>组件化的完整开发流程（消息定义 → Component 类 → DAG&#x2F;launch 配置 → 编译运行）在下一篇展开。</p>
+<p><em>上一篇：<a href="/posts/1455150168.html">10-CAN总线与车辆控制接口</a>　下一篇：<a href="/posts/1297150334.html">12-Cyber消息通信与组件开发</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/2682517011.html">https://zeek-zhao.github.io/posts/2682517011.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2435891588.html" title="11-任务与看板管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">11-任务与看板管理</div></div><div class="info-2"><div class="info-item-1">任务与看板管理 [!abstract] 一句话Tasks 负责聚合查询、Kanban 负责可视化推进、QuickAdd 负责快速捕获——三个插件各司其职又互相咬合，让你在纯 Markdown 笔记库里跑出一套 GTD 级任务系统。  Tasks：让全库任务可查询Tasks 插件的核心思想是：任务可以写在任何笔记里（不必集中在一处），然后用查询块把它们聚合起来。任务就是普通的 Markdown 复选框 - [ ]，配合 emoji 属性标记日期、优先级和重复规则： 1- [ ] 提交项目提案 📅 2025-04-01 ⏫ 🔁 every week  常用属性：📅 截止日期（due）、🛫 开始日期（start）、✅ 完成日期（completion）、⏫&#x2F;🔼&#x2F;🔽 优先级、🔁 重复规则。完成一个带重复规则的任务时，Tasks 会自动标记完成并生成下一期的任务。 在任意笔记中插入 ```tasks 查询块即可动态汇总： 12345```tasks未完成(截止日期 today) OR (计划日期 today)按优先级 倒序排序```  再配一个”逾期未完成”...</div></div></div></a><a class="pagination-related" href="/posts/248363474.html" title="10-博客加密与内容保护"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">10-博客加密与内容保护</div></div><div class="info-2"><div class="info-item-1">博客加密与内容保护 [!abstract] 一句话hexo-blog-encrypt 插件可以为单篇文章加密码，实现”输入密码才能阅读”的效果，但要认清它是前端加密，不等于绝对安全。  适用场景与安全边界博客写作中常有这类需求：私密日记只给家人看、会议记录只给团队看、付费教程只给已购读者看。Hexo 是纯静态站点，没有服务端鉴权，文章加密由 hexo-blog-encrypt 插件在浏览器端完成：文章正文以 AES 算法加密后仍会随页面下载到访客浏览器，只有输入正确密码才解密显示。  [!danger] 安全边界必须认清这是前端加密：密文可以被技术能力强的人拿到并尝试破解，解密逻辑也运行在浏览器中。它适合”防止随意浏览与搜索引擎索引”、保护非关键信息，不适合存放真正机密的内容。高安全需求应使用服务端鉴权方案。  安装与全局配置1npm install --save hexo-blog-encrypt  在 _config.yml 中添加全局选项： 12345encrypt:  enable: true  default_abstract: 这是一篇受密码保护的文章，请输入密码继续...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/48707843.html" title="52-PyTorch与自动驾驶实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">52-PyTorch与自动驾驶实践</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 PyTorch 的核心机制（张量、自动微分、动态图）、标准训练流程与部署路径，并理解它在自动驾驶研发链路中的定位：训练侧首选框架，训练成果经 ONNX&#x2F;TorchScript 转换后进入车载推理引擎。基础原理见 51-深度学习基础与CNN。  1. PyTorch 概览1.1 发展与定位PyTorch 由 Facebook AI 研究院（FAIR）于 2016 年发布，2018 年与专注部署的 Caffe2 合并（这段历史见 53-TensorFlow与Caffe2在自动驾驶中的应用）。核心优势：  动态计算图：图在运行时即时构建，可随时用 print&#x2F;断点调试，与 Python 生态无缝集成 研究社区主流：新论文模型（UniAD、BEVFormer 等）几乎都以 PyTorch 实现 部署工具日益完善：TorchScript、ONNX 导出、ExecuTorch  版本里程碑：1.0（2018，引入 JIT）；2.0（2023，引入 torch.compile 编译加速）；2.x 持续增强 FSDP 分布式训练与编译优化。 1...</div></div></div></a><a class="pagination-related" href="/posts/2291656538.html" title="07-高精地图HD Map"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">07-高精地图HD Map</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解高精地图在自动驾驶系统中的定位与作用，掌握 Apollo 地图数据结构（map.proto）、Map 模块核心组件（HDMap&#x2F;PncMap&#x2F;RelativeMap）与地图查询、制作、调试的完整流程。  1. 什么是高精地图高精地图（HD Map）是精度达到厘米级的道路环境数字化表示。与传统导航地图只关心”从 A 到 B 怎么走”不同，高精地图精确描述每一条车道、每一根杆、每一盏信号灯的位置与语义，是自动驾驶系统的先验信息源。    特征 传统导航地图 高精地图    精度 米级（3-5 m） 厘米级（10-20 cm）   更新频率 季度&#x2F;年度 日&#x2F;周级（部分要素实时）   数据量 相对较小 巨大（约 1-2 GB&#x2F;公里）   表示方式 二维路网 + POI 三维结构化场景   交通规则 有限 完整（限速、转向、让行等）   主要用途 人类导航 机器定位与决策   高精地图对系统的四大价值：  超视距感知：获取传感器范围之外的道路形状、坡度、曲率，不受天气与光照影响 厘米级定位：传感器观测与地图匹配...</div></div></div></a><a class="pagination-related" href="/posts/789481480.html" title="apollo 90-资料索引指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">apollo 90-资料索引指南</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标给出从本套件继续深入时最值得收藏的一手资料入口，并提醒资料的版本时效边界。  1. 官方一手资料   资源 地址 说明    官网 apollo.auto 产品、方案与生态总入口   开发者社区 developer.apollo.auto 文档、Cyber RT 框架说明、课程与工具下载   开源仓库 github.com&#x2F;ApolloAuto&#x2F;apollo Apache-2.0 主仓库，master 已演进至 10.0&#x2F;11.0 代际   Dreamview 仓库 github.com&#x2F;ApolloAuto&#x2F;dreamview 可视化前端（含 DreamView Plus 商业版）   Apollo 模型库 apollo.baidu.com 感知&#x2F;预测模型发布与增量训练平台    [!warning] 版本时效GitHub 的 release tag 止于 apollo-v9.0.0（2023），Apollo 10.0（2024.12）与 11.0（2026.1）经开放平台发布并落在 mast...</div></div></div></a><a class="pagination-related" href="/posts/4180254357.html" title="apollo 00-索引"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">apollo 00-索引</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标本文是全套件的导航页，规划六阶段学习路线并列出全部篇目的导航表，帮助读者按序或按需查阅。  1. 学习路线总览本套件将 Apollo 学习分为六个阶段，覆盖从环境搭建到场景实战、再到外围专题的完整链路：    阶段 篇目范围 学习目标    一 · 入门 01-06 建立 Apollo 与自动驾驶整体认知，搭建 Docker 开发环境，完成源码编译   二 · 平台与框架 07-14 掌握地图、定位、传感器接入、CAN 总线、Cyber RT 框架与调试工具链   三 · 核心模块 15-24 深入感知、标定、预测、规划、决策、控制六大模块与仿真数据   四 · Cyber RT 深度 25-31 源码级剖析启动、调度、时间、异步、数据、网络 IO 与坐标变换   五 · 场景实战 32-43 版本演进、车道级导航、泊车&#x2F;高速&#x2F;城市场景、端到端、安全与车规部署   六 · 专题扩展 44-60 SLAM、激光雷达、数据集、仿真平台、深度学习框架、数据闭环等外围专题   2. 全篇导航表   编号 主题 编号 主题    01 百度Ap...</div></div></div></a><a class="pagination-related" href="/posts/1352878638.html" title="51-深度学习基础与CNN"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">51-深度学习基础与CNN</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标从零建立深度学习的概念框架：神经网络基本原理、CNN 核心组件、经典架构演进，以及 CNN 在自动驾驶感知系统中的实际应用，并了解 2024-2026 年感知模型的技术走向。训练框架选择见 52-PyTorch与自动驾驶实践 与 53-TensorFlow与Caffe2在自动驾驶中的应用。  1. 深度学习概述1.1 什么是深度学习深度学习是机器学习的一个子领域，使用多层神经网络模拟人脑的信息处理与模式识别能力，通过大量数据自动提取特征并做出决策。它是自动驾驶环境感知、轨迹预测等模块的算法基石。 1.2 发展简史 1943 年 McCulloch-Pitts 神经元模型；1958 年感知器 1986 年反向传播算法普及；1989 年早期 CNN；1997 年 LSTM 2012 年 AlexNet 在 ImageNet 突破，引爆深度学习革命 2017 年 Transformer 提出；2018 年后大规模预训练模型兴起 2020 年代：BEV 感知、Occupancy Network、端到端自动驾驶（详见第 7 节）  1.3 神经网络基本原理一个神经...</div></div></div></a><a class="pagination-related" href="/posts/519418161.html" title="44-Apollo与ROS对比及生态互通"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">44-Apollo与ROS对比及生态互通</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 早期基于 ROS、后自研 Cyber RT 的历史脉络；掌握 ROS1&#x2F;ROS2&#x2F;Cyber RT 三者的详细差异；了解两大生态当前的互通方式与迁移决策方法，为后续模块学习打基础。  1. 背景：从 ROS 到 Cyber RTROS（Robot Operating System）是机器人领域事实上的标准框架。Apollo 1.0&#x2F;早期版本直接构建在 ROS 之上，但很快暴露出三大问题：  通信性能瓶颈：ROS1 基于 TCPROS&#x2F;UDPROS，主从架构下节点间通信需经过序列化拷贝，无法承载自动驾驶高频大流量数据（64 线激光雷达 10Hz 约 1.3M 点&#x2F;秒）。 调度粒度不足：ROS1 是进程级调度，一个模块一个进程，CPU 资源分配粗放，实时性无保障。 去中心化需求：自动驾驶要求系统在 Master 宕机后仍能运行，ROS1 的 Master 单点架构不满足。  因此 Apollo 3.5 起自研 Cyber RT，作为替代 ROS 的运行时框架。  [!note] 2026 ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-Cyber-RT"><span class="toc-number">1.</span> <span class="toc-text">1. 为什么需要 Cyber RT</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E8%AE%BE%E8%AE%A1%E7%9B%AE%E6%A0%87"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 设计目标</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="toc-number">2.</span> <span class="toc-text">2. 核心概念</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%88%86%E5%B1%82%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">3. 分层架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E8%B0%83%E5%BA%A6%E5%99%A8%E4%B8%8E%E5%8D%8F%E7%A8%8B%EF%BC%88%E6%A6%82%E8%A7%88%EF%BC%89"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 调度器与协程（概览）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E9%80%9A%E4%BF%A1%E6%9C%BA%E5%88%B6%E6%A6%82%E8%A7%88"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 通信机制概览</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E4%B8%8E-ROS-%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">4.</span> <span class="toc-text">4. 与 ROS 的对比</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%9F%BA%E7%A1%80%E4%BD%BF%E7%94%A8"><span class="toc-number">5.</span> <span class="toc-text">5. 基础使用</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%A1%8C"><span class="toc-number">5.1.</span> <span class="toc-text">5.1 常用命令行</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E7%B3%BB%E7%BB%9F%E7%9B%91%E6%8E%A7"><span class="toc-number">5.2.</span> <span class="toc-text">5.2 系统监控</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-%E4%B8%80%E4%B8%AA%E6%9C%80%E5%B0%8F%E7%A4%BA%E4%BE%8B%E9%A2%84%E8%A7%88"><span class="toc-number">5.3.</span> <span class="toc-text">5.3 一个最小示例预览</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

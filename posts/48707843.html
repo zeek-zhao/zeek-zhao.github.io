@@ -1,0 +1,658 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>52-PyTorch与自动驾驶实践 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="PyTorch 核心机制、训练部署全流程，及其在 Apollo 感知模型训练侧的角色（车端推理由 PaddlePaddle&#x2F;ONNX&#x2F;TensorRT 承担）。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="52-PyTorch与自动驾驶实践">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/48707843.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="PyTorch 核心机制、训练部署全流程，及其在 Apollo 感知模型训练侧的角色（车端推理由 PaddlePaddle&#x2F;ONNX&#x2F;TensorRT 承担）。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "52-PyTorch与自动驾驶实践",
+  "url": "https://zeek-zhao.github.io/posts/48707843.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/48707843.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '52-PyTorch与自动驾驶实践',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">52-PyTorch与自动驾驶实践</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">52-PyTorch与自动驾驶实践</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握 PyTorch 的核心机制（张量、自动微分、动态图）、标准训练流程与部署路径，并理解它在自动驾驶研发链路中的定位：<strong>训练侧首选框架</strong>，训练成果经 ONNX&#x2F;TorchScript 转换后进入车载推理引擎。基础原理见 <a href="/posts/1352878638.html">51-深度学习基础与CNN</a>。</p>
+</blockquote>
+<h2 id="1-PyTorch-概览"><a href="#1-PyTorch-概览" class="headerlink" title="1. PyTorch 概览"></a>1. PyTorch 概览</h2><h3 id="1-1-发展与定位"><a href="#1-1-发展与定位" class="headerlink" title="1.1 发展与定位"></a>1.1 发展与定位</h3><p>PyTorch 由 Facebook AI 研究院（FAIR）于 2016 年发布，2018 年与专注部署的 Caffe2 合并（这段历史见 <a href="/posts/2665165307.html">53-TensorFlow与Caffe2在自动驾驶中的应用</a>）。核心优势：</p>
+<ul>
+<li><strong>动态计算图</strong>：图在运行时即时构建，可随时用 print&#x2F;断点调试，与 Python 生态无缝集成</li>
+<li><strong>研究社区主流</strong>：新论文模型（UniAD、BEVFormer 等）几乎都以 PyTorch 实现</li>
+<li><strong>部署工具日益完善</strong>：TorchScript、ONNX 导出、ExecuTorch</li>
+</ul>
+<p>版本里程碑：1.0（2018，引入 JIT）；2.0（2023，引入 <code>torch.compile</code> 编译加速）；2.x 持续增强 FSDP 分布式训练与编译优化。</p>
+<h3 id="1-2-核心三件套"><a href="#1-2-核心三件套" class="headerlink" title="1.2 核心三件套"></a>1.2 核心三件套</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> torch</span><br><span class="line"></span><br><span class="line"><span class="comment"># 1) 张量：类 NumPy 多维数组，可上 GPU</span></span><br><span class="line">x = torch.randn(<span class="number">4</span>, <span class="number">3</span>, device=<span class="string">&quot;cuda&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2) 自动微分：记录操作图，backward 自动求梯度</span></span><br><span class="line">w = torch.tensor([<span class="number">2.0</span>], requires_grad=<span class="literal">True</span>)</span><br><span class="line">y = w ** <span class="number">3</span></span><br><span class="line">y.backward()</span><br><span class="line"><span class="built_in">print</span>(w.grad)  <span class="comment"># tensor([12.])</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 3) 动态图：控制流即 Python 代码，每次执行重建图</span></span><br></pre></td></tr></table></figure>
+
+<p><code>torch.compile</code>（PyTorch 2.0+）可在不改代码的前提下融合算子、加速训练与推理：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">model = torch.<span class="built_in">compile</span>(model)  <span class="comment"># API 与原模型完全一致</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="2-模型构建与训练"><a href="#2-模型构建与训练" class="headerlink" title="2. 模型构建与训练"></a>2. 模型构建与训练</h2><h3 id="2-1-定义模型"><a href="#2-1-定义模型" class="headerlink" title="2.1 定义模型"></a>2.1 定义模型</h3><p>继承 <code>nn.Module</code>，实现 <code>__init__</code> 与 <code>forward</code>：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> torch.nn <span class="keyword">as</span> nn</span><br><span class="line"><span class="keyword">import</span> torch.nn.functional <span class="keyword">as</span> F</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">SimpleCNN</span>(nn.Module):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, num_classes=<span class="number">10</span></span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__()</span><br><span class="line">        <span class="variable language_">self</span>.conv1 = nn.Conv2d(<span class="number">3</span>, <span class="number">16</span>, <span class="number">3</span>, padding=<span class="number">1</span>)</span><br><span class="line">        <span class="variable language_">self</span>.conv2 = nn.Conv2d(<span class="number">16</span>, <span class="number">32</span>, <span class="number">3</span>, stride=<span class="number">2</span>, padding=<span class="number">1</span>)</span><br><span class="line">        <span class="variable language_">self</span>.pool = nn.AdaptiveAvgPool2d(<span class="number">1</span>)</span><br><span class="line">        <span class="variable language_">self</span>.fc = nn.Linear(<span class="number">32</span>, num_classes)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">forward</span>(<span class="params">self, x</span>):</span><br><span class="line">        x = F.relu(<span class="variable language_">self</span>.conv1(x))</span><br><span class="line">        x = F.relu(<span class="variable language_">self</span>.conv2(x))</span><br><span class="line">        x = <span class="variable language_">self</span>.pool(x).flatten(<span class="number">1</span>)</span><br><span class="line">        <span class="keyword">return</span> <span class="variable language_">self</span>.fc(x)</span><br></pre></td></tr></table></figure>
+
+<p>也可以直接使用 <code>torchvision.models.resnet50(pretrained=True)</code> 做迁移学习，替换最后的分类头。</p>
+<h3 id="2-2-标准训练循环"><a href="#2-2-标准训练循环" class="headerlink" title="2.2 标准训练循环"></a>2.2 标准训练循环</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">model = SimpleCNN().to(device)</span><br><span class="line">optimizer = torch.optim.AdamW(model.parameters(), lr=<span class="number">1e-3</span>, weight_decay=<span class="number">0.01</span>)</span><br><span class="line">criterion = nn.CrossEntropyLoss()</span><br><span class="line">scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=<span class="number">100</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> epoch <span class="keyword">in</span> <span class="built_in">range</span>(num_epochs):</span><br><span class="line">    model.train()</span><br><span class="line">    <span class="keyword">for</span> inputs, targets <span class="keyword">in</span> train_loader:      <span class="comment"># DataLoader 提供批量数据</span></span><br><span class="line">        inputs, targets = inputs.to(device), targets.to(device)</span><br><span class="line">        optimizer.zero_grad()                 <span class="comment"># 清空梯度</span></span><br><span class="line">        loss = criterion(model(inputs), targets)</span><br><span class="line">        loss.backward()                       <span class="comment"># 反向传播</span></span><br><span class="line">        optimizer.step()                      <span class="comment"># 更新参数</span></span><br><span class="line">    scheduler.step()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 验证阶段必须关闭梯度</span></span><br><span class="line">    model.<span class="built_in">eval</span>()</span><br><span class="line">    <span class="keyword">with</span> torch.no_grad():</span><br><span class="line">        ...</span><br><span class="line">    torch.save(model.state_dict(), <span class="string">&quot;best_model.pth&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-数据管道"><a href="#2-3-数据管道" class="headerlink" title="2.3 数据管道"></a>2.3 数据管道</h3><p>自定义 <code>Dataset</code> 实现 <code>__len__</code>&#x2F;<code>__getitem__</code>，用 <code>DataLoader</code> 批量化：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">loader = torch.utils.data.DataLoader(</span><br><span class="line">    dataset, batch_size=<span class="number">64</span>, shuffle=<span class="literal">True</span>,</span><br><span class="line">    num_workers=<span class="number">4</span>, pin_memory=<span class="literal">True</span>)   <span class="comment"># workers+pin_memory 提升加载效率</span></span><br></pre></td></tr></table></figure>
+
+<p>图像增强用 <code>torchvision.transforms</code>：随机裁剪、水平翻转、ColorJitter、Normalize。</p>
+<h3 id="2-4-常用损失函数速查"><a href="#2-4-常用损失函数速查" class="headerlink" title="2.4 常用损失函数速查"></a>2.4 常用损失函数速查</h3><table>
+<thead>
+<tr>
+<th>任务</th>
+<th>损失函数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>多分类</td>
+<td>CrossEntropyLoss</td>
+</tr>
+<tr>
+<td>二分类&#x2F;多标签</td>
+<td>BCEWithLogitsLoss</td>
+</tr>
+<tr>
+<td>边界框回归</td>
+<td>SmoothL1Loss</td>
+</tr>
+<tr>
+<td>类别不平衡检测</td>
+<td>Focal Loss（自定义）</td>
+</tr>
+<tr>
+<td>语义分割</td>
+<td>Dice Loss &#x2F; CE+Dice</td>
+</tr>
+</tbody></table>
+<h2 id="3-高级训练技术"><a href="#3-高级训练技术" class="headerlink" title="3. 高级训练技术"></a>3. 高级训练技术</h2><h3 id="3-1-分布式训练（DDP）"><a href="#3-1-分布式训练（DDP）" class="headerlink" title="3.1 分布式训练（DDP）"></a>3.1 分布式训练（DDP）</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">torch.distributed.init_process_group(backend=<span class="string">&quot;nccl&quot;</span>)</span><br><span class="line">local_rank = torch.distributed.get_rank()</span><br><span class="line">torch.cuda.set_device(local_rank)</span><br><span class="line">model = DistributedDataParallel(model.cuda(), device_ids=[local_rank])</span><br><span class="line">sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)</span><br></pre></td></tr></table></figure>
+
+<p>超大规模模型可进一步使用 FSDP（全分片数据并行）。</p>
+<h3 id="3-2-混合精度训练（AMP）"><a href="#3-2-混合精度训练（AMP）" class="headerlink" title="3.2 混合精度训练（AMP）"></a>3.2 混合精度训练（AMP）</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> torch.cuda.amp <span class="keyword">import</span> autocast, GradScaler</span><br><span class="line">scaler = GradScaler()</span><br><span class="line"><span class="keyword">with</span> autocast():                      <span class="comment"># 前向用 FP16</span></span><br><span class="line">    loss = criterion(model(inputs), targets)</span><br><span class="line">scaler.scale(loss).backward()         <span class="comment"># 缩放梯度防下溢</span></span><br><span class="line">scaler.step(optimizer)</span><br><span class="line">scaler.update()</span><br></pre></td></tr></table></figure>
+
+<p>显存省一半、速度提升 2 倍左右，是大规模感知模型训练的标配。</p>
+<h3 id="3-3-其他实用技巧"><a href="#3-3-其他实用技巧" class="headerlink" title="3.3 其他实用技巧"></a>3.3 其他实用技巧</h3><ul>
+<li><strong>梯度累积</strong>：<code>loss = loss / accum_steps</code>，多步后再 <code>step()</code>，模拟大 batch</li>
+<li><strong>梯度裁剪</strong>：<code>torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)</code>，防梯度爆炸</li>
+<li><strong>激活检查点</strong>：<code>torch.utils.checkpoint</code> 用计算换显存</li>
+<li><strong>性能分析</strong>：<code>torch.profiler.profile</code> 定位瓶颈，可导出 Chrome trace</li>
+</ul>
+<h2 id="4-从训练到部署：与-Apollo-的关系"><a href="#4-从训练到部署：与-Apollo-的关系" class="headerlink" title="4. 从训练到部署：与 Apollo 的关系"></a>4. 从训练到部署：与 Apollo 的关系</h2><blockquote>
+<p>[!important] PyTorch 在自动驾驶链路中的位置<br>**PyTorch 负责”训练侧”**：Apollo 生态及多数自动驾驶团队的感知模型（2D&#x2F;3D 检测、BEV 骨干、红绿灯、车道线网络）都在 PyTorch 中设计与训练。<br><strong>车端推理不走 PyTorch</strong>：Apollo 内置推理框架基于 PaddlePaddle（PaddleInference）、ONNX Runtime 与 TensorRT 等，追求确定性低延迟与硬件加速。训练完成后需要转换模型格式：</p>
+</blockquote>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 导出 ONNX（最通用的中间格式）</span></span><br><span class="line">model.<span class="built_in">eval</span>()</span><br><span class="line">dummy = torch.randn(<span class="number">1</span>, <span class="number">3</span>, <span class="number">224</span>, <span class="number">224</span>)</span><br><span class="line">torch.onnx.export(model, dummy, <span class="string">&quot;model.onnx&quot;</span>, opset_version=<span class="number">12</span>,</span><br><span class="line">                  input_names=[<span class="string">&quot;input&quot;</span>], output_names=[<span class="string">&quot;output&quot;</span>],</span><br><span class="line">                  dynamic_axes=&#123;<span class="string">&quot;input&quot;</span>: &#123;<span class="number">0</span>: <span class="string">&quot;batch_size&quot;</span>&#125;&#125;)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 或导出 TorchScript（PyTorch 生态内部部署）</span></span><br><span class="line">traced = torch.jit.trace(model, dummy)</span><br><span class="line">traced.save(<span class="string">&quot;model.pt&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 2026 年更新<br>端到端范式（UniAD、VLA 模型）下，训练侧模型规模显著增大，PyTorch + FSDP&#x2F;DeepSpeed 的多机训练成为常态；车端则把蒸馏&#x2F;量化后的小模型经 ONNX → TensorRT（NVIDIA Orin）等路线部署。训练用大框架、推理用专门引擎的”训练-部署分离”格局更加固化。Apollo 10.0&#x2F;11.0 的部分感知模型训练也依赖云端平台（见 <a href="/posts/370472885.html">56-自动驾驶云服务与基础设施</a>）。</p>
+</blockquote>
+<p>部署链路：<strong>PyTorch 训练 → 量化&#x2F;剪枝&#x2F;蒸馏 → ONNX 导出 → TensorRT&#x2F;PaddleInference 优化 → 车载 Cyber RT 模块加载推理</strong>（运行时框架见 <a href="/posts/664493653.html">58-自动驾驶运行时框架对比</a>）。</p>
+<h2 id="5-案例：简化端到端驾驶模型"><a href="#5-案例：简化端到端驾驶模型" class="headerlink" title="5. 案例：简化端到端驾驶模型"></a>5. 案例：简化端到端驾驶模型</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">EndToEndDrivingModel</span>(nn.Module):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__()</span><br><span class="line">        backbone = torchvision.models.resnet18(pretrained=<span class="literal">True</span>)</span><br><span class="line">        <span class="variable language_">self</span>.backbone = nn.Sequential(*<span class="built_in">list</span>(backbone.children())[:-<span class="number">1</span>])</span><br><span class="line">        <span class="variable language_">self</span>.speed_encoder = nn.Sequential(nn.Linear(<span class="number">1</span>, <span class="number">64</span>), nn.ReLU(),</span><br><span class="line">                                           nn.Linear(<span class="number">64</span>, <span class="number">128</span>), nn.ReLU())</span><br><span class="line">        <span class="variable language_">self</span>.fusion = nn.Sequential(nn.Linear(<span class="number">512</span> + <span class="number">128</span>, <span class="number">256</span>), nn.ReLU(),</span><br><span class="line">                                    nn.Dropout(<span class="number">0.5</span>))</span><br><span class="line">        <span class="variable language_">self</span>.control_head = nn.Linear(<span class="number">256</span>, <span class="number">3</span>)  <span class="comment"># 转向/油门/刹车</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">forward</span>(<span class="params">self, img, speed</span>):</span><br><span class="line">        img_feat = <span class="variable language_">self</span>.backbone(img).flatten(<span class="number">1</span>)</span><br><span class="line">        spd_feat = <span class="variable language_">self</span>.speed_encoder(speed.unsqueeze(<span class="number">1</span>))</span><br><span class="line">        fused = <span class="variable language_">self</span>.fusion(torch.cat([img_feat, spd_feat], dim=<span class="number">1</span>))</span><br><span class="line">        controls = <span class="variable language_">self</span>.control_head(fused)</span><br><span class="line">        steering = torch.tanh(controls[:, <span class="number">0</span>])     <span class="comment"># [-1, 1]</span></span><br><span class="line">        throttle = torch.sigmoid(controls[:, <span class="number">1</span>])  <span class="comment"># [0, 1]</span></span><br><span class="line">        brake = torch.sigmoid(controls[:, <span class="number">2</span>])     <span class="comment"># [0, 1]</span></span><br><span class="line">        <span class="keyword">return</span> steering, throttle, brake</span><br></pre></td></tr></table></figure>
+
+<p>可在 CARLA 等模拟器中闭环采集数据训练（仿真平台见 <a href="/posts/2011272759.html">50-仿真平台对比与Gazebo-LGSVL实战</a>），再结合真实路测数据微调。端到端模型的安全验证方法见 <a href="/posts/2511406057.html">54-自动驾驶测试方法</a>。</p>
+<h2 id="6-最佳实践清单"><a href="#6-最佳实践清单" class="headerlink" title="6. 最佳实践清单"></a>6. 最佳实践清单</h2><ol>
+<li>用 <code>num_workers</code> + <code>pin_memory</code> 优化数据加载；避免频繁在 CPU&#x2F;GPU 间搬运数据</li>
+<li>评估&#x2F;推理时始终 <code>model.eval()</code> + <code>torch.no_grad()</code></li>
+<li>保存 <code>state_dict()</code> 而非整个模型对象；训练脚本保存完整 checkpoint（模型+优化器+调度器状态）以便断点续训</li>
+<li>大 batch 训练用 AMP + 梯度累积；显存不足用激活检查点</li>
+<li>上车部署前先做量化验证（PTQ 校准或 QAT），对比精度损失</li>
+</ol>
+<h2 id="7-小结"><a href="#7-小结" class="headerlink" title="7. 小结"></a>7. 小结</h2><ul>
+<li>PyTorch &#x3D; 张量 + 自动微分 + 动态图，是自动驾驶模型训练的事实标准</li>
+<li>标准训练五步：数据管道 → 模型定义 → 损失&#x2F;优化器 → 训练循环 → 验证保存</li>
+<li>自动驾驶链路中 PyTorch 守训练侧，车端推理交给 ONNX&#x2F;TensorRT&#x2F;PaddleInference</li>
+<li>2026 年趋势：训练规模变大（端到端&#x2F;VLA），部署链路更强调量化与确定性</li>
+</ul>
+<p><em>上一篇：<a href="/posts/1352878638.html">51-深度学习基础与CNN</a>　下一篇：<a href="/posts/2665165307.html">53-TensorFlow与Caffe2在自动驾驶中的应用</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/48707843.html">https://zeek-zhao.github.io/posts/48707843.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2665165307.html" title="53-TensorFlow与Caffe2在自动驾驶中的应用"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">53-TensorFlow与Caffe2在自动驾驶中的应用</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标系统了解 TensorFlow 生态与 Caffe2 的技术特点，理清 Caffe2 并入 PyTorch 的历史脉络，掌握从”研究框架”到”生产部署”的转换思路。框架选型可与 52-PyTorch与自动驾驶实践 对照阅读。  1. TensorFlow 基础1.1 发展与版本分水岭TensorFlow 由 Google Brain 于 2015 年开源。1.x（静态图 + Session）与 2.x（默认即时执行 Eager Execution + Keras 高级 API）是两代完全不同的编程体验： 1234567# TF 1.x：先定义静态图，再用 Session 执行c = tf.multiply(a, b)with tf.Session() as sess:    result = sess.run(c)# TF 2.x：即时执行，代码即计算c = a * b          # 直接得到结果  TF 2.x 的 tf.function 装饰器可把 Python 函数编译为图执行，兼得开发效率与运行性能。 1.2 分层 API 体系   层级...</div></div></div></a><a class="pagination-related" href="/posts/1352878638.html" title="51-深度学习基础与CNN"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">51-深度学习基础与CNN</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标从零建立深度学习的概念框架：神经网络基本原理、CNN 核心组件、经典架构演进，以及 CNN 在自动驾驶感知系统中的实际应用，并了解 2024-2026 年感知模型的技术走向。训练框架选择见 52-PyTorch与自动驾驶实践 与 53-TensorFlow与Caffe2在自动驾驶中的应用。  1. 深度学习概述1.1 什么是深度学习深度学习是机器学习的一个子领域，使用多层神经网络模拟人脑的信息处理与模式识别能力，通过大量数据自动提取特征并做出决策。它是自动驾驶环境感知、轨迹预测等模块的算法基石。 1.2 发展简史 1943 年 McCulloch-Pitts 神经元模型；1958 年感知器 1986 年反向传播算法普及；1989 年早期 CNN；1997 年 LSTM 2012 年 AlexNet 在 ImageNet 突破，引爆深度学习革命 2017 年 Transformer 提出；2018 年后大规模预训练模型兴起 2020 年代：BEV 感知、Occupancy Network、端到端自动驾驶（详见第 7 节）  1.3 神经网络基本原理一个神经...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/2974331331.html" title="09-传感器接入（相机激光雷达毫米波）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">09-传感器接入（相机激光雷达毫米波）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Apollo 传感器体系（相机&#x2F;激光雷达&#x2F;毫米波&#x2F;超声波&#x2F;GPS-IMU）的工作原理与选型要点、车载计算平台（工控机）的配置要求，以及传感器从硬件连接到数据上线的完整接入流程。  1. 硬件系统全景自动驾驶硬件可类比生命体：传感器是感官，计算平台是大脑，线控底盘是四肢（线控部分见 10-CAN总线与车辆控制接口）。 123456传感器系统                计算平台                执行系统├─ 激光雷达（点云）       ├─ CPU（系统与实时任务）  ├─ 线控油门├─ 相机（图像）           ├─ GPU（深度学习推理）    ├─ 线控刹车├─ 毫米波雷达（距离速度） ├─ FPGA/ASIC（专用加速）  ├─ 线控转向├─ 超声波（近距测距）     └─ 存储/网络/电源        └─ 线控档位└─ GPS/IMU/轮速计（定位）  传感器分两类：环境感知（障碍物、车道线、信号灯）与状态感知（位置、速度、姿态）。本篇讲前者与计算平台；定位传感器细节见...</div></div></div></a><a class="pagination-related" href="/posts/2588802797.html" title="27-Cyber时间系统与定时器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">27-Cyber时间系统与定时器</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标一篇讲透 Cyber RT 的时间体系：Time&#x2F;Duration 数据类型、SystemClock&#x2F;SteadyClock&#x2F;UserClock 三种时钟的取舍，以及定时器内部的两级时间轮算法与累积误差补偿机制。  本篇是第四阶段 Cyber RT 深度剖析的第三篇，将时间表示与定时执行两大主题融合。时间戳贯穿数据链路（29-Cyber数据系统详解 的消息排序依赖它），定时器任务则运行在 26-Cyber调度系统详解 的协程之上。 1. 时间系统总览自动驾驶对时间的要求是纳秒级表示 + 统一基准 + 不会跳变。Cyber 的架构分四层： 12345678graph TD    A[用户 API: Time / Duration] --&gt; B[Clock 抽象层]    B --&gt; C1[SystemClock CLOCK_REALTIME]    B --&gt; C2[SteadyClock CLOCK_MONOTONIC]    B --&gt; C3[UserClock 编程控制]    C1 --&gt;...</div></div></div></a><a class="pagination-related" href="/posts/3738978533.html" title="11-预测模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">11-预测模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 预测模块：输入输出、预测方法与模型体系。  1. 预测模块概述预测模块基于感知输出的障碍物历史轨迹与环境信息，估计障碍物未来运动状态，为规划提供依据。预测质量直接影响规划的合理性与安全性。 2. 输入输出   方向 内容    输入 障碍物列表、地图、历史轨迹   输出 多条候选轨迹与概率   下游 规划模块场景决策   3. 预测方法   方法 说明    规则预测 基于运动学模型外推   意图预测 语义场景意图分类   交互预测 考虑多目标博弈   学习预测 神经网络轨迹生成   Apollo 的预测器支持多种模型组合，通过场景匹配选择最合适的预测器。 4. 配置与调试预测配置位于 modules&#x2F;prediction&#x2F;conf，可配置预测器类型与障碍物历史帧数。使用 DreamView 可直观对比预测轨迹与真实轨迹，见 24-调试与可视化工具。  [!note] 延伸预测结果供规划使用，见 12-规划模块（路径规划） 与 13-决策模块（场景决策）。  5. 预测器体系详解Apollo 预测模块包含多种预测器...</div></div></div></a><a class="pagination-related" href="/posts/2353222172.html" title="12-规划模块（路径规划）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">12-规划模块（路径规划）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 规划模块：参考线处理、路径规划与速度规划。  1. 规划模块概述规划模块接收定位、预测、地图与决策结果，生成安全、舒适、可执行的轨迹，由控制模块执行。规划核心是路径规划与速度规划的组合。 2. 主要子模块   子模块 作用    参考线 生成平滑车道中心线   路径规划 生成横向路径   速度规划 生成纵向速度曲线   轨迹拼接 合并为完整轨迹   3. 规划流程 从地图与定位生成参考线 结合决策与预测生成路径候选 在路径上规划速度曲线 输出带时间戳的轨迹点  1234# 规划配置示例planning:  trajectory_period: 8.0  # 规划时域  trajectory_time_resolution: 0.1  4. 优化目标规划需平衡安全、舒适与效率：约束包括碰撞、动力学与交通规则；代价函数考虑平顺性、效率与车道中心偏移。  [!note] 延伸规划依赖决策，见 13-决策模块（场景决策）；执行由控制完成，见 14-控制模块。  5. 参考线系统参考线是规划的基础几何结构，由地图车道中心线生成并经过平滑处理。A...</div></div></div></a><a class="pagination-related" href="/posts/3264947560.html" title="35-泊车场景"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">35-泊车场景</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 泊车场景的完整链路：环视相机与超声波雷达的车位感知、考虑运动学约束的泊车轨迹规划、低速精细控制，以及泊车特有的安全策略与失败退出机制。  1. 泊车场景概述泊车是典型的低速精细操作场景：车速低（通常 &lt; 5 km&#x2F;h）、空间狭小、障碍近身、控制精度要求高。它与道路行驶场景的本质区别在于：  感知重点不同：不追求远距离感知，而要求近距离高精度（厘米级车位边界） 控制重点不同：不追求动态稳定性，而要求静态精确性（最终泊入偏差） 轨迹形态不同：需要倒车、原地小半径转向，超出常规路径规划的假设范围  Apollo 提供独立的泊车场景（Valet Parking）模块，与车道行驶规划体系并行，由场景决策器按工况切换。 2. 泊车流程   阶段 内容 关键技术    车位检测 识别空车位与类型（平行&#x2F;垂直&#x2F;斜向） 环视相机 + 超声波雷达融合   路径规划 生成入库轨迹 多段轨迹生成（圆弧+直线&#x2F;样条）   轨迹优化 满足运动学与碰撞约束 平滑衔接 + 碰撞检测校验   低速控制 精确跟踪泊车轨迹 低...</div></div></div></a><a class="pagination-related" href="/posts/140110120.html" title="57-自动驾驶操作系统"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">57-自动驾驶操作系统</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶操作系统的独特需求（硬实时、功能安全、异构算力）、分层架构与调度&#x2F;优化技术，并对比主流方案。OS 之上的中间件层（运行时框架）见 58-自动驾驶运行时框架对比。  1. 为什么自动驾驶需要专门的 OS自动驾驶系统每秒处理 GB 级传感器数据、要求毫秒级响应、失效可能危及生命。这决定了车载 OS 必须同时具备性能、可靠性与安全性，远超一般嵌入式系统的要求。 1.1 实时性分层   层级 定义 例子    硬实时 必须在截止时间前完成 紧急制动控制   软实时 偶尔超时可接受 感知、规划   近实时 容忍度较高 HMI   各模块的实时性要求：    模块 典型周期 最大容忍延迟    控制模块 10ms &lt;5ms   定位模块 20-50ms &lt;20ms   规划模块 50-100ms &lt;20ms   感知模块 50-200ms &lt;50ms   HMI 100-500ms &lt;200ms   1.2 其他核心需求 可靠性：故障隔离（单模块失效不拖垮系统）、健康监控、快速恢复 资源管理：CPU 调度与核心隔离...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-PyTorch-%E6%A6%82%E8%A7%88"><span class="toc-number">1.</span> <span class="toc-text">1. PyTorch 概览</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E5%8F%91%E5%B1%95%E4%B8%8E%E5%AE%9A%E4%BD%8D"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 发展与定位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E6%A0%B8%E5%BF%83%E4%B8%89%E4%BB%B6%E5%A5%97"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 核心三件套</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E6%A8%A1%E5%9E%8B%E6%9E%84%E5%BB%BA%E4%B8%8E%E8%AE%AD%E7%BB%83"><span class="toc-number">2.</span> <span class="toc-text">2. 模型构建与训练</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%AE%9A%E4%B9%89%E6%A8%A1%E5%9E%8B"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 定义模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E6%A0%87%E5%87%86%E8%AE%AD%E7%BB%83%E5%BE%AA%E7%8E%AF"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 标准训练循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E6%95%B0%E6%8D%AE%E7%AE%A1%E9%81%93"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 数据管道</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E5%B8%B8%E7%94%A8%E6%8D%9F%E5%A4%B1%E5%87%BD%E6%95%B0%E9%80%9F%E6%9F%A5"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 常用损失函数速查</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E9%AB%98%E7%BA%A7%E8%AE%AD%E7%BB%83%E6%8A%80%E6%9C%AF"><span class="toc-number">3.</span> <span class="toc-text">3. 高级训练技术</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E5%88%86%E5%B8%83%E5%BC%8F%E8%AE%AD%E7%BB%83%EF%BC%88DDP%EF%BC%89"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 分布式训练（DDP）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E6%B7%B7%E5%90%88%E7%B2%BE%E5%BA%A6%E8%AE%AD%E7%BB%83%EF%BC%88AMP%EF%BC%89"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 混合精度训练（AMP）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%85%B6%E4%BB%96%E5%AE%9E%E7%94%A8%E6%8A%80%E5%B7%A7"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 其他实用技巧</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E4%BB%8E%E8%AE%AD%E7%BB%83%E5%88%B0%E9%83%A8%E7%BD%B2%EF%BC%9A%E4%B8%8E-Apollo-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">4.</span> <span class="toc-text">4. 从训练到部署：与 Apollo 的关系</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E6%A1%88%E4%BE%8B%EF%BC%9A%E7%AE%80%E5%8C%96%E7%AB%AF%E5%88%B0%E7%AB%AF%E9%A9%BE%E9%A9%B6%E6%A8%A1%E5%9E%8B"><span class="toc-number">5.</span> <span class="toc-text">5. 案例：简化端到端驾驶模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5%E6%B8%85%E5%8D%95"><span class="toc-number">6.</span> <span class="toc-text">6. 最佳实践清单</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%B0%8F%E7%BB%93"><span class="toc-number">7.</span> <span class="toc-text">7. 小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

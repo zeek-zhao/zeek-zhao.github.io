@@ -1,0 +1,667 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>ros2 40-实战：机械臂抓取 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="硬件&#x2F;仿真：6 轴机械臂 + 相机（Gazebo&#x2F;真实）">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ros2 40-实战：机械臂抓取">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/172068224.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="硬件&#x2F;仿真：6 轴机械臂 + 相机（Gazebo&#x2F;真实）">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros2">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "ros2 40-实战：机械臂抓取",
+  "url": "https://zeek-zhao.github.io/posts/172068224.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/172068224.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'ros2 40-实战：机械臂抓取',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">ros2 40-实战：机械臂抓取</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">ros2 40-实战：机械臂抓取</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros2/">ros2</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="实战：机械臂抓取"><a href="#实战：机械臂抓取" class="headerlink" title="实战：机械臂抓取"></a>实战：机械臂抓取</h1><blockquote>
+<p>[!info] 本节目标<br>综合运用 MoveIt2、视觉与规划知识，完成从目标识别到机械臂抓取放置的完整流程。</p>
+</blockquote>
+<h2 id="1-项目概览"><a href="#1-项目概览" class="headerlink" title="1. 项目概览"></a>1. 项目概览</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">硬件/仿真：6 轴机械臂 + 相机（Gazebo/真实）</span><br><span class="line">软件栈：MoveIt2 + OpenCV（或深度学习）+ ros2_control</span><br><span class="line">流程：识别目标 -&gt; 估位姿 -&gt; 规划抓取 -&gt; 执行 -&gt; 放置</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>技术</th>
+<th>对应教程</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>机械臂模型</td>
+<td>URDF&#x2F;xacro + MoveIt 配置</td>
+<td>16&#x2F;28</td>
+</tr>
+<tr>
+<td>目标检测</td>
+<td>OpenCV&#x2F;YOLO</td>
+<td>26&#x2F;40</td>
+</tr>
+<tr>
+<td>位姿估计</td>
+<td>相机标定 + 深度</td>
+<td>26</td>
+</tr>
+<tr>
+<td>抓取规划</td>
+<td>MoveIt2 Pick&amp;Place</td>
+<td>28</td>
+</tr>
+<tr>
+<td>仿真</td>
+<td>Gazebo</td>
+<td>18</td>
+</tr>
+</tbody></table>
+<h2 id="2-环境搭建"><a href="#2-环境搭建" class="headerlink" title="2. 环境搭建"></a>2. 环境搭建</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装 MoveIt2 与相机相关（Humble）</span></span><br><span class="line"><span class="built_in">sudo</span> apt install -y ros-humble-moveit \</span><br><span class="line">  ros-humble-vision-opencv ros-humble-image-geometry</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动机械臂仿真 + MoveIt 示例</span></span><br><span class="line">ros2 launch moveit_resources panda_moveit_config.launch.py</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 本实战使用 Panda 或自建模，换 arm 时注意规划组与控制器命名。</p>
+</blockquote>
+<h2 id="3-目标识别"><a href="#3-目标识别" class="headerlink" title="3. 目标识别"></a>3. 目标识别</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"><span class="keyword">import</span> cv2</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">detect_object</span>(<span class="params">frame</span>):</span><br><span class="line">    <span class="comment"># 简化示例：红色块检测</span></span><br><span class="line">    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)</span><br><span class="line">    mask = cv2.inRange(hsv, (<span class="number">0</span>, <span class="number">120</span>, <span class="number">80</span>), (<span class="number">10</span>, <span class="number">255</span>, <span class="number">255</span>))</span><br><span class="line">    contours, _ = cv2.findContours(</span><br><span class="line">        mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)</span><br><span class="line">    best = <span class="built_in">max</span>(contours, key=cv2.contourArea, default=<span class="literal">None</span>)</span><br><span class="line">    <span class="keyword">if</span> best <span class="keyword">is</span> <span class="literal">None</span> <span class="keyword">or</span> cv2.contourArea(best) &lt; <span class="number">500</span>:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    x, y, w, h = cv2.boundingRect(best)</span><br><span class="line">    <span class="keyword">return</span> (x + w/<span class="number">2</span>, y + h/<span class="number">2</span>, w, h)</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 相机标定<br>像素坐标转 3D 需要相机内参与手眼标定；深度相机直接取深度值，RGB 相机用已知平面高度估算。</p>
+</blockquote>
+<h2 id="4-位姿估计"><a href="#4-位姿估计" class="headerlink" title="4. 位姿估计"></a>4. 位姿估计</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">像素(u,v) + 深度/平面 -&gt; 相机坐标系 3D -&gt; 机械臂基座坐标系（TF）</span><br><span class="line">cam -&gt; base_link：需要 static_transform_publisher 或手眼标定</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 发布相机到基座 TF（固定安装时静态）</span></span><br><span class="line">ros2 run tf2_ros static_transform_publisher \</span><br><span class="line">  0.3 0.0 0.5 0 0 0 base_link camera_link</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 手眼标定<br>固定相机用 eye-to-hand；机械臂上相机用 eye-in-hand；用 moveit_handeye_calibration 或 easy_handeye 标定。</p>
+</blockquote>
+<h2 id="5-抓取规划（MoveIt2）"><a href="#5-抓取规划（MoveIt2）" class="headerlink" title="5. 抓取规划（MoveIt2）"></a>5. 抓取规划（MoveIt2）</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"><span class="keyword">import</span> rclpy</span><br><span class="line"><span class="keyword">from</span> rclpy.node <span class="keyword">import</span> Node</span><br><span class="line"><span class="keyword">from</span> moveit_commander <span class="keyword">import</span> MoveGroupCommander, PlanningSceneInterface</span><br><span class="line"><span class="keyword">from</span> moveit_commander <span class="keyword">import</span> RobotCommander</span><br><span class="line"><span class="keyword">from</span> geometry_msgs.msg <span class="keyword">import</span> Pose</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">PickPlace</span>(<span class="title class_ inherited__">Node</span>):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__(<span class="string">&#x27;pick_place&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.arm = MoveGroupCommander(<span class="string">&#x27;arm&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.gripper = MoveGroupCommander(<span class="string">&#x27;gripper&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.scene = PlanningSceneInterface()</span><br><span class="line">        <span class="variable language_">self</span>.arm.set_max_velocity_scaling_factor(<span class="number">0.4</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">pick</span>(<span class="params">self, x, y, z</span>):</span><br><span class="line">        <span class="comment"># 1. 移动到预抓取位姿（目标上方）</span></span><br><span class="line">        target = Pose()</span><br><span class="line">        target.position.x = x</span><br><span class="line">        target.position.y = y</span><br><span class="line">        target.position.z = z + <span class="number">0.1</span></span><br><span class="line">        <span class="variable language_">self</span>.arm.set_pose_target(target)</span><br><span class="line">        <span class="variable language_">self</span>.arm.go(wait=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">        <span class="comment"># 2. 下降到抓取位姿</span></span><br><span class="line">        target.position.z = z</span><br><span class="line">        <span class="variable language_">self</span>.arm.set_pose_target(target)</span><br><span class="line">        <span class="variable language_">self</span>.arm.go(wait=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">        <span class="comment"># 3. 闭合夹爪</span></span><br><span class="line">        <span class="variable language_">self</span>.gripper.set_named_target(<span class="string">&#x27;closed&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.gripper.go(wait=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">place</span>(<span class="params">self, x, y, z</span>):</span><br><span class="line">        <span class="comment"># 移动到放置位姿并释放</span></span><br><span class="line">        target = Pose()</span><br><span class="line">        target.position.x = x</span><br><span class="line">        target.position.y = y</span><br><span class="line">        target.position.z = z</span><br><span class="line">        <span class="variable language_">self</span>.arm.set_pose_target(target)</span><br><span class="line">        <span class="variable language_">self</span>.arm.go(wait=<span class="literal">True</span>)</span><br><span class="line">        <span class="variable language_">self</span>.gripper.set_named_target(<span class="string">&#x27;open&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.gripper.go(wait=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">main</span>(<span class="params">args=<span class="literal">None</span></span>):</span><br><span class="line">    rclpy.init(args=args)</span><br><span class="line">    node = PickPlace()</span><br><span class="line">    node.pick(<span class="number">0.4</span>, <span class="number">0.1</span>, <span class="number">0.2</span>)</span><br><span class="line">    node.place(<span class="number">0.2</span>, -<span class="number">0.3</span>, <span class="number">0.2</span>)</span><br><span class="line">    rclpy.shutdown()</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">&#x27;__main__&#x27;</span>:</span><br><span class="line">    main()</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 顺序<br>抓取必须”先开爪 -&gt; 预抓取 -&gt; 下降 -&gt; 闭爪 -&gt; 抬升 -&gt; 放置”，跳过预抓取容易碰撞。</p>
+</blockquote>
+<h2 id="6-添加场景物体"><a href="#6-添加场景物体" class="headerlink" title="6. 添加场景物体"></a>6. 添加场景物体</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在规划场景中加入桌面（防碰撞）</span></span><br><span class="line">box_pose = PoseStamped()</span><br><span class="line">box_pose.header.frame_id = <span class="string">&#x27;world&#x27;</span></span><br><span class="line">box_pose.pose.position.z = -<span class="number">0.05</span></span><br><span class="line"><span class="variable language_">self</span>.scene.add_box(<span class="string">&#x27;table&#x27;</span>, box_pose,</span><br><span class="line">                   size=(<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">0.1</span>))</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 场景管理<br>规划场景里加入桌面&#x2F;障碍可防止规划穿过；抓取后 <code>remove_world_object(&#39;table&#39;)</code> 移除避免误判。</p>
+</blockquote>
+<h2 id="7-调试与验收"><a href="#7-调试与验收" class="headerlink" title="7. 调试与验收"></a>7. 调试与验收</h2><table>
+<thead>
+<tr>
+<th>测试</th>
+<th>通过标准</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>识别稳定</td>
+<td>多角度&#x2F;光照下检出</td>
+</tr>
+<tr>
+<td>位姿准确</td>
+<td>抓取位置误差 &lt;1cm</td>
+</tr>
+<tr>
+<td>抓取成功</td>
+<td>5 次中 ≥4 次</td>
+</tr>
+<tr>
+<td>无碰撞</td>
+<td>全过程无碰撞日志</td>
+</tr>
+</tbody></table>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看轨迹</span></span><br><span class="line">ros2 topic <span class="built_in">echo</span> /display_planned_path</span><br><span class="line"><span class="comment"># 关节状态</span></span><br><span class="line">ros2 topic <span class="built_in">echo</span> /joint_states</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 延伸<br>机械臂核心见 <a href="/posts/711846815.html">28-MoveIt2机械臂控制</a>；视觉处理见 <a href="/posts/767168211.html">26-视觉处理</a>；仿真见 <a href="/posts/2049131804.html">18-Gazebo与Ignition仿真</a>。至此 ROS2 从入门到精通的完整学习闭环已完成。</p>
+</blockquote>
+<h2 id="8-抓取实战复盘"><a href="#8-抓取实战复盘" class="headerlink" title="8. 抓取实战复盘"></a>8. 抓取实战复盘</h2><p>抓取项目复盘要点：识别准确率与位姿估计误差对抓取成功率的影响程度，规划失败案例的根因归类（碰撞模型、IK 无解、限位），视觉标定（手眼标定）精度是否达标。抓取成功率应分场景统计，明确失败主因后针对性改进，如更换夹具、调整识别策略、增加示教点。复盘成果沉淀为标准操作流程与参数集，支持快速适配新工件。掌握抓取实战意味着能独立完成”感知-规划-执行”闭环，是 ROS2 综合能力的集中体现。</p>
+<blockquote>
+<p>[!note] 建议<br>完成本篇后建议回看 <a href="/posts/4101548266.html">00-索引</a> 补漏，结合导航实战（<a href="/posts/4258040718.html">39-实战：自动驾驶小车</a>）形成移动操作机器人完整认知；资料扩展见 <a href="/posts/513154547.html">90-资料索引指南</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/4258040718.html">39-实战：自动驾驶小车</a>　下一篇：<a href="/posts/513154547.html">90-资料索引指南</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/172068224.html">https://zeek-zhao.github.io/posts/172068224.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros2/">ros2</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/513154547.html" title="ros2 90-资料索引指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">ros2 90-资料索引指南</div></div><div class="info-2"><div class="info-item-1">资料索引指南 [!info] 本节目标汇总 ROS2 从入门到精通的全链路学习资源，覆盖官方文档、GitHub 仓库、中文课程与社区，并给出学习路径建议。  1. 学习路径总览1入门（1-2周）-&gt; 核心（2-3周）-&gt; 进阶（2-3周）-&gt; 实战（2-4周）     阶段 本套件对应篇目 目标    入门 01-07、09 安装、核心概念、命令行、通信基础   核心 08、10-19 编程（C++&#x2F;Python）、接口、launch、仿真   进阶 20-37 导航、视觉、机械臂、Docker、安全、性能   实战 38-40 部署实践、小车导航、机械臂抓取    [!note] 配套主线官方文档 Tutorials（Beginner-Intermediate-Advanced）作为主线，本套件按主题组织，两者配合使用效率最高。  2. 官方文档   资源 链接 说明    ROS 开发者文档总入口 https://docs.ros.org/ 各发行版文档、CLI、客户端库   ROS2 官方教程（Humble） https://docs.ros.o...</div></div></div></a><a class="pagination-related" href="/posts/131381209.html" title="ros2 07-服务通信"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">ros2 07-服务通信</div></div><div class="info-2"><div class="info-item-1">服务通信 [!info] 本节目标掌握 ROS2 服务通信机制，能编写服务端与客户端，并理解同步请求-响应模型。  1. 服务通信模型服务是同步双向通信：客户端发送请求，服务端处理并返回响应。服务接口（srv）由请求（request）与响应（response）两部分组成。 12[客户端] --request--&gt; /add_two_ints --&gt; [服务端]         &lt;--response--                      特性 说明    方向 同步请求-响应   接口 srv（request + response）   并发 一个服务端可服务多个客户端   适用 查询、配置、低频指令   2. 定义服务接口12345# srv/AddTwoInts.srvint64 aint64 b---int64 sum  12&lt;!-- package.xml 增加 --&gt;&lt;depend&gt;example_interfaces&lt;/depend&gt;   [!note] 内置服务std_srvs/srv/Empty（无参数...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/4265837254.html" title="29-多机器人协同"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">29-多机器人协同</div></div><div class="info-2"><div class="info-item-1">多机器人协同 [!info] 本节目标掌握 ROS2 多机器人系统的命名空间隔离、ROS_DOMAIN_ID 分域与协同通信方案。  1. 多机器人挑战   挑战 方案    话题冲突 命名空间隔离   网络隔离 ROS_DOMAIN_ID &#x2F; 多域   资源共享 协商&#x2F;任务分配   时间同步 PTP&#x2F;NTP   2. 命名空间隔离1234567Node(    package=&#x27;my_pkg&#x27;,    executable=&#x27;talker&#x27;,    namespace=&#x27;robot1&#x27;,    name=&#x27;talker&#x27;,)# 话题：/robot1/chatter  12robot1: /robot1/cmd_vel /robot1/odomrobot2: /robot2/cmd_vel /robot2/odom   [!tip] 参数化命名空间用 LaunchConfiguration 传 robot_id，一个 launch 启动多机器人：  12345678910...</div></div></div></a><a class="pagination-related" href="/posts/1106872961.html" title="17-rviz2可视化"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">17-rviz2可视化</div></div><div class="info-2"><div class="info-item-1">rviz2 可视化 [!info] 本节目标掌握 rviz2 的显示类型、话题订阅、TF 树显示与配置保存，高效可视化调试。  1. rviz2 简介rviz2 是 ROS2 的 3D 可视化工具，用于显示机器人模型、传感器数据、TF 树、路径等。 1ros2 run rviz2 rviz2   [!note] 界面左侧 Display 面板管理显示项，中央 3D 视图，顶部工具栏切换视角&#x2F;测量。  2. 常用 Display 类型   Display 用途    RobotModel 显示 URDF 模型   LaserScan 2D 激光点云   PointCloud2 3D 点云   TF 坐标系与箭头   Image 图像话题（相机）   Path 路径   Marker 标记（文本&#x2F;箭头&#x2F;立方体）   Map 栅格地图   3. 添加与配置 Display 点击 Add → 选择 Display 类型 设置 Topic（如 /scan） 设置 Fixed Frame（如 map 或 odom） 调节 Size&#x2F;Color&#x2F...</div></div></div></a><a class="pagination-related" href="/posts/1400569321.html" title="32-ROS2与嵌入式平台"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">32-ROS2与嵌入式平台</div></div><div class="info-2"><div class="info-item-1">ROS2 与嵌入式平台 [!info] 本节目标掌握 ROS2 在树莓派、Jetson、微控制器等嵌入式平台的部署方式与最佳实践。  1. 平台选型   平台 定位 说明    树莓派 低成本主控 ARM64，可跑完整 ROS2   Jetson AI 边缘计算 GPU，视觉&#x2F;深度学习   微控制器 底层执行 无完整 ROS2，用 micro-ROS   IPC&#x2F;工控机 高算力 x86，完整 ROS2    [!note] 分层常见架构：微控制器跑电机控制（micro-ROS），树莓派&#x2F;Jetson 跑感知与导航（ROS2），工控机跑调度。  2. 树莓派部署123456# 使用 Ubuntu Server 22.04（arm64）sudo apt update &amp;&amp; sudo apt install -y \  ros-humble-ros-base python3-colcon-common-extensions# 或使用官方 Docker 镜像docker pull ros:humble   [!tip] 性能树莓派 4B&#x...</div></div></div></a><a class="pagination-related" href="/posts/868393764.html" title="27-语音交互"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">27-语音交互</div></div><div class="info-2"><div class="info-item-1">语音交互 [!info] 本节目标掌握 ROS2 语音交互方案：语音识别（ASR）、语音合成（TTS）与常用节点接入。  1. 语音交互架构123麦克风 -&gt; 语音识别(ASR) -&gt; 意图文本 -&gt; ROS2 话题                                    ROS2 话题 -&gt; 语音合成(TTS) -&gt; 扬声器     组件 功能 常用方案    ASR 语音转文本 讯飞&#x2F;百度云&#x2F;Whisper 本地   TTS 文本转语音 pyttsx3&#x2F;edge-tts&#x2F;云 TTS   唤醒 关键词唤醒 snowboy&#x2F;porcupine&#x2F;自研    [!note] 选型本地方案（Whisper + edge-tts）离线可用；云方案（讯飞&#x2F;百度）识别率高但需联网与密钥。  2. 语音识别（Whisper 本地）123pip install openai-whisper sounddevice numpy# 采集麦克风 -&gt; 识别（示例脚本）  123456...</div></div></div></a><a class="pagination-related" href="/posts/767168211.html" title="26-视觉处理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">26-视觉处理</div></div><div class="info-2"><div class="info-item-1">视觉处理 [!info] 本节目标掌握 ROS2 图像传输与处理：image_transport、cv_bridge、OpenCV 节点、相机标定与视觉应用。  1. 图像传输123456789sudo apt install -y ros-humble-vision-opencv \  ros-humble-image-transport \  ros-humble-image-transport-plugins# 原始图像ros2 run usb_cam usb_cam_node_exe# 压缩传输（compressed）ros2 run image_transport republish \  compressed in:=/image_raw raw out:=/image_raw_compressed   [!note] image_transport同一图像以多种形式发布（raw&#x2F;compressed&#x2F;theora），网络带宽紧张时订阅 compressed 主题。  2. cv_bridge 转换1234567891011121314151617...</div></div></div></a><a class="pagination-related" href="/posts/2049131804.html" title="18-Gazebo与Ignition仿真"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">18-Gazebo与Ignition仿真</div></div><div class="info-2"><div class="info-item-1">Gazebo 与 Ignition 仿真 [!info] 本节目标掌握 Gazebo（Classic）与 Gazebo Sim（Ignition）仿真环境的安装、世界构建与机器人导入。  1. 仿真器概览   仿真器 ROS2 版本 说明    Gazebo Classic 默认支持到 Humble 成熟稳定，教程多   Gazebo Sim（Ignition） Fortress 起 新一代，物理引擎更强   其他 - Webots、Isaac Sim 等    [!note] 发行版对应Humble 对应 Gazebo 11（Classic）与 Ignition Fortress；Jazzy 起默认 Gazebo Harmonic。  2. 安装12345678# Humble：Gazebo Classicsudo apt install -y ros-humble-gazebo-ros-pkgs# 验证gazebo --version# 简易启动ros2 launch gazebo_ros gazebo.launch.py   [!warning] 显卡与头显服务器无显示可用...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%AE%9E%E6%88%98%EF%BC%9A%E6%9C%BA%E6%A2%B0%E8%87%82%E6%8A%93%E5%8F%96"><span class="toc-number">1.</span> <span class="toc-text">实战：机械臂抓取</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E9%A1%B9%E7%9B%AE%E6%A6%82%E8%A7%88"><span class="toc-number">1.1.</span> <span class="toc-text">1. 项目概览</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA"><span class="toc-number">1.2.</span> <span class="toc-text">2. 环境搭建</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E7%9B%AE%E6%A0%87%E8%AF%86%E5%88%AB"><span class="toc-number">1.3.</span> <span class="toc-text">3. 目标识别</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E4%BD%8D%E5%A7%BF%E4%BC%B0%E8%AE%A1"><span class="toc-number">1.4.</span> <span class="toc-text">4. 位姿估计</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E6%8A%93%E5%8F%96%E8%A7%84%E5%88%92%EF%BC%88MoveIt2%EF%BC%89"><span class="toc-number">1.5.</span> <span class="toc-text">5. 抓取规划（MoveIt2）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E6%B7%BB%E5%8A%A0%E5%9C%BA%E6%99%AF%E7%89%A9%E4%BD%93"><span class="toc-number">1.6.</span> <span class="toc-text">6. 添加场景物体</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E8%B0%83%E8%AF%95%E4%B8%8E%E9%AA%8C%E6%94%B6"><span class="toc-number">1.7.</span> <span class="toc-text">7. 调试与验收</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E6%8A%93%E5%8F%96%E5%AE%9E%E6%88%98%E5%A4%8D%E7%9B%98"><span class="toc-number">1.8.</span> <span class="toc-text">8. 抓取实战复盘</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

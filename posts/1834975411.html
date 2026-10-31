@@ -1,0 +1,673 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>20-规划模块 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="规划模块是自动驾驶的&quot;大脑&quot;，综合地图、定位、预测与决策生成安全舒适的轨迹。本篇讲解 Apollo 基于场景的规划架构、参考线系统、路径&#x2F;速度解耦优化与轨迹安全校验。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="20-规划模块">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1834975411.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="规划模块是自动驾驶的&quot;大脑&quot;，综合地图、定位、预测与决策生成安全舒适的轨迹。本篇讲解 Apollo 基于场景的规划架构、参考线系统、路径&#x2F;速度解耦优化与轨迹安全校验。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "20-规划模块",
+  "url": "https://zeek-zhao.github.io/posts/1834975411.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/1834975411.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '20-规划模块',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">20-规划模块</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">20-规划模块</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握 Apollo Planning 模块：基于场景(Scenario-based)的规划架构、参考线生成与平滑、路径规划与速度规划的解耦优化（EM Planner 思想）、QP&#x2F;Piecewise-Jerk 核心算法与轨迹安全校验。行为层面的场景决策单独立篇，见 <a href="/posts/4019786798.html">21-决策模块与场景决策</a>。</p>
+</blockquote>
+<h2 id="1-规划模块概述"><a href="#1-规划模块概述" class="headerlink" title="1. 规划模块概述"></a>1. 规划模块概述</h2><p>规划(Planning)模块是自动驾驶系统的核心组件，扮演车辆”大脑”的角色：根据感知与预测结果，结合导航路径，规划出安全、舒适、高效的行驶轨迹，输出带时间戳的轨迹点序列供控制模块执行。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">    A[HD Map 地图] --&gt; C[Planning]</span><br><span class="line">    B[Localization 定位] --&gt; C</span><br><span class="line">    D[Prediction 预测] --&gt;|障碍物预测轨迹| C</span><br><span class="line">    E[Routing 路由] --&gt;|导航路径| C</span><br><span class="line">    C --&gt;|规划轨迹| F[Control 控制]</span><br></pre></td></tr></table></figure>
+
+<p>核心目标：在确保安全的前提下，生成平滑舒适、高效节能、符合交通规则的轨迹。</p>
+<h2 id="2-架构与数据流"><a href="#2-架构与数据流" class="headerlink" title="2. 架构与数据流"></a>2. 架构与数据流</h2><p>目录结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">modules/planning/</span><br><span class="line">├── planning_component.cc    # 组件入口</span><br><span class="line">├── on_lane_planning.cc      # 车道规划实现</span><br><span class="line">├── reference_line/          # 参考线生成与管理</span><br><span class="line">├── scenarios/               # 场景: lane_follow/traffic_light/park...</span><br><span class="line">├── tasks/</span><br><span class="line">│   ├── deciders/            # 决策任务</span><br><span class="line">│   └── optimizers/          # 优化任务</span><br><span class="line">└── conf/                    # 配置</span><br></pre></td></tr></table></figure>
+
+<p>核心组件关系：<code>PlanningComponent</code> → <code>OnLanePlanning</code> → <code>ReferenceLineProvider</code>（参考线）+ <code>ScenarioManager</code>（场景）→ <code>Scenario</code> → <code>Stage</code> → <code>Task</code>（决策器&#x2F;优化器）。</p>
+<p>内部数据流：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">flowchart TD</span><br><span class="line">    A1[地图/路由] --&gt; B[ReferenceLineProvider 参考线]</span><br><span class="line">    A2[定位/感知/预测] --&gt; C[Frame 数据整合]</span><br><span class="line">    B --&gt; C</span><br><span class="line">    C --&gt; D[ScenarioManager 场景选择]</span><br><span class="line">    D --&gt; E[Scenario/Stage 执行]</span><br><span class="line">    E --&gt; F1[Deciders 决策任务]</span><br><span class="line">    E --&gt; F2[Optimizers 优化任务]</span><br><span class="line">    F1 &amp; F2 --&gt; G[轨迹生成]</span><br><span class="line">    G --&gt; H[轨迹校验/分区]</span><br><span class="line">    H --&gt; I[发布 ADCTrajectory]</span><br></pre></td></tr></table></figure>
+
+<p>配置示例：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">planning:</span></span><br><span class="line">  <span class="attr">trajectory_period:</span> <span class="number">8.0</span>        <span class="comment"># 规划时域(秒)</span></span><br><span class="line">  <span class="attr">trajectory_time_resolution:</span> <span class="number">0.1</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="3-基于场景的规划架构"><a href="#3-基于场景的规划架构" class="headerlink" title="3. 基于场景的规划架构"></a>3. 基于场景的规划架构</h2><p>Apollo 采用 Scenario → Stage → Task 的三层结构：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">graph TD</span><br><span class="line">    A[ScenarioManager] --&gt;|场景选择| B&#123;当前场景&#125;</span><br><span class="line">    B --&gt;|默认| C[LaneFollow]</span><br><span class="line">    B --&gt;|信号灯| D[TrafficLight]</span><br><span class="line">    B --&gt;|停车标志| E[StopSign]</span><br><span class="line">    B --&gt;|让行标志| F[YieldSign]</span><br><span class="line">    B --&gt;|裸交叉口| G[BareIntersection]</span><br><span class="line">    B --&gt;|泊车| H[Park/ValetParking]</span><br><span class="line">    B --&gt;|靠边停车| I[PullOver]</span><br><span class="line">    B --&gt;|窄路掉头| J[NarrowStreetUTurn]</span><br><span class="line">    B --&gt;|紧急停车| K[EmergencyStop]</span><br></pre></td></tr></table></figure>
+
+<p>每个场景包含多个阶段(Stage)，每个阶段执行一系列任务(Task)。规划任务分两类：</p>
+<ul>
+<li><strong>决策器 Deciders</strong>：PathBoundsDecider（路径边界）、SpeedBoundsDecider（速度边界）、RuleBasedStopDecider（规则停车）、PathLaneBorrowDecider（借道）等；</li>
+<li><strong>优化器 Optimizers</strong>：PathOptimizer、PiecewiseJerkPathOptimizer、PiecewiseJerkSpeedOptimizer 等。</li>
+</ul>
+<p>决策器根据规则和约束确定搜索空间，优化器在空间内生成满足约束的平滑轨迹。</p>
+<h2 id="4-参考线系统"><a href="#4-参考线系统" class="headerlink" title="4. 参考线系统"></a>4. 参考线系统</h2><p>参考线是规划的基础几何结构：车辆期望行驶的基准路径，来自两个来源——Routing 模块基于高精地图的路由车道中心线，或无图场景下 RelativeMap 基于感知生成的车道线。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">flowchart TD</span><br><span class="line">    A[接收路由响应] --&gt; B[提取车道序列]</span><br><span class="line">    B --&gt; C[平滑处理: QP/样条]</span><br><span class="line">    C --&gt; D[计算曲率等属性]</span><br><span class="line">    D --&gt; E[存储并提供参考线]</span><br></pre></td></tr></table></figure>
+
+<p>平滑目标：贴近原始参考点、曲率连续避免急转弯、导数连续保证平滑过渡、满足车辆动力学约束（模型见 <a href="/posts/3133762148.html">23-车辆动力学基础</a>）。参考线管理支持分段与拼接，保证行驶过程连续平滑。规划在参考线的 Frenet 坐标系（纵向 s &#x2F; 横向 l）下进行横纵向解耦优化，大幅降低求解难度。</p>
+<h2 id="5-EM-Planner：路径-速度解耦"><a href="#5-EM-Planner：路径-速度解耦" class="headerlink" title="5. EM Planner：路径-速度解耦"></a>5. EM Planner：路径-速度解耦</h2><p>EM Planner 是 Apollo 的主线算法，将复杂的时空联合规划分解为两个子问题迭代求解：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">    A[EM Planner] --&gt; B[Path 分支]</span><br><span class="line">    A --&gt; C[Speed 分支]</span><br><span class="line">    B --&gt; D[路径边界决策] --&gt; E[路径优化]</span><br><span class="line">    C --&gt; F[ST 边界决策] --&gt; G[速度优化]</span><br><span class="line">    E --&gt; H[轨迹组合]</span><br><span class="line">    G --&gt; H</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>路径规划</strong>：在参考线坐标系生成横向路径，不考虑时间；</li>
+<li><strong>速度规划</strong>：在固定路径上用 ST 图规划速度曲线；</li>
+<li>迭代求解，类似期望最大化思想。</li>
+</ul>
+<h3 id="5-1-路径规划"><a href="#5-1-路径规划" class="headerlink" title="5.1 路径规划"></a>5.1 路径规划</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">flowchart TD</span><br><span class="line">    A[路径边界决策] --&gt;|车道/静态/动态障碍物| B[生成候选路径]</span><br><span class="line">    B --&gt; C[评估: 安全/舒适/效率]</span><br><span class="line">    C --&gt; D[QP/Piecewise-Jerk 优化]</span><br><span class="line">    D --&gt; E[最终路径]</span><br></pre></td></tr></table></figure>
+
+<p>QP 路径规划的目标函数包含路径平滑项、参考线偏差项与曲率项；约束包括路径边界、最大曲率与避障；用 OSQP 求解器高效求解。</p>
+<h3 id="5-2-速度规划与-ST-图"><a href="#5-2-速度规划与-ST-图" class="headerlink" title="5.2 速度规划与 ST 图"></a>5.2 速度规划与 ST 图</h3><p>ST 图是处理动态障碍物的核心工具：横轴时间、纵轴沿路径距离 s。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">flowchart TD</span><br><span class="line">    A[构建 ST 图] --&gt;|障碍物/红绿灯/停车点投影| B[生成速度边界]</span><br><span class="line">    B --&gt; C[速度决策: 巡航/减速/停车]</span><br><span class="line">    C --&gt; D[DP 粗解 + QP 精化]</span><br><span class="line">    D --&gt; E[平滑速度曲线]</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>静态障碍物在 ST 图表现为垂直线段，移动障碍物为斜线段；</li>
+<li>直观表达车辆与障碍物的时空关系，便于规划跟车、超车、避让的速度曲线。</li>
+</ul>
+<h3 id="5-3-Piecewise-Jerk-优化"><a href="#5-3-Piecewise-Jerk-优化" class="headerlink" title="5.3 Piecewise-Jerk 优化"></a>5.3 Piecewise-Jerk 优化</h3><p>分段加加速度(Piecewise Jerk)优化直接优化位置 s、速度 v、加速度 a 序列：</p>
+<ul>
+<li>保证加速度连续，提升舒适性；</li>
+<li>直接约束 jerk（加加速度），避免急加急减；</li>
+<li>计算效率高，适合实时规划；</li>
+<li>路径与速度规划均可使用。</li>
+</ul>
+<h2 id="6-轨迹生成与安全校验"><a href="#6-轨迹生成与安全校验" class="headerlink" title="6. 轨迹生成与安全校验"></a>6. 轨迹生成与安全校验</h2><p>路径与速度曲线组合为带时间戳的完整轨迹后，须通过安全校验：</p>
+<ol>
+<li><strong>碰撞检查</strong>：轨迹与障碍物时空冲突检测；</li>
+<li><strong>边界检查</strong>：是否超出道路边界；</li>
+<li><strong>动力学检查</strong>：是否满足加速度&#x2F;曲率约束（车辆参数见 <a href="/posts/3133762148.html">23-车辆动力学基础</a>）。</li>
+</ol>
+<p>异常轨迹被拒绝并触发重新规划；不满足要求时使用回退策略生成简化轨迹（如减速保持）。轨迹输出频率直接影响控制平滑度。</p>
+<h2 id="7-规划的多目标平衡"><a href="#7-规划的多目标平衡" class="headerlink" title="7. 规划的多目标平衡"></a>7. 规划的多目标平衡</h2><p>规划需平衡三个目标，约束包括碰撞、动力学与交通规则：</p>
+<table>
+<thead>
+<tr>
+<th>目标</th>
+<th>关键指标</th>
+<th>手段</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>安全</td>
+<td>安全距离维持、碰撞风险</td>
+<td>预测避让、安全间距、故障安全</td>
+</tr>
+<tr>
+<td>舒适</td>
+<td>加速度&#x2F;加加速度&#x2F;曲率</td>
+<td>Piecewise-Jerk、提前减速、平滑曲线</td>
+</tr>
+<tr>
+<td>效率</td>
+<td>行程时间、平均速度</td>
+<td>合理巡航速度、智能跟车、信号灯配时利用</td>
+</tr>
+</tbody></table>
+<p>典型舒适性约束参考：纵向加速度舒适范围 ±1.5 m&#x2F;s²、加加速度 ±1.0 m&#x2F;s³，紧急范围可放宽至 ±4 m&#x2F;s² &#x2F; ±5 m&#x2F;s³。</p>
+<h2 id="8-与其他模块的交互"><a href="#8-与其他模块的交互" class="headerlink" title="8. 与其他模块的交互"></a>8. 与其他模块的交互</h2><ul>
+<li><strong>地图&#x2F;路由</strong>：查询车道、限速、信号灯位置，生成参考线；</li>
+<li><strong>定位</strong>：获取当前位置姿态，映射到参考线，确定规划起点；</li>
+<li><strong>预测</strong>：接收多轨迹概率，投影到参考线与 ST 图（见 <a href="/posts/3984938707.html">19-预测模块</a>）；</li>
+<li><strong>控制</strong>：输出轨迹点序列（位置、方向、曲率、速度、加速度、时间戳），接收跟踪误差反馈（见 <a href="/posts/122258190.html">22-控制模块</a>）。</li>
+</ul>
+<p>规划模块须在 100ms 内完成计算：设置严格时间预算、优先安全关键任务、并行计算、计算密集任务设早期终止、按场景动态调整计算精度。</p>
+<blockquote>
+<p>[!note] 2026 年更新<br>Apollo 10.0 规划控制升级：决策与候选轨迹生成全面 <strong>Learning 化</strong>，从人类驾驶数据学习，行为更拟人；引入<strong>基于车辆角点的约束</strong>，相比传统中心点约束显著提升窄道避障的通过性；ADFM（自动驾驶大模型）已用于规划控制模块的重构。端到端规划（传感器直出轨迹&#x2F;控制）是长期趋势，参见 <a href="/posts/3677233744.html">38-端到端自动驾驶与大模型</a>。</p>
+</blockquote>
+<h2 id="9-动手实践清单"><a href="#9-动手实践清单" class="headerlink" title="9. 动手实践清单"></a>9. 动手实践清单</h2><ol>
+<li>启动规划模块，在 DreamView 中观察参考线、路径候选与最终轨迹渲染；</li>
+<li>修改 <code>trajectory_period</code> 等配置，观察轨迹长度与计算负载变化；</li>
+<li>构造静止障碍物场景，观察借道决策与绕行轨迹；</li>
+<li>构造红灯场景，观察 ST 图上停车点投影与减速曲线；</li>
+<li>阅读场景代码目录，理解 Scenario→Stage→Task 的扩展方式，为 <a href="/posts/4019786798.html">21-决策模块与场景决策</a> 做准备。</li>
+</ol>
+<p><em>上一篇：<a href="/posts/3984938707.html">19-预测模块</a>　下一篇：<a href="/posts/4019786798.html">21-决策模块与场景决策</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/1834975411.html">https://zeek-zhao.github.io/posts/1834975411.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1914309065.html" title="21-Groovy与Gradle构建"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">21-Groovy与Gradle构建</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Gradle 是 Groovy 生态的核心构建工具，学习构建脚本与项目配置。  1. Gradle 与 Groovy 的关系Gradle 是 JVM 生态的构建自动化工具，构建脚本默认使用 Groovy DSL（build.gradle），Groovy 开发者对构建脚本零学习成本。 Gradle 支持 Groovy 与 Kotlin 两种 DSL，Groovy DSL 更简洁灵活，适合脚本化构建逻辑。 2. 初始化 Groovy 项目gradle init 生成项目骨架，选择 Groovy 应用或库模板。标准布局包含 src&#x2F;main&#x2F;groovy 与 src&#x2F;test&#x2F;groovy 目录。 build.gradle 配置插件、依赖与任务，settings.gradle 配置项目名称与仓库。 3. Groovy 插件应用 groovy 插件启用 Groovy 编译支持，联合 java 插件管理源码集。compileGroovy 任务编译 Groovy 源码，与 Java 源码联合编译。 groovydoc 任务生成...</div></div></div></a><a class="pagination-related" href="/posts/1787633817.html" title="20-维护与清理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">20-维护与清理</div></div><div class="info-2"><div class="info-item-1">维护与清理 [!abstract] 一句话知识库和房间一样需要定期打扫：格式靠 Linter 统一、结构靠 Janitor 体检、附件靠 Oz 清理、孤岛靠 Find Unlinked Files 收编、标签靠 Tag Wrangler 归拢、臃肿靠 Note Refactor 拆分。  格式规范：LinterLinter 自动执行 Markdown 格式化：标题层级统一、段落空行规范、列表缩进校正、表格对齐、YAML 排序与自动生成（创建&#x2F;修改日期）。核心命令四个：Lint 当前文件、Lint 选定区域、Lint 所有文件、粘贴并格式化。 用注释标记保护特定区域： 123&lt;!-- linter-disable --&gt;这部分内容将保持原样，不会被Linter修改&lt;!-- linter-enable --&gt;  自定义正则表达式可处理特殊规范（如统一产品名大小写）。建议按阶段分配规则强度：写作期最小干预、编辑期启用结构规则、发布期跑完整规则集。 全库体检：JanitorJanitor 是知识库的”全科医生”，一键扫描并生成健康报告，覆盖六类问题：  ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/3670574823.html" title="28-Cyber异步调用机制"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">28-Cyber异步调用机制</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Cyber RT 的异步编程层：Async&#x2F;Yield&#x2F;SleepFor 原语、TaskManager 的协程池与有界队列实现、实模式&#x2F;仿真模式双路径设计，以及 SysMo 对异步任务的监控手段。  本篇是第四阶段 Cyber RT 深度剖析的第四篇。组件的”消息驱动”路径由 29-Cyber数据系统详解 负责，本篇讲”代码主动并发”路径——cyber::Async 一行调用背后的完整基础设施，它同样构建在 26-Cyber调度系统详解 的协程之上。 1. 设计定位自动驾驶软件反复出现这类需求：点云预处理耗时但不挡主流程、MPC 求解可能超时、路径要并行生成多方案。Cyber 的异步机制围绕五个目标设计：  高性能：实模式下走协程，上下文切换开销近于零 易用：API 形态对齐 std::async，返回 std::future 灵活：协程&#x2F;线程双模型，按运行模式自动切换 资源可控：有界队列 + 池化协程，防任务风暴 可观测：SysMo 持续输出协程执行快照  源码目录：cyber/task/（task.h、t...</div></div></div></a><a class="pagination-related" href="/posts/2046330891.html" title="16-车辆动力学基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">16-车辆动力学基础</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶规划控制所需的车辆运动学与动力学模型。  1. 模型的作用规划与控制依赖车辆模型来描述运动与响应。模型精度影响控制效果与仿真真实性。 2. 常用模型   模型 描述 用途    自行车模型 简化运动学 规划参考   运动学模型 位置+航向 低速场景   动力学模型 力与加速度 高速控制   轮胎模型 侧偏特性 极限工况   3. 关键参数车辆模型的参数包括轴距、轮距、整车质量、质心位置、轮胎侧偏刚度、转向传动比等。参数不准会导致控制偏差。 123456# 车辆参数示例vehicle_param:  front_edge_to_center: 3.89  length: 4.93  width: 1.96  max_acceleration: 3.0  4. 参数辨识通过实车试验（阶跃转向、加减速）辨识模型参数，写入车辆配置。辨识结果直接影响控制器的标定质量，见 14-控制模块。  [!note] 延伸控制依赖模型见 纵向控制）；仿真中模型一致性见 25-仿真平台（Sim Control）。  5. 模型在系统中的应用车辆模型在 Apollo ...</div></div></div></a><a class="pagination-related" href="/posts/3931639321.html" title="29-Cyber数据系统详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">29-Cyber数据系统详解</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标深入消息从”到达本进程”到”触发组件回调”之间的内部机制：DataDispatcher、CacheBuffer、DataNotifier、DataVisitor 与数据融合策略，理解零拷贝与无锁设计如何支撑高吞吐。  本篇是第四阶段 Cyber RT 深度剖析的第五篇。第二阶段 12-消息通信与组件开发 讲的是使用层 API（怎么建 Writer&#x2F;Reader、怎么发消息）；本篇聚焦框架内部——消息进来之后发生了什么。它与 26-Cyber调度系统详解 的唤醒链路是同一条故事的两侧。 1. 数据系统全景一条消息的生命周期（本进程视角）可归纳为六步： 123456789101112131415161718sequenceDiagram    participant W as Writer    participant TR as Transmitter    participant RE as Receiver    participant DD as DataDispatcher    participant CB as CacheBuffer...</div></div></div></a><a class="pagination-related" href="/posts/2752057546.html" title="40-安全机制与冗余设计"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">40-安全机制与冗余设计</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶安全的完整体系：从模块级数据健康检查到硬件冗余的四层防护、降级策略的设计原则、功能安全（ISO 26262）基本概念，以及故障注入等安全测试验证方法。  1. 安全机制概述自动驾驶安全依赖多层防护：模块级监控、系统级降级、硬件冗余与功能安全设计。没有任何单一机制能保证安全——安全是纵深防御（Defense in Depth）的系统性工程：每一层都假设下一层可能失效。 123456graph TD    A[自动驾驶安全体系] --&gt; B[模块级: 数据健康检查]    A --&gt; C[系统级: 状态机与降级]    A --&gt; D[执行级: 底盘安全指令]    A --&gt; E[冗余级: 传感器/计算冗余]    A --&gt; F[组织级: 流程与文化]  2. 四层安全防护2.1 模块级：数据健康检查每个模块对自己的输入输出做持续自检：  输入校验：话题频率是否正常、时间戳是否新鲜、数值是否在合理范围 自监控：处理耗时是否超预算、内部状态是否一致 输出校验：结果合理性检查（如规划轨迹是否越界）  例如定位模块检测...</div></div></div></a><a class="pagination-related" href="/posts/1352878638.html" title="51-深度学习基础与CNN"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">51-深度学习基础与CNN</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标从零建立深度学习的概念框架：神经网络基本原理、CNN 核心组件、经典架构演进，以及 CNN 在自动驾驶感知系统中的实际应用，并了解 2024-2026 年感知模型的技术走向。训练框架选择见 52-PyTorch与自动驾驶实践 与 53-TensorFlow与Caffe2在自动驾驶中的应用。  1. 深度学习概述1.1 什么是深度学习深度学习是机器学习的一个子领域，使用多层神经网络模拟人脑的信息处理与模式识别能力，通过大量数据自动提取特征并做出决策。它是自动驾驶环境感知、轨迹预测等模块的算法基石。 1.2 发展简史 1943 年 McCulloch-Pitts 神经元模型；1958 年感知器 1986 年反向传播算法普及；1989 年早期 CNN；1997 年 LSTM 2012 年 AlexNet 在 ImageNet 突破，引爆深度学习革命 2017 年 Transformer 提出；2018 年后大规模预训练模型兴起 2020 年代：BEV 感知、Occupancy Network、端到端自动驾驶（详见第 7 节）  1.3 神经网络基本原理一个神经...</div></div></div></a><a class="pagination-related" href="/posts/928100527.html" title="07-定位模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">07-定位模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 定位模块的整体架构：RTK 定位、激光点云定位、视觉定位及多传感器融合策略。  1. 定位模块概述定位是自动驾驶的核心能力之一，决定了车辆在高精地图中的精确位置与姿态。Apollo 定位模块采用多传感器融合方案，结合 RTK（载波相位差分）、激光雷达点云配准、视觉特征匹配与 IMU 惯性导航数据，输出厘米级定位结果。 123456定位输入源：- GNSS/RTK：全球导航卫星系统 + 差分基准站- IMU：三轴加速度计 + 陀螺仪- 激光雷达：点云配准（NDT/Monte Carlo）- 相机：视觉特征匹配与车道线约束- 轮速计：车辆里程计约束  2. RTK 定位原理RTK 通过基准站与移动站的载波相位差分消除卫星误差：  基准站播发改正数（RTCM 协议） 移动站解算模糊度获得厘米级定位 更新频率 10-20 Hz，适合开阔场景  12345# 定位配置要点rtk:  base_station: 192.168.1.100  protocol: rtcm3  survey_in: false  RTK 的局限：高楼峡谷、隧道等遮挡...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E8%A7%84%E5%88%92%E6%A8%A1%E5%9D%97%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">1. 规划模块概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">2.</span> <span class="toc-text">2. 架构与数据流</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%9F%BA%E4%BA%8E%E5%9C%BA%E6%99%AF%E7%9A%84%E8%A7%84%E5%88%92%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">3. 基于场景的规划架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%8F%82%E8%80%83%E7%BA%BF%E7%B3%BB%E7%BB%9F"><span class="toc-number">4.</span> <span class="toc-text">4. 参考线系统</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-EM-Planner%EF%BC%9A%E8%B7%AF%E5%BE%84-%E9%80%9F%E5%BA%A6%E8%A7%A3%E8%80%A6"><span class="toc-number">5.</span> <span class="toc-text">5. EM Planner：路径-速度解耦</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E8%B7%AF%E5%BE%84%E8%A7%84%E5%88%92"><span class="toc-number">5.1.</span> <span class="toc-text">5.1 路径规划</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E9%80%9F%E5%BA%A6%E8%A7%84%E5%88%92%E4%B8%8E-ST-%E5%9B%BE"><span class="toc-number">5.2.</span> <span class="toc-text">5.2 速度规划与 ST 图</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-Piecewise-Jerk-%E4%BC%98%E5%8C%96"><span class="toc-number">5.3.</span> <span class="toc-text">5.3 Piecewise-Jerk 优化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E8%BD%A8%E8%BF%B9%E7%94%9F%E6%88%90%E4%B8%8E%E5%AE%89%E5%85%A8%E6%A0%A1%E9%AA%8C"><span class="toc-number">6.</span> <span class="toc-text">6. 轨迹生成与安全校验</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E8%A7%84%E5%88%92%E7%9A%84%E5%A4%9A%E7%9B%AE%E6%A0%87%E5%B9%B3%E8%A1%A1"><span class="toc-number">7.</span> <span class="toc-text">7. 规划的多目标平衡</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E4%B8%8E%E5%85%B6%E4%BB%96%E6%A8%A1%E5%9D%97%E7%9A%84%E4%BA%A4%E4%BA%92"><span class="toc-number">8.</span> <span class="toc-text">8. 与其他模块的交互</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#9-%E5%8A%A8%E6%89%8B%E5%AE%9E%E8%B7%B5%E6%B8%85%E5%8D%95"><span class="toc-number">9.</span> <span class="toc-text">9. 动手实践清单</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

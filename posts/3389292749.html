@@ -1,0 +1,621 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Redis 高级特性 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="缓存一致性：缓存与数据库数据保持一致的核心问题。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis 高级特性">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3389292749.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="缓存一致性：缓存与数据库数据保持一致的核心问题。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-21T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="缓存">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="分布式锁">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Redis 高级特性",
+  "url": "https://zeek-zhao.github.io/posts/3389292749.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-21T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3389292749.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Redis 高级特性',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">Redis 高级特性</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Redis 高级特性</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-21T16:00:00.000Z" title="发表于 2026-10-22 00:00:00">2026-10-22</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/database/">database</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Redis-高级特性"><a href="#Redis-高级特性" class="headerlink" title="Redis 高级特性"></a>Redis 高级特性</h1><blockquote>
+<p>[!info] 本页概览<br>本文讲解 Redis 高级特性与业务实践：缓存一致性、缓存穿透&#x2F;击穿&#x2F;雪崩三大问题、分布式锁（SETNX&#x2F;Redisson）、Lua 脚本原子性、消息队列（Stream）、布隆过滤器与性能优化，配命令与伪代码。</p>
+</blockquote>
+<h2 id="核心概念"><a href="#核心概念" class="headerlink" title="核心概念"></a>核心概念</h2><ul>
+<li><strong>缓存一致性</strong>：缓存与数据库数据保持一致的核心问题。</li>
+<li><strong>穿透</strong>：查不存在的数据，绕过缓存打 DB。</li>
+<li><strong>击穿</strong>：热点 key 过期瞬间大量请求打 DB。</li>
+<li><strong>雪崩</strong>：大量 key 同时过期导致 DB 压力爆掉。</li>
+<li><strong>分布式锁</strong>：多实例下互斥访问共享资源。</li>
+<li><strong>Lua 脚本</strong>：多条 Redis 命令原子执行。</li>
+</ul>
+<h2 id="缓存一致性（Cache-Aside）"><a href="#缓存一致性（Cache-Aside）" class="headerlink" title="缓存一致性（Cache Aside）"></a>缓存一致性（Cache Aside）</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">读：先读缓存 → miss → 读 DB → 回填缓存（设 TTL）</span><br><span class="line">写：先写 DB → 再删缓存（延迟双删可选）</span><br><span class="line"></span><br><span class="line">关键点：</span><br><span class="line">- 更新 DB 后&quot;删缓存&quot;而非&quot;更新缓存&quot;（避免写竞争）</span><br><span class="line">- 删除失败兜底：消息队列重试 / 定时任务补偿</span><br><span class="line">- 读回填与删缓存竞态：先删缓存再写 DB（延迟双删：删→写→延迟→再删）</span><br></pre></td></tr></table></figure>
+
+<h2 id="缓存穿透"><a href="#缓存穿透" class="headerlink" title="缓存穿透"></a>缓存穿透</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">问题：查询不存在的 id，每次都打 DB</span><br><span class="line">解决：</span><br><span class="line">1. 空值缓存：查询结果为空也缓存（TTL 短，如 60s）</span><br><span class="line">2. 布隆过滤器：请求前先判是否存在（存在可能误判，不存在必不存在）</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 布隆过滤器模块（RedisBloom）</span></span><br><span class="line">BF.ADD user_filter 10001</span><br><span class="line">BF.EXISTS user_filter 10001   <span class="comment"># 返回 1/0</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="缓存击穿"><a href="#缓存击穿" class="headerlink" title="缓存击穿"></a>缓存击穿</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">问题：热点 key 过期瞬间并发打到 DB</span><br><span class="line">解决：</span><br><span class="line">1. 互斥锁（SETNX）重建：一个线程回源，其他等待</span><br><span class="line">2. 逻辑过期：value 带逻辑过期时间，异步重建</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 互斥锁重建</span></span><br><span class="line">SET lock:hot:user:1 1 NX EX 10</span><br><span class="line"><span class="comment"># 拿到锁才查 DB 重建缓存；未拿到 sleep 后重试</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 伪代码（互斥锁）</span></span><br><span class="line"><span class="type">String</span> <span class="variable">v</span> <span class="operator">=</span> redis.get(key);</span><br><span class="line"><span class="keyword">if</span> (v == <span class="literal">null</span>) &#123;</span><br><span class="line">    <span class="keyword">if</span> (redis.setnx(lockKey, <span class="number">1</span>, <span class="number">10</span>)) &#123;</span><br><span class="line">        v = db.query(key);</span><br><span class="line">        redis.set(key, v, <span class="number">300</span>);</span><br><span class="line">        redis.del(lockKey);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        Thread.sleep(<span class="number">50</span>);</span><br><span class="line">        v = redis.get(key);   <span class="comment">// 重试读</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="缓存雪崩"><a href="#缓存雪崩" class="headerlink" title="缓存雪崩"></a>缓存雪崩</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">问题：大量 key 同时过期 / Redis 宕机</span><br><span class="line">解决：</span><br><span class="line">1. 过期时间加随机值：SETEX key (300 + random(0,60))</span><br><span class="line">2. 多级缓存：本地 Caffeine + Redis</span><br><span class="line">3. 熔断限流：Redis 故障时降级查 DB + 限流保护</span><br><span class="line">4. 集群高可用：见 [13-Redis 持久化与集群](/posts/2585400016.html)</span><br></pre></td></tr></table></figure>
+
+<h2 id="分布式锁"><a href="#分布式锁" class="headerlink" title="分布式锁"></a>分布式锁</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 简单版（SETNX + EXPIRE 原子）</span></span><br><span class="line">SET lock:order:1 owner-123 NX EX 30</span><br><span class="line"></span><br><span class="line"><span class="comment"># 释放（Lua 保证&quot;是自己的锁才删&quot;）</span></span><br><span class="line"><span class="comment"># if redis.call(&#x27;get&#x27;, KEYS[1]) == ARGV[1]</span></span><br><span class="line"><span class="comment"># then return redis.call(&#x27;del&#x27;, KEYS[1]) else return 0 end</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Redisson 看门狗自动续期，避免业务未完成锁过期</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 锁的可靠性<br>单节点锁有主从切换丢锁风险；强一致场景用 Redlock 或 etcd。锁粒度按业务 key 设计，避免全局大锁。</p>
+</blockquote>
+<h2 id="Lua-脚本原子操作"><a href="#Lua-脚本原子操作" class="headerlink" title="Lua 脚本原子操作"></a>Lua 脚本原子操作</h2><figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 限流脚本：固定窗口计数</span></span><br><span class="line"><span class="comment">-- KEYS[1]=rate:key  ARGV[1]=limit  ARGV[2]=window</span></span><br><span class="line"><span class="keyword">local</span> c = redis.call(<span class="string">&#x27;INCR&#x27;</span>, KEYS[<span class="number">1</span>])</span><br><span class="line"><span class="keyword">if</span> c == <span class="number">1</span> <span class="keyword">then</span> redis.call(<span class="string">&#x27;EXPIRE&#x27;</span>, KEYS[<span class="number">1</span>], ARGV[<span class="number">2</span>]) <span class="keyword">end</span></span><br><span class="line"><span class="keyword">if</span> c &gt; <span class="built_in">tonumber</span>(ARGV[<span class="number">1</span>]) <span class="keyword">then</span> <span class="keyword">return</span> <span class="number">0</span> <span class="keyword">else</span> <span class="keyword">return</span> <span class="number">1</span> <span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">redis-cli --<span class="built_in">eval</span> ratelimit.lua rate:user:1 , 10 60</span><br></pre></td></tr></table></figure>
+
+<h2 id="消息队列（Stream）"><a href="#消息队列（Stream）" class="headerlink" title="消息队列（Stream）"></a>消息队列（Stream）</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">XADD order:stream * user_id 1 amount 99.9   <span class="comment"># 生产</span></span><br><span class="line">XLEN order:stream</span><br><span class="line">XREAD COUNT 10 STREAMS order:stream 0       <span class="comment"># 消费</span></span><br><span class="line">XGROUP CREATE order:stream g1 0             <span class="comment"># 消费组</span></span><br><span class="line">XREADGROUP GROUP g1 c1 COUNT 10 STREAMS order:stream &gt;</span><br><span class="line"><span class="comment"># 与消费者组实现可靠消费；相比 List 队列更强大</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="性能优化"><a href="#性能优化" class="headerlink" title="性能优化"></a>性能优化</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 慢日志</span></span><br><span class="line">SLOWLOG GET 10</span><br><span class="line"><span class="comment"># 阈值：slowlog-log-slower-than 10000（微秒）</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 内存</span></span><br><span class="line">INFO memory</span><br><span class="line">redis-cli --bigkeys          <span class="comment"># 扫描大 key</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 连接</span></span><br><span class="line">INFO clients</span><br><span class="line"><span class="comment"># maxclients 合理设置</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 优化建议</span></span><br><span class="line"><span class="comment"># - 尽量用 Pipeline 减少 RTT</span></span><br><span class="line"><span class="comment"># - 小对象用内存编码（list-max-ziplist-size 等）</span></span><br><span class="line"><span class="comment"># - 避免大 value（&gt;1MB），拆分/压缩</span></span><br><span class="line"><span class="comment"># - 合理 TTL，避免内存写满触发淘汰</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="常见坑"><a href="#常见坑" class="headerlink" title="常见坑"></a>常见坑</h2><ol>
+<li><strong>缓存与 DB 不一致</strong>：删缓存失败未补偿 → 消息队列重试。</li>
+<li><strong>分布式锁过期</strong>：业务未完成锁已释放 → Redisson 续期。</li>
+<li><strong>锁误删他人锁</strong>：释放时 Lua 校验持有者。</li>
+<li><strong>布隆过滤器误判</strong>：允许”误拦不存在”，业务上可接受才用。</li>
+<li><strong>雪崩未防</strong>：缓存 TTL 无随机值，重启后 DB 被打爆。</li>
+<li><strong>热点 key 单点</strong>：热 key 加后缀拆分成多个逻辑 key。</li>
+</ol>
+<h2 id="最佳实践"><a href="#最佳实践" class="headerlink" title="最佳实践"></a>最佳实践</h2><ul>
+<li>缓存尽量”查多写少”且可容忍短暂不一致。</li>
+<li>写路径：DB 为主，缓存异步失效。</li>
+<li>压测验证缓存策略（命中率、回源 QPS）。</li>
+<li>结合 <a href="/posts/4157437049.html">12-Redis 入门与常用命令</a>、<a href="/posts/2585400016.html">13-Redis 持久化与集群</a> 形成完整方案。</li>
+</ul>
+<p><em><a href="/posts/3362087806.html">返回索引</a> · 上一篇：<a href="/posts/2585400016.html">13-Redis 持久化与集群</a> · 下一篇：<a href="/posts/3026500765.html">15-MongoDB 入门</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3389292749.html">https://zeek-zhao.github.io/posts/3389292749.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%BC%93%E5%AD%98/">缓存</a><a class="post-meta__tags" href="/tags/Redis/">Redis</a><a class="post-meta__tags" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/">分布式锁</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1846073231.html" title="STL基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">STL基础</div></div><div class="info-2"><div class="info-item-1">STL基础 [!info] 本页概览标准模板库（STL）提供容器、迭代器、算法与函数对象四大组件，是现代 C++ 的基石。本文讲解常用容器（vector&#x2F;string&#x2F;map&#x2F;set）、迭代器与 &lt;algorithm&gt; 算法。  核心概念 容器：管理元素集合的数据结构，分序列容器（vector&#x2F;list&#x2F;deque）与关联容器（map&#x2F;set&#x2F;unordered_map）。 迭代器：类似指针的通用遍历接口，让算法与容器解耦。 算法：&lt;algorithm&gt; 中与容器无关的通用操作（sort&#x2F;find&#x2F;copy 等）。 STL 特点：基于模板，编译期实例化，性能接近手写代码。  vector 与 string1234567891011121314151617#include &lt;iostream&gt;#include &lt;vector&gt;#include &lt;string&gt;int main() &#123;    std::vector&lt;in...</div></div></div></a><a class="pagination-related" href="/posts/3874941873.html" title="Lambda与Stream"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Lambda与Stream</div></div><div class="info-2"><div class="info-item-1">Lambda与Stream [!info] 本页概览本文讲解 Java 8 函数式编程：Lambda 表达式、方法引用、Stream 管道（filter&#x2F;map&#x2F;sorted&#x2F;collect）、Optional 流式处理、并行流，配可运行示例与性能建议。  核心概念 Lambda：匿名函数，替代只含一个抽象方法的接口实现（函数式接口）。 方法引用：类::方法、对象::方法、类::new。 Stream：集合&#x2F;数组的声明式处理管道：中间操作（惰性）+ 终止操作（触发）。 Optional：容器对象，避免 NPE，支持 map&#x2F;flatMap 链式处理。  Lambda 基础1234567891011121314151617181920212223242526import java.util.Comparator;import java.util.List;public class LambdaDemo &#123;    public static void main(String[] args) &#123;        // ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/4157437049.html" title="Redis 入门与常用命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">Redis 入门与常用命令</div></div><div class="info-2"><div class="info-item-1">Redis 入门与常用命令 [!info] 本页概览本文讲解 Redis 入门：安装、五大基础数据结构（String&#x2F;List&#x2F;Hash&#x2F;Set&#x2F;ZSet）、常用命令、过期策略、应用场景与常见坑，配可运行命令。  核心概念 Redis：高性能内存键值数据库，单线程事件模型（I&#x2F;O 多路复用）。 端口：默认 6379。 数据模型：key-value；value 支持多种数据结构。 特点：内存读写极快（10万+ QPS）、原子命令、持久化可选。 用途：缓存、计数器、分布式锁、消息队列、排行榜。  安装与连接1234567891011# Ubuntusudo apt install -y redis-serversudo systemctl enable --now redis-serverredis-cli ping   # 返回 PONG# Dockerdocker run -d --name redis -p 6379:6379 redis:7# 连接与认证redis-cli -h 127.0.0.1 -p 6379 -a pas...</div></div></div></a><a class="pagination-related" href="/posts/3924077811.html" title="Nginx 缓存"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">Nginx 缓存</div></div><div class="info-2"><div class="info-item-1">Nginx 缓存 [!info] 本页概览本文讲解 Nginx 缓存：浏览器缓存、proxy_cache、缓存键与失效、常见场景，配真实示例。  缓存体系1234567缓存层级：1. 浏览器缓存（HTTP 头）2. CDN 缓存（边缘）3. Nginx 代理缓存（proxy_cache）4. 后端应用缓存本文重点：浏览器缓存头 + Nginx proxy_cache。  浏览器缓存12345678910# 静态资源长缓存location /assets/ &#123;    expires 30d;    add_header Cache-Control &quot;public, immutable&quot;;&#125;# 动态响应不缓存location /api/ &#123;    add_header Cache-Control &quot;no-cache&quot;;&#125;  12345关键头：- Cache-Control：max-age、public/private、immutable- Expires：过期时间- ETag/Last-Modified：...</div></div></div></a><a class="pagination-related" href="/posts/1312405026.html" title="database 资料索引指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">database 资料索引指南</div></div><div class="info-2"><div class="info-item-1">资料索引指南 [!info] 本页概览本文汇总 database 专题的学习资料与工具资源，按分类给出官方文档、教程与工具链接，供持续学习与查漏补缺。  官方文档 MySQL 官方文档：https://dev.mysql.com/doc/ —— 含参考手册、版本发布说明，是查语法与参数的权威来源。 PostgreSQL 中文文档：https://www.postgresql.org/docs/zh/ —— 官方维护的中文版手册，覆盖 SQL、管理、高级特性。 Redis 中文文档：https://redis.io/docs/zh/ —— 命令参考、持久化、集群与模块说明。 MongoDB 中文手册：https://docs.mongoing.com/ —— 社区维护的中文文档站，覆盖 CRUD、索引、聚合框架。 MongoDB 官方文档：https://www.mongodb.com/docs/ —— 英文权威文档。  进阶与架构资料 TiDB 文档：https://docs.pingcap.com/zh/ —— NewSQL 架构、部署运维、最佳实践。 Milvus 向量数据库...</div></div></div></a><a class="pagination-related" href="/posts/4236594509.html" title="性能优化"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">性能优化</div></div><div class="info-2"><div class="info-item-1">性能优化 [!info] 本节目标从缓存、并发、资源占用三个维度优化 dnsmasq，支撑内网高并发解析场景。  缓存调优缓存是 dnsmasq 性能的核心： 12345# /etc/dnsmasq.confcache-size=10000          # 默认 150，内网可调大min-cache-ttl=300         # 强制最小缓存 5 分钟，降低上游压力max-cache-ttl=86400       # 上限 1 天no-negcache               # 关闭负面缓存（按需）  注意权衡：TTL 调大会降低解析新鲜度，域名变更生效变慢。 并发与查询模型 dnsmasq 默认单进程事件驱动，单实例可支撑数千 QPS 高并发场景用多实例 + 前端 LVS&#x2F;keepalived 分流，或每网卡独立实例 dns-forward-max 控制同时转发上限，默认 150，压力大时可调大：  1dns-forward-max=300  减少上游压力12345# 批量命中本地 hosts，减少转发addn-hosts=/etc/dnsmasq...</div></div></div></a><a class="pagination-related" href="/posts/550302554.html" title="综合实战：从设计到上线"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">综合实战：从设计到上线</div></div><div class="info-2"><div class="info-item-1">综合实战：从设计到上线 [!info] 本页概览本文用一个电商订单系统的完整案例，串起数据库设计、读写分离、缓存、监控、安全与上线流程，展示全链路实践方法。  业务背景与设计1234场景：电商订单系统- 表：user / product / orders / order_item / inventory- 量级：日订单 20 万，读多写少（读:写 ≈ 20:1）- 要求：订单强一致、库存不超卖、高峰期可扛 5000 QPS  1234567891011121314151617-- 订单表设计（分库分表前的合理单表设计）CREATE TABLE orders (  id BIGINT AUTO_INCREMENT PRIMARY KEY,  order_no VARCHAR(32) NOT NULL UNIQUE,  user_id BIGINT NOT NULL,  amount DECIMAL(12,2) NOT NULL,  status TINYINT NOT NULL DEFAULT 0,   -- 0待支付 1已支付 2已发货 3已完成 4已取消  created_at...</div></div></div></a><a class="pagination-related" href="/posts/2585400016.html" title="Redis 持久化与集群"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">Redis 持久化与集群</div></div><div class="info-2"><div class="info-item-1">Redis 持久化与集群 [!info] 本页概览本文讲解 Redis 持久化（RDB&#x2F;AOF）与高可用方案：主从复制、哨兵（Sentinel）、Cluster 集群、混合持久化与容灾实践，配可运行配置与命令。  核心概念 RDB：全量快照文件（dump.rdb），恢复快、可能丢数据。 AOF：追加写命令日志（appendonly.aof），数据更安全、文件大。 主从复制：主节点写、从节点读，数据冗余 + 读写分离。 哨兵 Sentinel：监控主从、自动故障转移，提供高可用。 Cluster：分片集群，数据分布在多个主节点，支持水平扩展。  RDB 持久化12345678910# 手动触发redis-cli SAVE          # 阻塞式保存redis-cli BGSAVE        # 后台保存（推荐）# 配置（redis.conf）save 900 1              # 900 秒内 ≥1 次写则快照save 300 10             # 300 秒内 ≥10 次写save 60 10000dbfilename dump.rdb...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Redis-%E9%AB%98%E7%BA%A7%E7%89%B9%E6%80%A7"><span class="toc-number">1.</span> <span class="toc-text">Redis 高级特性</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="toc-number">1.1.</span> <span class="toc-text">核心概念</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7%EF%BC%88Cache-Aside%EF%BC%89"><span class="toc-number">1.2.</span> <span class="toc-text">缓存一致性（Cache Aside）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F"><span class="toc-number">1.3.</span> <span class="toc-text">缓存穿透</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF"><span class="toc-number">1.4.</span> <span class="toc-text">缓存击穿</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E9%9B%AA%E5%B4%A9"><span class="toc-number">1.5.</span> <span class="toc-text">缓存雪崩</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81"><span class="toc-number">1.6.</span> <span class="toc-text">分布式锁</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Lua-%E8%84%9A%E6%9C%AC%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C"><span class="toc-number">1.7.</span> <span class="toc-text">Lua 脚本原子操作</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97%EF%BC%88Stream%EF%BC%89"><span class="toc-number">1.8.</span> <span class="toc-text">消息队列（Stream）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96"><span class="toc-number">1.9.</span> <span class="toc-text">性能优化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%B8%B8%E8%A7%81%E5%9D%91"><span class="toc-number">1.10.</span> <span class="toc-text">常见坑</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="toc-number">1.11.</span> <span class="toc-text">最佳实践</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

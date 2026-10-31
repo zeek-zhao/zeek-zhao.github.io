@@ -1,0 +1,579 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>16-内核裁剪配置 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="说明: FreeRTOSConfig 配置详解">
+<meta property="og:type" content="article">
+<meta property="og:title" content="16-内核裁剪配置">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/224362852.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="说明: FreeRTOSConfig 配置详解">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="FreeRTOS">
+<meta property="article:tag" content="系统">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "16-内核裁剪配置",
+  "url": "https://zeek-zhao.github.io/posts/224362852.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/224362852.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '16-内核裁剪配置',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">16-内核裁剪配置</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">16-内核裁剪配置</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/FreeRTOS/">FreeRTOS</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握 FreeRTOSConfig.h 关键配置项。</p>
+</blockquote>
+<h2 id="1-配置概述"><a href="#1-配置概述" class="headerlink" title="1. 配置概述"></a>1. 配置概述</h2><p>FreeRTOS 通过 FreeRTOSConfig.h 裁剪功能与调整参数，配置在编译期生效。合理配置控制代码体积、内存占用与内核行为，是移植与优化的核心环节。</p>
+<h2 id="2-基础配置"><a href="#2-基础配置" class="headerlink" title="2. 基础配置"></a>2. 基础配置</h2><p>configUSE_PREEMPTION 控制抢占调度，configTICK_RATE_HZ 设置节拍频率，configMAX_PRIORITIES 限制优先级数，configMINIMAL_STACK_SIZE 定义空闲任务栈。基础配置决定调度与资源基线。</p>
+<h2 id="3-内存与堆配置"><a href="#3-内存与堆配置" class="headerlink" title="3. 内存与堆配置"></a>3. 内存与堆配置</h2><p>configTOTAL_HEAP_SIZE 设置动态堆总大小，configSUPPORT_STATIC_ALLOCATION 使能静态分配，configUSE_MALLOC_FAILED_HOOK 启用分配失败钩子。堆大小影响可用对象数量，需按需求评估。</p>
+<h2 id="4-组件使能"><a href="#4-组件使能" class="headerlink" title="4. 组件使能"></a>4. 组件使能</h2><p>configUSE_TIMERS 使能软件定时器，configUSE_COUNTING_SEMAPHORES、configUSE_MUTEXES、configUSE_EVENT_GROUPS 等按需开启。configSUPPORT_DYNAMIC_ALLOCATION 控制动态创建。裁剪未用组件减少内存与代码。</p>
+<h2 id="5-钩子与断言"><a href="#5-钩子与断言" class="headerlink" title="5. 钩子与断言"></a>5. 钩子与断言</h2><p>configCHECK_FOR_STACK_OVERFLOW 使能栈溢出检测，configUSE_IDLE_HOOK 与 configUSE_TICK_HOOK 提供扩展点，configASSERT 定义断言处理。钩子辅助调试与系统监控，生产环境配置需权衡。</p>
+<h2 id="6-中断相关配置"><a href="#6-中断相关配置" class="headerlink" title="6. 中断相关配置"></a>6. 中断相关配置</h2><p>configMAX_SYSCALL_INTERRUPT_PRIORITY 限制可调用内核 API 的中断优先级，configKERNEL_INTERRUPT_PRIORITY 设置内核中断优先级。配置错误导致临界区失效或系统崩溃，按平台规范设置。</p>
+<h2 id="7-配置实践"><a href="#7-配置实践" class="headerlink" title="7. 配置实践"></a>7. 配置实践</h2><p>配置项形成工程文档，记录每个选项的取值理由。裁剪从需求出发最小化启用组件。改动配置后验证功能与内存，使用编译报告与堆监控确认。多平台项目维护统一配置基线再差异覆盖。</p>
+<h2 id="8-配置模板与工程化管理"><a href="#8-配置模板与工程化管理" class="headerlink" title="8. 配置模板与工程化管理"></a>8. 配置模板与工程化管理</h2><p>维护多套配置模板覆盖不同产品形态，基础配置统一、差异项按模块覆盖。配置变更纳入版本管理，每次调整记录影响范围与验证结论。编译期打印关键配置摘要辅助审查，运行期通过断言与钩子验证配置有效性。裁剪追求最小化启用，避免冗余功能占用内存与执行时间。团队共享配置评审流程，防止随意改动破坏系统稳定性，多产品线复用成熟基线快速起步。</p>
+<p><em>上一篇：<a href="/posts/339821033.html">15-Tick与时间管理</a>　下一篇：<a href="/posts/1572534698.html">17-任务栈溢出检测</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/224362852.html">https://zeek-zhao.github.io/posts/224362852.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/FreeRTOS/">FreeRTOS</a><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/3829809309.html" title="16-告警与Watcher"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">16-告警与Watcher</div></div><div class="info-2"><div class="info-item-1">告警与 Watcher [!abstract] 是什么监控的最后一环：数据异常时主动通知。Elastic Stack 提供 Watcher（ES 侧）与 Alerting（Kibana 侧）两种告警能力。  Kibana Alerting（推荐入门）Stack Management → Rules 创建规则：    规则类型 用途    Elasticsearch query 查询结果满足条件即触发   Threshold 指标&#x2F;计数超过阈值   Index threshold 索引聚合结果阈值（如错误数）   APM latency 服务延迟异常   示例：过去 5 分钟 ERROR 数超过 100 创建 Index threshold 规则： 索引：logs-*，时间字段 @timestamp； 聚合：count，条件：count &gt; 100，检查窗口：5m；   配置动作（Actions）：Email &#x2F; Webhook &#x2F; Slack &#x2F; Serverless； 设置”每 15 分钟最多告警 1 次”防轰炸。   [!note...</div></div></div></a><a class="pagination-related" href="/posts/1822616807.html" title="16-sepolicy策略工具"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">16-sepolicy策略工具</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 sepolicy 系列命令的功能与典型用法。  1. sepolicy 命令族sepolicy 提供 generate、manpage、interface、network 等子命令，覆盖策略模块生成、文档生成与信息查询，是开发与排障的集成工具链。 2. 生成策略模块sepolicy generate -c 命令基于程序路径自动生成最小策略模块模板，包含接口、类型与规则骨架。开发人员可在此基础上扩充权限，大幅降低编写成本。 3. 生成 man 手册sepolicy manpage 为自定义模块生成策略 man 手册，说明类型、布尔值与接口。安装手册后管理员可通过 man 查询模块用法，便于团队协作。 4. 接口与网络查询sepolicy interface 列出策略接口，sepolicy network 查询网络相关类型与端口。结合 sesearch 使用可全面掌握模块对外暴露能力。 5. 与策略包关系sepolicy 工具基于当前加载策略工作，查询结果反映实际策略内容。自定义模块安装后工具即识别，无需额外索引，保证查询实时性。 6. 实战流程开发新...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/2794860845.html" title="03-任务创建与删除"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">03-任务创建与删除</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握任务创建与删除 API 的正确使用。  1. 任务创建 APIxTaskCreate 创建任务并指定任务函数、栈深度、参数与优先级，成功返回句柄。任务函数是独立执行体，通常包含初始化与无限循环。句柄可用于挂起、恢复、通知与查询等后续操作。 2. 静态与动态创建动态创建由内核从堆分配 TCB 与栈，静态创建由调用者提供内存缓冲区。静态创建适合资源受限与安全要求高的场景，可编译期确定内存布局。两种方式配置项分别使能，选择依据项目内存策略。 3. 任务参数传递任务参数通过 void 指针传入，可传递数值、结构体指针或字符串。传递局部变量地址需确保生命周期有效，动态分配对象由任务负责释放。参数封装为结构体可扩展多个字段。 4. 任务删除任务可自行删除或由其他任务删除，vTaskDelete 释放 TCB 与栈内存。任务删除后资源由空闲任务回收，被删任务不可再被引用。删除前需同步协作对象，避免资源泄漏。 5. 任务句柄与自引用任务函数内可用 NULL 句柄表示自身，删除或操作自己时传递 NULL。句柄保存供其他任务使用，使用前确认任务仍存活。句柄有效性管理是并...</div></div></div></a><a class="pagination-related" href="/posts/479641272.html" title="12-软件定时器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">12-软件定时器</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握软件定时器创建、启动与回调机制。  1. 软件定时器概述软件定时器提供基于系统节拍的时间功能，周期性或单次触发回调函数。定时器由定时器守护任务统一管理，回调在守护任务上下文中执行，避免占用调用者 CPU。 2. 定时器类型单次定时器触发一次后停止，周期定时器按周期持续触发。创建时指定周期与类型，运行中可动态修改周期。定时器状态包括休眠、运行与活动，API 控制启动停止。 3. 创建与操作xTimerCreate 创建定时器并指定回调，xTimerStart 启动，xTimerStop 停止，xTimerChangePeriod 修改周期。操作命令通过队列发送给守护任务异步执行，返回命令是否成功入队。 4. 回调执行上下文回调在守护任务中顺序执行，回调中禁止调用阻塞 API，避免长时间运行阻塞其他定时器。回调尽量短小，耗时工作派发到业务任务。守护任务优先级与栈大小按需配置。 5. 定时器与任务延时对比软件定时器适合周期性后台操作，任务延时适合任务内时间控制。定时器回调无法直接访问任务局部状态，通过队列或通知与任务交互。两者组合实现灵活的时间管理。 6....</div></div></div></a><a class="pagination-related" href="/posts/2560978280.html" title="28-常见问题排查"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">28-常见问题排查</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 FreeRTOS 高频问题排查方法。  1. 系统崩溃崩溃常见原因包括栈溢出、非法指针与优先级配置错误。排查先定位崩溃现场，检查栈水位与内存越界。开启断言与溢出钩子快速定位，逐步缩小可疑模块。 2. 死锁与阻塞互斥量未释放、队列等待顺序错误与临界区阻塞导致死锁。排查检查锁获取释放配对，分析等待图。跟踪工具展示阻塞链，超时机制避免永久阻塞。 3. 优先级反转共享资源被低优先级任务占用导致高优先级响应延迟。检查互斥量使用与优先级继承是否生效，减少临界区时长。重新评估优先级分配与资源访问频率。 4. 内存耗尽动态分配失败导致任务创建失败或运行异常。检查堆剩余空间与分配泄漏，定位未释放对象。使用 heap_4 合并碎片，必要时静态分配关键对象。 5. 调度异常任务不运行、优先级错乱与时间片异常。检查任务状态与就绪链表，验证优先级配置。中断影响调度检查优先级分组配置，Tick 频率异常检查时钟源。 6. 中断相关故障ISR 调用非安全 API、临界区中断屏蔽异常与优先级配置错误。检查 FromISR 使用规范，验证中断优先级分组。ISR 过长影响系统响应，拆...</div></div></div></a><a class="pagination-related" href="/posts/3732453393.html" title="26-队列集与流操作"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">26-队列集与流操作</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握队列集与高级流操作能力。  1. 队列集概述队列集将多个队列与信号量统一管理，任务等待集合中任一成员可用。发送方操作原对象，接收方从集合查询可用成员。队列集简化多源事件汇聚处理。 2. 创建与加入xQueueCreateSet 创建队列集，xQueueAddToSet 将队列或信号量加入集合，xQueueRemoveFromSet 移除。集合容量按成员数量配置。成员在集合中保持原有语义。 3. 等待与接收xQueueSelectFromSet 阻塞等待集合任一成员可用，返回可用成员句柄，再对该成员执行接收或获取。处理完成后可循环等待下一个成员。多事件源统一处理模型清晰。 4. 应用场景队列集适合多传感器、多通道数据与多命令源汇聚到单一处理任务。信号量通知与数据队列组合管理。处理任务按事件类型分支，架构可扩展。 5. 流式 API 进阶流缓冲与消息缓冲的高级操作包括触发级别、超时粒度与 ISR 组合。触发级别控制批量唤醒，降低上下文切换。组合多个缓冲与任务实现流水线处理。 6. 性能与设计队列集消除多队列轮询，减少 CPU 占用与延迟。集合容量与阻塞语...</div></div></div></a><a class="pagination-related" href="/posts/3652009953.html" title="FreeRTOS 00-索引"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">FreeRTOS 00-索引</div></div><div class="info-2"><div class="info-item-1"> [!info] 套件导览本套件共 42 篇，从 FreeRTOS 内核基础入手，经任务管理、同步通信、内存与中断管理、移植配置、网络与低功耗，直至调试优化与实战项目，建议按顺序学习，也可按需跳转。  一、基础入门 01-FreeRTOS简介与内核特性：了解 FreeRTOS 历史、生态与内核特性。 02-任务管理与调度：任务、调度器与内核运行机制。 03-任务创建与删除：任务创建、参数与删除 API。 04-任务状态机：运行、就绪、阻塞与挂起状态迁移。 05-优先级与时间片：优先级调度与时间片轮转。 06-队列：任务间数据传递的核心机制。 07-信号量：二进制与计数信号量用法。  二、同步与通信 08-互斥量与优先级反转：互斥访问与优先级继承。 09-事件组：多事件同步机制。 10-任务通知：轻量级任务同步与通信。 11-流缓冲与消息缓冲：字节流与消息流传递。 12-软件定时器：定时器服务与回调机制。  三、内核机制 13-内存管理：heap_1 至 heap_5 方案对比。 14-中断管理与临界区：中断安全 API 与临界区保护。 15-Tick与时间管理：系统时基与延时机制...</div></div></div></a><a class="pagination-related" href="/posts/1113963761.html" title="24-内存保护MPU"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">24-内存保护MPU</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标了解 FreeRTOS MPU 支持与安全隔离设计。  1. MPU 概述内存保护单元 MPU 为处理器提供内存访问控制，划分特权与非特权区域，防止任务越权访问。MPU 增强系统安全性与健壮性，适合安全敏感与可靠性要求高的应用。 2. FreeRTOS MPU 版本FreeRTOS 提供 MPU 支持版本，内核 API 分为特权与非特权接口。任务分为特权任务与非特权任务，非特权任务受限访问内存与外设。MPU 配置在任务切换时更新。 3. 内存区域划分系统内存划分为内核区、任务栈区与共享数据区，MPU 区域属性定义访问权限。非特权任务仅可访问自身栈与共享区域，防止非法访问破坏系统。 4. 任务隔离MPU 任务运行于受限上下文，崩溃或非法操作被硬件拦截。系统级函数通过特权调用机制提供服务。任务间数据交换通过安全机制传递，避免直接指针访问。 5. 配置与移植MPU 支持依赖芯片硬件，需在移植层配置区域与权限。FreeRTOSConfig 使能 MPU 相关选项。区域数量与内存布局受硬件限制，设计时评估覆盖范围。 6. 应用场景MPU 用于多租户系统、安全认证场...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E9%85%8D%E7%BD%AE%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">1. 配置概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%9F%BA%E7%A1%80%E9%85%8D%E7%BD%AE"><span class="toc-number">2.</span> <span class="toc-text">2. 基础配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%86%85%E5%AD%98%E4%B8%8E%E5%A0%86%E9%85%8D%E7%BD%AE"><span class="toc-number">3.</span> <span class="toc-text">3. 内存与堆配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E7%BB%84%E4%BB%B6%E4%BD%BF%E8%83%BD"><span class="toc-number">4.</span> <span class="toc-text">4. 组件使能</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E9%92%A9%E5%AD%90%E4%B8%8E%E6%96%AD%E8%A8%80"><span class="toc-number">5.</span> <span class="toc-text">5. 钩子与断言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E4%B8%AD%E6%96%AD%E7%9B%B8%E5%85%B3%E9%85%8D%E7%BD%AE"><span class="toc-number">6.</span> <span class="toc-text">6. 中断相关配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E9%85%8D%E7%BD%AE%E5%AE%9E%E8%B7%B5"><span class="toc-number">7.</span> <span class="toc-text">7. 配置实践</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E9%85%8D%E7%BD%AE%E6%A8%A1%E6%9D%BF%E4%B8%8E%E5%B7%A5%E7%A8%8B%E5%8C%96%E7%AE%A1%E7%90%86"><span class="toc-number">8.</span> <span class="toc-text">8. 配置模板与工程化管理</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

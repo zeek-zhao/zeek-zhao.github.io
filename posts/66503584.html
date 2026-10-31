@@ -1,0 +1,580 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>36-调试与追踪 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="说明: 调试工具与性能追踪">
+<meta property="og:type" content="article">
+<meta property="og:title" content="36-调试与追踪">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/66503584.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="说明: 调试工具与性能追踪">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="Zephyr">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "36-调试与追踪",
+  "url": "https://zeek-zhao.github.io/posts/66503584.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/66503584.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '36-调试与追踪',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">36-调试与追踪</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">36-调试与追踪</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Zephyr/">Zephyr</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握 Zephyr 调试与追踪。</p>
+</blockquote>
+<h2 id="1-调试概述"><a href="#1-调试概述" class="headerlink" title="1. 调试概述"></a>1. 调试概述</h2><p>Zephyr 提供 GDB、日志与 Shell 等调试手段，定位运行时问题。调试工具覆盖构建、运行与性能。调试能力支撑开发效率。</p>
+<h2 id="2-GDB-调试"><a href="#2-GDB-调试" class="headerlink" title="2. GDB 调试"></a>2. GDB 调试</h2><p>GDB 连接目标或模拟器，断点与单步调试。源码级调试与变量查看，内存与寄存器操作。GDB 脚本自动化调试。</p>
+<h2 id="3-硬件调试"><a href="#3-硬件调试" class="headerlink" title="3. 硬件调试"></a>3. 硬件调试</h2><p>OpenOCD 与 J-Link 调试器，SWD 与 JTAG 连接。烧录与调试接口配置，硬件断点支持。硬件调试定位底层问题。</p>
+<h2 id="4-性能追踪"><a href="#4-性能追踪" class="headerlink" title="4. 性能追踪"></a>4. 性能追踪</h2><p>追踪子系统记录事件，性能分析。采样与时间戳分析，热点定位。追踪数据可视化。</p>
+<h2 id="5-内存分析"><a href="#5-内存分析" class="headerlink" title="5. 内存分析"></a>5. 内存分析</h2><p>内存统计与泄漏检测，栈使用分析。valgrind 与 ASAN 工具，越界与泄漏定位。内存分析保障稳定。</p>
+<h2 id="6-日志与崩溃"><a href="#6-日志与崩溃" class="headerlink" title="6. 日志与崩溃"></a>6. 日志与崩溃</h2><p>崩溃转储与回溯分析，异常原因定位。日志配合问题复现，故障现场还原。崩溃分析提升质量。</p>
+<h2 id="7-实践建议"><a href="#7-实践建议" class="headerlink" title="7. 实践建议"></a>7. 实践建议</h2><p>调试工具组合使用，问题复现最小化。构建配置优化调试体验，测试覆盖回归。文档记录疑难排查。</p>
+<h2 id="8-常见问题"><a href="#8-常见问题" class="headerlink" title="8. 常见问题"></a>8. 常见问题</h2><p>调试效率取决于工具组合与复现策略。GDB 脚本自动化断点与日志输出能减少重复操作；硬件调试器（OpenOCD&#x2F;J-Link）与模拟器调试配置不同，注意连接时序。崩溃分析要先获取调用栈与寄存器现场，优化级别过高会扭曲栈回溯，必要时以未优化构建复现。性能问题用追踪子系统定位热点，结合时间戳分析调度抖动。内存问题用统计接口与工具检测泄漏。建立可复现的最小案例，是几乎所有疑难问题排查的第一步。</p>
+<h2 id="9-小结"><a href="#9-小结" class="headerlink" title="9. 小结"></a>9. 小结</h2><p>调试与追踪工具链包括 GDB、硬件调试器、日志与追踪子系统，组合使用可覆盖崩溃、性能与内存三类问题。掌握”复现、定位、验证”的排查节奏，配合自动化脚本，能显著提升疑难问题的解决效率。</p>
+<p><em>上一篇：<a href="/posts/2564223040.html">35-native模拟器</a>　下一篇：<a href="/posts/2974884396.html">37-CMake模块</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/66503584.html">https://zeek-zhao.github.io/posts/66503584.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/Zephyr/">Zephyr</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2974884396.html" title="37-CMake模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">37-CMake模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Zephyr CMake 模块机制。  1. 模块概述Zephyr CMake 模块封装构建逻辑，函数与变量组织。模块提供配置与生成能力，构建系统可扩展。模块机制复用构建代码。 2. 常用模块构建配置、设备树生成与链接管理模块，工具链配置模块。模块按职责划分，调用规范。模块提供标准功能。 3. 模块函数cmake 函数封装逻辑，参数与返回值管理。函数复用构建步骤，代码组织清晰。函数接口稳定。 4. 自定义模块应用自定义模块扩展构建，加载与使用管理。模块路径配置，ZEPHYR_EXTRA_MODULES 支持。扩展构建能力。 5. 模块调试构建输出与变量检查，模块执行追踪。cmake 调试选项辅助定位。调试构建配置问题。 6. 构建流程集成模块在构建阶段执行，配置与生成衔接。模块依赖与顺序管理，错误处理。流程集成完整。 7. 实践建议模块职责单一，文档记录接口。复用官方模块减少维护，测试构建配置。版本升级兼容性检查。 8. 常见问题模块机制常见问题是变量作用域与加载顺序。模块的 CMakeLists 在 Zephyr boilerplate 之后执行...</div></div></div></a><a class="pagination-related" href="/posts/689634519.html" title="36-系统集成与跨平台"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">36-系统集成与跨平台</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Qt 系统能力集成与跨平台适配方法。  1. 系统集成概述桌面与移动应用常需访问系统能力，Qt 提供文件、剪贴板、托盘、通知与系统设置等跨平台接口。统一 API 屏蔽平台差异，特殊需求通过平台原生代码补充。系统集成设计需考虑权限与平台规范。 2. 剪贴板与拖放QClipboard 访问剪贴板文本与图片，拖放通过拖拽事件处理。自定义拖放数据格式注册，跨应用拖放支持。拖放状态反馈与目标识别完善，数据安全与隐私注意。 3. 系统托盘与通知QSystemTrayIcon 提供托盘图标与菜单，消息通知展示状态信息。托盘常驻与退出逻辑设计，应用隐藏与恢复流程。系统通知 API 跨平台差异适配，权限与用户偏好尊重。 4. 文件关联与启动文件类型关联实现双击打开，命令行参数处理启动场景。URL 协议注册与应用唤起，深度链接处理。关联与卸载清理流程完整，平台注册机制适配。 5. 系统设置与权限平台设置访问与存储路径定位，QStandardPaths 统一目录语义。权限申请流程平台差异处理，摄像头麦克风等敏感权限引导。隐私合规与用户透明性，权限拒绝降级处理。 6. 跨...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/2085179778.html" title="30-移植新板卡"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">30-移植新板卡</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Zephyr 新板卡移植。  1. 移植概述新板卡移植需要板级支持包，描述硬件与配置。移植工作包括设备树、配置与驱动验证。移植质量影响系统稳定性。 2. 板级目录boards 目录创建板卡定义，配置与文档。板卡名称与兼容性声明。目录结构规范。 3. 设备树编写板级设备树描述 SoC、内存与外设，包含文件组织。节点与属性配置，chosen 与别名。设备树正确性关键。 4. 板级配置defconfig 与 Kconfig 配置默认选项，内存与时钟。外设使能与引脚配置。配置覆盖基础功能。 5. 驱动验证核心外设驱动验证，串口、时钟与 GPIO。中断与定时器工作确认，驱动适配。验证覆盖启动与功能。 6. 启动流程板级启动代码与链接脚本，引导配置。Reset 与时钟初始化，跳转内核。启动流程适配硬件。 7. 实践建议参考同 SoC 板卡模板，逐步验证功能。文档记录配置与限制，测试提交上游。社区协作提升质量。 8. 常见问题板卡移植最容易犯的错误是复制同 SoC 板卡后忘记改 compatible 与板级名称，导致设备树匹配混乱。链接脚本与内存布局不匹配会表现...</div></div></div></a><a class="pagination-related" href="/posts/2853899551.html" title="28-构建系统CMake"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">28-构建系统CMake</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Zephyr 构建系统。  1. CMake 概述Zephyr 构建系统基于 CMake，统一构建配置与生成。构建由 west 驱动，CMake 组织编译链接。构建系统可扩展可移植。 2. 工程配置CMakeLists 定义工程与应用，配置源文件与依赖。构建类型与优化配置。工程组织清晰。 3. 模块机制CMake 模块封装构建逻辑，函数与变量管理。模块复用与扩展，构建流程规范。模块机制灵活。 4. 构建目标应用、库与固件目标定义，链接与镜像生成。目标依赖管理，构建顺序自动。产物管理完整。 5. 生成器Ninja 生成器高效构建，并行编译。构建缓存与增量编译。生成器选择影响构建速度。 6. 工具链工具链文件配置编译器与链接器，架构与优化参数。SDK 工具链集成，交叉编译支持。工具链配置影响构建。 7. 实践建议构建配置规范化，依赖管理清晰。构建脚本复用模块，文档记录构建选项。CI 构建验证完整。 8. 常见问题构建系统问题多表现为”找不到 Zephyr”、”目标不生成”与”缓存陈旧”。find_package(Zephyr) 需要 ZEPHYR_BA...</div></div></div></a><a class="pagination-related" href="/posts/2595343241.html" title="07-线程管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">07-线程管理</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Zephyr 线程创建与管理方法。  1. 线程创建Zephyr 支持动态与静态线程创建，动态创建通过 k_thread_create 分配资源，静态创建使用 K_THREAD_DEFINE 编译期定义。创建参数包括名称、栈、优先级与入口函数。 2. 线程栈线程栈大小决定调用深度与局部变量容量，栈溢出导致系统异常。静态栈编译期分配，动态栈从内存池获取。栈大小按最坏调用链规划，调试监控栈水位。 3. 线程状态线程状态包括就绪、运行、挂起与等待，状态查询接口监控。线程可主动挂起与恢复，延时与等待原语自动迁移。状态管理支撑生命周期控制。 4. 线程优先级优先级数值小者优先，0 为最高。动态优先级可调整，同优先级时间片轮转。优先级设计考虑响应与公平，避免饿死与反转。 5. 线程同步协作线程通过信号量、队列与事件协作，等待原语阻塞让出 CPU。协作设计避免忙等与死锁，同步对象生命周期管理。线程退出清理资源。 6. 线程调试内核对象查看工具列出线程状态与栈使用，调试器查看栈回溯。线程异常定位栈溢出与非法访问，监控调度行为。日志标识线程名辅助追踪。 7. 实践建...</div></div></div></a><a class="pagination-related" href="/posts/819898526.html" title="20-网络栈"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">20-网络栈</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Zephyr 网络栈架构与使用。  1. 网络栈概述Zephyr 原生网络栈支持 TCP&#x2F;IP 协议族，提供 sockets API。网络栈支持以太网、Wi-Fi 与蜂窝接口。协议分层与 BSD socket 兼容。 2. 网络接口网络接口抽象物理设备，配置 IP 地址与路由。设备树配置网络设备，接口状态管理。多接口与虚拟接口支持。 3. sockets APIBSD socket API 提供 TCP&#x2F;UDP 通信，兼容标准用法。socket 选项与超时控制，异步回调支持。应用代码可移植。 4. 协议支持TCP、UDP、ICMP 与 IPv4&#x2F;IPv6 支持，DNS 解析。TLS 集成安全传输，DHCP 自动配置。协议栈模块化裁剪。 5. 网络配置静态 IP 与 DHCP 配置，网络命名空间管理。配置通过 Kconfig 与设备树，内存池管理。网络栈裁剪按需求。 6. 性能与资源网络缓冲池配置影响吞吐，内存占用可控。并发连接与吞吐调优，QoS 支持。资源规划按应用负载。 7. 实践建议网络应用使用 sockets 标...</div></div></div></a><a class="pagination-related" href="/posts/608772131.html" title="Zephyr 00-索引"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">Zephyr 00-索引</div></div><div class="info-2"><div class="info-item-1"> [!info] 套件导览本套件共 42 篇，从 Zephyr 项目背景与开发环境入手，经工程结构、设备树与 Kconfig，深入内核调度、同步与内存机制，再到驱动模型、网络蓝牙等子系统，最后覆盖移植、低功耗、安全与实战项目，建议按顺序学习，也可按需跳转。  一、基础入门 01-Zephyr简介与基金会：了解 Zephyr 项目背景、基金会与社区治理。 02-安装与west工具：搭建开发环境与 west 工作流。 03-工程结构：Zephyr 仓库布局与模块组织。 04-设备树Device Tree：设备树描述硬件与配置。 05-Kconfig配置：菜单式配置系统与裁剪。 06-内核与调度：内核模型、调度器与优先级。 07-线程管理：线程创建、状态与生命周期。  二、内核机制 08-信号量：同步与资源管理原语。 09-队列与消息：队列、消息队列与管道通信。 10-内存管理：堆、内存池与内存域。 11-中断处理：中断服务与 ISR 安全编程。 12-时钟与定时器：系统时钟、定时器与 tickless。 13-驱动模型：驱动框架与设备 API。 14-GPIO驱动：GPIO 外设驱动...</div></div></div></a><a class="pagination-related" href="/posts/2266609168.html" title="06-内核与调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">06-内核与调度</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Zephyr 内核模型与调度机制。  1. 内核概述Zephyr 内核提供线程、调度、同步与内存管理等核心能力，支持可抢占与协作式调度模式。内核小巧高效，架构抽象统一多平台。应用通过内核 API 组织并发任务。 2. 线程模型线程是执行单元，拥有独立栈与上下文。Zephyr 线程支持动态与静态创建，优先级数值小者优先。线程状态包括就绪、运行、等待与挂起，状态迁移由调度器管理。 3. 调度器调度器选择最高优先级就绪线程运行，支持抢占式与时间片轮转。协作式调度依赖线程主动让出，可配置调度算法。调度行为影响实时性，配置按需求选择。 4. 同步原语信号量、互斥量、条件变量与队列提供同步与通信。同步原语阻塞线程让出 CPU，避免忙等。原语选择按语义匹配，事件与数据传递场景区分。 5. 中断处理中断服务程序快速处理硬件事件，中断安全 API 通知线程。中断嵌套与优先级配置，ISR 遵循规范约束。中断与线程协作高效处理异步事件。 6. 时间服务系统节拍驱动延时与定时器，tickless 降低空闲功耗。软件定时器管理周期任务，时间 API 统一。时间精度与开销平衡...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E8%B0%83%E8%AF%95%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">1. 调试概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-GDB-%E8%B0%83%E8%AF%95"><span class="toc-number">2.</span> <span class="toc-text">2. GDB 调试</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E7%A1%AC%E4%BB%B6%E8%B0%83%E8%AF%95"><span class="toc-number">3.</span> <span class="toc-text">3. 硬件调试</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E6%80%A7%E8%83%BD%E8%BF%BD%E8%B8%AA"><span class="toc-number">4.</span> <span class="toc-text">4. 性能追踪</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%86%85%E5%AD%98%E5%88%86%E6%9E%90"><span class="toc-number">5.</span> <span class="toc-text">5. 内存分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E6%97%A5%E5%BF%97%E4%B8%8E%E5%B4%A9%E6%BA%83"><span class="toc-number">6.</span> <span class="toc-text">6. 日志与崩溃</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%AE%9E%E8%B7%B5%E5%BB%BA%E8%AE%AE"><span class="toc-number">7.</span> <span class="toc-text">7. 实践建议</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">8.</span> <span class="toc-text">8. 常见问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#9-%E5%B0%8F%E7%BB%93"><span class="toc-number">9.</span> <span class="toc-text">9. 小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

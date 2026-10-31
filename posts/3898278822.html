@@ -1,0 +1,662 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>13-自定义消息接口 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="接口定义后通过 rosidl 生成各语言的代码（C++、Python 等），节点代码直接使用生成类型。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="13-自定义消息接口">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3898278822.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="接口定义后通过 rosidl 生成各语言的代码（C++、Python 等），节点代码直接使用生成类型。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros2">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "13-自定义消息接口",
+  "url": "https://zeek-zhao.github.io/posts/3898278822.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3898278822.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '13-自定义消息接口',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">13-自定义消息接口</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">13-自定义消息接口</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros2/">ros2</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="自定义消息接口"><a href="#自定义消息接口" class="headerlink" title="自定义消息接口"></a>自定义消息接口</h1><blockquote>
+<p>[!info] 本节目标<br>掌握 ROS2 自定义接口（msg&#x2F;srv&#x2F;action）的定义、编译生成与跨包使用。</p>
+</blockquote>
+<h2 id="1-接口概念"><a href="#1-接口概念" class="headerlink" title="1. 接口概念"></a>1. 接口概念</h2><p>ROS2 接口分三类：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>后缀</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>消息</td>
+<td>.msg</td>
+<td>话题数据结构</td>
+</tr>
+<tr>
+<td>服务</td>
+<td>.srv</td>
+<td>请求-响应结构</td>
+</tr>
+<tr>
+<td>动作</td>
+<td>.action</td>
+<td>goal&#x2F;feedback&#x2F;result 三段结构</td>
+</tr>
+</tbody></table>
+<p>接口定义后通过 rosidl 生成各语言的代码（C++、Python 等），节点代码直接使用生成类型。</p>
+<h2 id="2-创建接口包"><a href="#2-创建接口包" class="headerlink" title="2. 创建接口包"></a>2. 创建接口包</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">ros2 pkg create my_interfaces \</span><br><span class="line">  --build-type ament_cmake \</span><br><span class="line">  --dependencies rosidl_default_generators \</span><br><span class="line">    builtin_interfaces geometry_msgs std_msgs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p my_interfaces/msg</span><br><span class="line"><span class="built_in">mkdir</span> -p my_interfaces/srv</span><br><span class="line"><span class="built_in">mkdir</span> -p my_interfaces/action</span><br></pre></td></tr></table></figure>
+
+<h2 id="3-定义接口"><a href="#3-定义接口" class="headerlink" title="3. 定义接口"></a>3. 定义接口</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"># msg/Pose2D.msg</span><br><span class="line">float64 x</span><br><span class="line">float64 y</span><br><span class="line">float64 theta</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"># msg/Detections.msg</span><br><span class="line">string[] labels</span><br><span class="line">float32[] scores</span><br><span class="line">geometry_msgs/Point[] points</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"># srv/GetPose.srv</span><br><span class="line">string robot_name</span><br><span class="line">---</span><br><span class="line">my_interfaces/msg/Pose2D pose</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"># action/Move.action</span><br><span class="line">geometry_msgs/Pose2D target_pose</span><br><span class="line">---</span><br><span class="line">bool success</span><br><span class="line">float64 duration</span><br><span class="line">---</span><br><span class="line">float64 progress</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 字段规则<br>字段必须 <code>类型 名称</code>；内置类型用 <code>int32/float64/string</code>，自定义&#x2F;标准消息用 <code>包名/类型名</code>；数组加 <code>[]</code>。</p>
+</blockquote>
+<h2 id="4-package-xml-配置"><a href="#4-package-xml-配置" class="headerlink" title="4. package.xml 配置"></a>4. package.xml 配置</h2><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">package</span> <span class="attr">format</span>=<span class="string">&quot;3&quot;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">name</span>&gt;</span>my_interfaces<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">buildtool_depend</span>&gt;</span>ament_cmake<span class="tag">&lt;/<span class="name">buildtool_depend</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">depend</span>&gt;</span>rosidl_default_generators<span class="tag">&lt;/<span class="name">depend</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">depend</span>&gt;</span>builtin_interfaces<span class="tag">&lt;/<span class="name">depend</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">depend</span>&gt;</span>geometry_msgs<span class="tag">&lt;/<span class="name">depend</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">depend</span>&gt;</span>std_msgs<span class="tag">&lt;/<span class="name">depend</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">exec_depend</span>&gt;</span>rosidl_default_runtime<span class="tag">&lt;/<span class="name">exec_depend</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">member_of_group</span>&gt;</span>rosidl_interface_packages<span class="tag">&lt;/<span class="name">member_of_group</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">package</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 组声明<br><code>&lt;member_of_group&gt;rosidl_interface_packages&lt;/member_of_group&gt;</code> 让其他包能 <code>find_package</code> 找到接口。</p>
+</blockquote>
+<h2 id="5-CMakeLists-配置"><a href="#5-CMakeLists-配置" class="headerlink" title="5. CMakeLists 配置"></a>5. CMakeLists 配置</h2><figure class="highlight cmake"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">find_package</span>(rosidl_default_generators REQUIRED)</span><br><span class="line"><span class="keyword">find_package</span>(geometry_msgs REQUIRED)</span><br><span class="line"></span><br><span class="line"><span class="keyword">set</span>(msg_files</span><br><span class="line">  msg/Pose2D.msg</span><br><span class="line">  msg/Detections.msg)</span><br><span class="line"><span class="keyword">set</span>(srv_files</span><br><span class="line">  srv/GetPose.srv)</span><br><span class="line"><span class="keyword">set</span>(action_files</span><br><span class="line">  action/Move.action)</span><br><span class="line"></span><br><span class="line">rosidl_generate_interfaces(<span class="variable">$&#123;PROJECT_NAME&#125;</span></span><br><span class="line">  <span class="variable">$&#123;msg_files&#125;</span> <span class="variable">$&#123;srv_files&#125;</span> <span class="variable">$&#123;action_files&#125;</span></span><br><span class="line">  DEPENDENCIES geometry_msgs builtin_interfaces</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line">ament_export_dependencies(rosidl_default_runtime)</span><br></pre></td></tr></table></figure>
+
+<h2 id="6-编译与使用"><a href="#6-编译与使用" class="headerlink" title="6. 编译与使用"></a>6. 编译与使用</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> ~/ros2_ws</span><br><span class="line">colcon build --packages-select my_interfaces</span><br><span class="line"><span class="built_in">source</span> install/setup.bash</span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证生成类型</span></span><br><span class="line">ros2 interface show my_interfaces/msg/Pose2D</span><br><span class="line">ros2 interface list | grep my_interfaces</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 另一包中引用（Python）</span></span><br><span class="line"><span class="keyword">from</span> my_interfaces.msg <span class="keyword">import</span> Pose2D</span><br><span class="line"><span class="keyword">from</span> my_interfaces.srv <span class="keyword">import</span> GetPose</span><br><span class="line"><span class="keyword">from</span> my_interfaces.action <span class="keyword">import</span> Move</span><br><span class="line"></span><br><span class="line">msg = Pose2D()</span><br><span class="line">msg.x = <span class="number">1.0</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// C++ 引用</span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;my_interfaces/msg/pose2d.hpp&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;my_interfaces/srv/get_pose.hpp&gt;</span></span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 跨包依赖<br>使用接口的包需在 package.xml <code>&lt;depend&gt;my_interfaces&lt;/depend&gt;</code>，CMake 中 <code>find_package(my_interfaces REQUIRED)</code>。</p>
+</blockquote>
+<h2 id="7-常量与默认值"><a href="#7-常量与默认值" class="headerlink" title="7. 常量与默认值"></a>7. 常量与默认值</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"># msg/Status.msg</span><br><span class="line">uint8 OK = 0</span><br><span class="line">uint8 ERROR = 1</span><br><span class="line">uint8 status</span><br><span class="line">string message &quot;default msg&quot;</span><br><span class="line">int32[] values [1, 2, 3]</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 常量大写<br>常量名约定全大写；默认值写在字段名后，数组默认值用 <code>[v1, v2]</code>。</p>
+</blockquote>
+<h2 id="8-常见问题"><a href="#8-常见问题" class="headerlink" title="8. 常见问题"></a>8. 常见问题</h2><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>排查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>类型找不到</td>
+<td>未 source 接口包 &#x2F; 未 build</td>
+</tr>
+<tr>
+<td>编译失败</td>
+<td>package.xml&#x2F;CMakeLists 依赖未写</td>
+</tr>
+<tr>
+<td>版本冲突</td>
+<td>同名接口不同内容，统一用 my_interfaces</td>
+</tr>
+<tr>
+<td>Python 未生成</td>
+<td>需 <code>rosidl_generate_interfaces</code> 在 C++ 包中定义</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>接口配合话题&#x2F;服务&#x2F;动作见 <a href="/posts/344998706.html">06-话题通信</a>、<a href="/posts/131381209.html">07-服务通信</a>、<a href="/posts/3022531917.html">08-动作通信</a>。</p>
+</blockquote>
+<h2 id="8-接口设计规范"><a href="#8-接口设计规范" class="headerlink" title="8. 接口设计规范"></a>8. 接口设计规范</h2><p>接口即契约，设计时遵循以下原则：字段命名语义清晰，单位明确（米&#x2F;秒&#x2F;弧度等），常用类型优先复用标准消息（geometry_msgs、std_msgs），减少自定义复杂度。跨语言一致性由接口定义文件保证，修改接口后需重新构建并同步所有使用方。版本兼容方面，新增字段应为可选或设置默认值，避免破坏已有节点。接口包独立成包并保持依赖最小化，便于多个功能包共享。发布接口前先评审字段完整性与命名。</p>
+<blockquote>
+<p>[!note] 建议<br>良好的接口设计能显著降低系统集成成本；接口变更配合版本管理与 CI 校验见 <a href="/posts/496626970.html">38-产品化与部署实践</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/3441056145.html">12-生命周期节点</a>　下一篇：<a href="/posts/742500733.html">14-执行器与回调组</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3898278822.html">https://zeek-zhao.github.io/posts/3898278822.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros2/">ros2</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/3163360705.html" title="饮食与营养模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">饮食与营养模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标三分练七分吃，Keep 的饮食模块帮助用户管理摄入并让营养与训练目标对齐。  1. 饮食模块概览Keep 饮食管理支持拍照识热量、手动添加餐食、拆解碳水脂肪蛋白质比例，结合运动目标测算热量缺口并给出加餐建议。 饮食记录与运动消耗同屏对比（如运动消耗与饮食摄入并列显示），让用户直观看到热量收支。 2. 拍照识别热量AI 卡卡支持拍照识别食物热量，用户拍摄餐食即可获得大致的营养估算，零成本完成记录。 识别结果用于参考，精确记录可手动调整分量与食材，长期记录积累个人饮食画像。 3. 营养分析与配比饮食记录自动拆解碳水、脂肪、蛋白质三大营养素比例，与目标配比（如减脂高蛋白、增肌高碳水）对比。 2026 年升级的 AI 深度数据解析将训练、饮食、睡眠数据联动，提示蛋白质缺口与睡眠建议，而非仅报卡路里总数。 4. 热量缺口管理减脂核心是热量缺口：每日消耗减摄入，Keep 根据目标与代谢测算推荐缺口并给出每日摄入参考。 增肌需要热量盈余与足量蛋白质，Keep 饮食建议按训练阶段切换目标，避免盲目节食或暴食。 5. 吃练结合策略训练日与休息日热量与营养需求不同：训练日补...</div></div></div></a><a class="pagination-related" href="/posts/385622783.html" title="柔韧性与拉伸"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">柔韧性与拉伸</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标柔韧性影响动作质量与恢复，系统掌握拉伸技术是教练必修课。  1. 柔韧性概念柔韧性是关节活动范围的属性，受关节结构、肌肉弹性与神经系统调控影响；柔韧与力量需要平衡。 柔韧性不足限制动作质量、增加代偿与损伤风险；过度松弛同样降低稳定性。 2. 拉伸类型静态拉伸（保持 20-60 秒）适合训练后放松与长期柔韧发展；动态拉伸（有控制活动范围）适合热身。 弹震式拉伸利用反弹冲击，风险较高、教练教学中应谨慎使用或避免。 3. 主动与被动拉伸主动拉伸由自身肌肉收缩完成、强化神经控制；被动拉伸借助外力或重力，幅度更大需控制。 PNF 拉伸（收缩-放松）由被动加等长收缩组成，柔韧改善明显但对技术要求高。 4. 热身中的动态拉伸热身优先动态拉伸与关节活动度练习：髋部绕环、弓步转体、摆腿等提升运动准备度。 动态拉伸结合专项动作模式，激活神经与肌肉，改善训练表现。 5. 训练后静态拉伸训练后静态拉伸放松紧张肌群、降低肌肉张力、促进恢复；每个肌群 2-3 组、每组 20-40 秒。 拉伸配合呼吸与放松心态，避免用力过猛引起肌肉防御性收缩。 6. 教学应用为学员制定拉伸方案需结合...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1486087179.html" title="24-路径规划与避障"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">24-路径规划与避障</div></div><div class="info-2"><div class="info-item-1">路径规划与避障 [!info] 本节目标掌握 Nav2 全局&#x2F;局部路径规划原理、代价地图层与避障参数调优。  1. 规划体系12目标点 -&gt; 全局规划（地图） -&gt; 全局路径全局路径 -&gt; 局部规划（传感器） -&gt; 速度指令 -&gt; 底盘     层级 输入 输出    全局规划（Planner） 静态地图、目标 全局路径（Path）   局部规划（Controller） 全局路径、局部 costmap 速度指令（Twist）   2. 全局规划器   规划器 特点    NavFn 经典 Dijkstra&#x2F;A*，通用   SmacPlannerHybrid 运动学约束（阿克曼&#x2F;差速），平滑   ThetaStar 直线路径、速度型机器人   1234567planner_server:  ros__parameters:    planner_plugins: [&quot;GridBased&quot;]    GridBased:      plugin: &quot;nav2_navfn_planner/Navfn...</div></div></div></a><a class="pagination-related" href="/posts/1182880406.html" title="16-URDF与xacro建模"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">16-URDF与xacro建模</div></div><div class="info-2"><div class="info-item-1">URDF 与 xacro 建模 [!info] 本节目标掌握 URDF 机器人模型编写与 xacro 宏建模，能在 rviz2 中加载并检查模型。  1. URDF 基础URDF（Unified Robot Description Format）用 XML 描述机器人运动学与外观：link（刚体）通过 joint（关节）连接。    标签 说明    link 刚体（质量、惯量、视觉、碰撞）   joint 关节（固定&#x2F;转动&#x2F;滑动等）   robot name 根节点   123456789101112131415161718192021&lt;robot name=&quot;my_robot&quot;&gt;  &lt;link name=&quot;base_link&quot;&gt;    &lt;visual&gt;      &lt;geometry&gt;        &lt;box size=&quot;0.4 0.3 0.2&quot;/&gt;      &lt;/geometry&gt;    &lt;/visual&gt;  &l...</div></div></div></a><a class="pagination-related" href="/posts/344998706.html" title="ros2 06-话题通信"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">ros2 06-话题通信</div></div><div class="info-2"><div class="info-item-1">话题通信 [!info] 本节目标掌握 ROS2 话题通信机制，能用 rclcpp 与 rclpy 编写发布者&#x2F;订阅者，并理解 QoS 的作用。  1. 话题通信模型话题是异步单向通道：发布者（Publisher）向话题名写入消息，订阅者（Subscriber）从话题名读取消息。一对多、多对多皆可，两端完全解耦。 12[发布者] --msg--&gt; /chatter --&gt; [订阅者1]                            --&gt; [订阅者2]     特性 说明    方向 单向异步   匹配 话题名 + 消息类型 + QoS   可靠性 由 QoS 决定（可靠&#x2F;尽力）   适用 传感器流、状态流、命令流   2. Python 发布者12345678910111213141516171819202122232425262728#!/usr/bin/env python3import rclpyfrom rclpy.node import Nodefrom std_msgs.msg import Stringclass Ta...</div></div></div></a><a class="pagination-related" href="/posts/767168211.html" title="26-视觉处理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">26-视觉处理</div></div><div class="info-2"><div class="info-item-1">视觉处理 [!info] 本节目标掌握 ROS2 图像传输与处理：image_transport、cv_bridge、OpenCV 节点、相机标定与视觉应用。  1. 图像传输123456789sudo apt install -y ros-humble-vision-opencv \  ros-humble-image-transport \  ros-humble-image-transport-plugins# 原始图像ros2 run usb_cam usb_cam_node_exe# 压缩传输（compressed）ros2 run image_transport republish \  compressed in:=/image_raw raw out:=/image_raw_compressed   [!note] image_transport同一图像以多种形式发布（raw&#x2F;compressed&#x2F;theora），网络带宽紧张时订阅 compressed 主题。  2. cv_bridge 转换1234567891011121314151617...</div></div></div></a><a class="pagination-related" href="/posts/26068340.html" title="34-安全与权限"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">34-安全与权限</div></div><div class="info-2"><div class="info-item-1">安全与权限 [!info] 本节目标理解 SROS2 安全模型，掌握安全策略生成、权限文件配置与 DDS 加密启用。  1. 安全威胁   威胁 说明    未授权节点 伪造节点收发话题   窃听 明文话题被抓包   篡改 修改指令&#x2F;数据   拒绝服务 大量消息淹没    [!note] ROS2 默认无安全默认 DDS 不加密不鉴权；生产&#x2F;公网场景必须启用 SROS2。  2. SROS2 安全模型SROS2 基于 DDS Security：为每个节点签发证书，通过权限文件（permissions）控制话题&#x2F;服务&#x2F;动作的读写。 12345安全组件：- 身份证书（CA + 节点证书）- 权限文件（topics/services 许可）- 加密（AES-GCM）/签名（RSA）- DDS 协商（PKI）  3. 环境变量1234# 启用安全（必须在节点启动前设置）export ROS_SECURITY_KEYSTORE=~/sros2_keystoreexport ROS_SECURITY_ENABLE=trueexport ROS_SECU...</div></div></div></a><a class="pagination-related" href="/posts/1400569321.html" title="32-ROS2与嵌入式平台"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">32-ROS2与嵌入式平台</div></div><div class="info-2"><div class="info-item-1">ROS2 与嵌入式平台 [!info] 本节目标掌握 ROS2 在树莓派、Jetson、微控制器等嵌入式平台的部署方式与最佳实践。  1. 平台选型   平台 定位 说明    树莓派 低成本主控 ARM64，可跑完整 ROS2   Jetson AI 边缘计算 GPU，视觉&#x2F;深度学习   微控制器 底层执行 无完整 ROS2，用 micro-ROS   IPC&#x2F;工控机 高算力 x86，完整 ROS2    [!note] 分层常见架构：微控制器跑电机控制（micro-ROS），树莓派&#x2F;Jetson 跑感知与导航（ROS2），工控机跑调度。  2. 树莓派部署123456# 使用 Ubuntu Server 22.04（arm64）sudo apt update &amp;&amp; sudo apt install -y \  ros-humble-ros-base python3-colcon-common-extensions# 或使用官方 Docker 镜像docker pull ros:humble   [!tip] 性能树莓派 4B&#x...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89%E6%B6%88%E6%81%AF%E6%8E%A5%E5%8F%A3"><span class="toc-number">1.</span> <span class="toc-text">自定义消息接口</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E6%8E%A5%E5%8F%A3%E6%A6%82%E5%BF%B5"><span class="toc-number">1.1.</span> <span class="toc-text">1. 接口概念</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%88%9B%E5%BB%BA%E6%8E%A5%E5%8F%A3%E5%8C%85"><span class="toc-number">1.2.</span> <span class="toc-text">2. 创建接口包</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%AE%9A%E4%B9%89%E6%8E%A5%E5%8F%A3"><span class="toc-number">1.3.</span> <span class="toc-text">3. 定义接口</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-package-xml-%E9%85%8D%E7%BD%AE"><span class="toc-number">1.4.</span> <span class="toc-text">4. package.xml 配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-CMakeLists-%E9%85%8D%E7%BD%AE"><span class="toc-number">1.5.</span> <span class="toc-text">5. CMakeLists 配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E7%BC%96%E8%AF%91%E4%B8%8E%E4%BD%BF%E7%94%A8"><span class="toc-number">1.6.</span> <span class="toc-text">6. 编译与使用</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%B8%B8%E9%87%8F%E4%B8%8E%E9%BB%98%E8%AE%A4%E5%80%BC"><span class="toc-number">1.7.</span> <span class="toc-text">7. 常量与默认值</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.8.</span> <span class="toc-text">8. 常见问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1%E8%A7%84%E8%8C%83"><span class="toc-number">1.9.</span> <span class="toc-text">8. 接口设计规范</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

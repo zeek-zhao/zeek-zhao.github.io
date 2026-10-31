@@ -1,0 +1,624 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>与SSO单点登录集成 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="LDAP 负责&quot;身份数据存储与认证&quot;（你是谁、密码对不对），SSO 负责&quot;会话与票据&quot;（登录一次到处可用）。两者通常组合为：">
+<meta property="og:type" content="article">
+<meta property="og:title" content="与SSO单点登录集成">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3929303811.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="LDAP 负责&quot;身份数据存储与认证&quot;（你是谁、密码对不对），SSO 负责&quot;会话与票据&quot;（登录一次到处可用）。两者通常组合为：">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-21T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="LDAP">
+<meta property="article:tag" content="OpenLDAP">
+<meta property="article:tag" content="SSO">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "与SSO单点登录集成",
+  "url": "https://zeek-zhao.github.io/posts/3929303811.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-21T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3929303811.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '与SSO单点登录集成',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">与SSO单点登录集成</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">与SSO单点登录集成</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-21T16:00:00.000Z" title="发表于 2026-10-22 00:00:00">2026-10-22</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ldap/">ldap</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="与SSO单点登录集成"><a href="#与SSO单点登录集成" class="headerlink" title="与SSO单点登录集成"></a>与SSO单点登录集成</h1><blockquote>
+<p>[!info] 本节目标<br>理解 LDAP 在统一身份认证中的位置，掌握与 Keycloak、CAS、SAML&#x2F;OIDC 体系对接的完整路径。</p>
+</blockquote>
+<h2 id="LDAP-与-SSO-的关系"><a href="#LDAP-与-SSO-的关系" class="headerlink" title="LDAP 与 SSO 的关系"></a>LDAP 与 SSO 的关系</h2><p>LDAP 负责”身份数据存储与认证”（你是谁、密码对不对），SSO 负责”会话与票据”（登录一次到处可用）。两者通常组合为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">用户 --&gt; IdP（Keycloak/CAS） --&gt; LDAP（身份源）</span><br><span class="line">              |</span><br><span class="line">              +--&gt; 各业务系统（SP）通过 SAML/OIDC 信任 IdP</span><br></pre></td></tr></table></figure>
+
+<p>典型链路：业务系统重定向到 IdP -&gt; IdP 校验用户 -&gt; IdP 通过 LDAP bind 验证凭据 -&gt; 颁发票据 -&gt; 业务系统放行。</p>
+<h2 id="方案一：Keycloak-LDAP"><a href="#方案一：Keycloak-LDAP" class="headerlink" title="方案一：Keycloak + LDAP"></a>方案一：Keycloak + LDAP</h2><p>配置 Keycloak 的 User Federation：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">管理控制台 -&gt; User Federation -&gt; Add provider -&gt; ldap</span><br><span class="line"></span><br><span class="line">关键参数：</span><br><span class="line">- Connection URL: ldap://ldap.example.com:389</span><br><span class="line">- Bind DN: cn=admin,dc=example,dc=com</span><br><span class="line">- Bind Credential: ********</span><br><span class="line">- Users DN: ou=people,dc=example,dc=com</span><br><span class="line">- Username LDAP attribute: uid</span><br><span class="line">- Search scope: Subtree</span><br><span class="line">- User Object Classes: inetOrgPerson</span><br><span class="line">- Import Enabled: ON（首次登录导入用户）</span><br></pre></td></tr></table></figure>
+
+<p>验证方式选择 <code>simple bind</code>，Keycloak 会以用户输入的密码对 LDAP 执行 bind，密码不落库，安全性更高。</p>
+<h2 id="方案二：CAS-服务端对接-LDAP"><a href="#方案二：CAS-服务端对接-LDAP" class="headerlink" title="方案二：CAS 服务端对接 LDAP"></a>方案二：CAS 服务端对接 LDAP</h2><p>在 CAS 配置中指定认证源：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">cas:</span></span><br><span class="line">  <span class="attr">authn:</span></span><br><span class="line">    <span class="attr">ldap:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">ldapUrls:</span> <span class="string">ldap://ldap.example.com:389</span></span><br><span class="line">        <span class="attr">baseDn:</span> <span class="string">ou=people,dc=example,dc=com</span></span><br><span class="line">        <span class="attr">searchFilter:</span> <span class="string">uid=&#123;user&#125;</span></span><br><span class="line">        <span class="attr">credentialCriteria:</span> <span class="string">cn=admin,dc=example,dc=com</span></span><br></pre></td></tr></table></figure>
+
+<p>用户访问任一接入 CAS 的应用，都会被重定向到 CAS 登录页，由 CAS 通过 LDAP 完成认证。</p>
+<h2 id="方案三：直接-LDAP-认证的应用"><a href="#方案三：直接-LDAP-认证的应用" class="headerlink" title="方案三：直接 LDAP 认证的应用"></a>方案三：直接 LDAP 认证的应用</h2><p>Nginx、Jenkins、Jira、GitLab 等自带 LDAP 认证：</p>
+<ul>
+<li>GitLab：管理区 -&gt; LDAP -&gt; 填入 host&#x2F;base&#x2F;uid&#x2F;filter</li>
+<li>Jenkins：全局安全 -&gt; LDAP 插件 -&gt; server&#x2F;bind&#x2F;search</li>
+<li>Jira：用户目录 -&gt; 添加 LDAP 目录</li>
+</ul>
+<p>统一原则：所有应用共享同一 base DN 与 <code>(uid=&#123;0&#125;)</code> 过滤器，保证用户唯一。</p>
+<h2 id="密码策略联动"><a href="#密码策略联动" class="headerlink" title="密码策略联动"></a>密码策略联动</h2><p>SSO 场景下密码策略由 LDAP 统一承载：</p>
+<ul>
+<li>修改密码入口收敛到自助服务（如 Apache Directory Studio 或自研改密页）</li>
+<li>通过 <code>ppolicy</code> overlay 实施复杂度、有效期、失败锁定</li>
+<li>密码同步：将 LDAP 密码通过 webhook 同步到 Keycloak&#x2F;AD（可选）</li>
+</ul>
+<h2 id="排错清单"><a href="#排错清单" class="headerlink" title="排错清单"></a>排错清单</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>排查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>登录提示密码错误</td>
+<td>确认 bind DN 与搜索过滤器，先 <code>ldapsearch</code> 验证</td>
+</tr>
+<tr>
+<td>用户导入失败</td>
+<td>检查 objectClass 是否含 inetOrgPerson</td>
+</tr>
+<tr>
+<td>认证慢</td>
+<td>检查索引：为 uid 建 equality 索引</td>
+</tr>
+<tr>
+<td>证书报错</td>
+<td>LDAPS 需要导入 CA 到 IdP 信任库</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!tip] 最佳实践<br>先建一个测试组，小范围接入 1-2 个低风险系统验证，再逐步全量推广；保留本地超级账号作为应急入口。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/436957435.html">12-复制与高可用</a></em><br><em>下一篇：<a href="/posts/1799060089.html">14-与AD集成</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3929303811.html">https://zeek-zhao.github.io/posts/3929303811.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/LDAP/">LDAP</a><a class="post-meta__tags" href="/tags/OpenLDAP/">OpenLDAP</a><a class="post-meta__tags" href="/tags/SSO/">SSO</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2247057531.html" title="动态库与静态库"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">动态库与静态库</div></div><div class="info-2"><div class="info-item-1">动态库与静态库 [!info] 本页概览库是可复用的二进制代码集合。静态库（.a&#x2F;.lib）在链接期打包进可执行文件；动态库（.so&#x2F;.dll）在运行期加载。本文讲解生成、链接与使用两种库的完整流程。  核心概念   特性 静态库 动态库    后缀 Linux .a，Windows .lib Linux .so，Windows .dll   链接时机 编译链接期 加载&#x2F;运行期   可执行文件 体积大，包含库代码 体积小，运行时依赖库   更新 需重新编译可执行文件 替换库文件即可（接口不变时）   启动速度 快 稍慢（加载&#x2F;重定位）   静态库制作（Linux）12// mathlib.cint add(int a, int b) &#123; return a + b; &#125;  12345gcc -c mathlib.c -o mathlib.oar rcs libmath.a mathlib.o      # 打包为静态库# 使用gcc main.c -L. -lmath -o app     # -L 指定库目录，-l 指定...</div></div></div></a><a class="pagination-related" href="/posts/3984461921.html" title="与 Jira 集成"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">与 Jira 集成</div></div><div class="info-2"><div class="info-item-1">与 Jira 集成 [!info] 本页概览本文讲解 Confluence 与 Jira 集成：应用链接、Jira 宏、双向联动、工作流结合，配真实示例。  应用链接123456789应用链接（Application Link）让 Confluence 与 Jira 互信：- 配置：Jira 管理员 → 应用链接 → 添加 Confluence- 或 Confluence 管理 → 应用链接 → 添加 Jira- 双向认证（OAuth）价值：- 页面嵌入 Jira 数据- 双向链接跳转- 统一用户认证  Jira 宏（Jira Issues）123456789101112在 Confluence 页面嵌入 Jira 任务列表：&#123;jiraissues:jqlQuery=project = RD AND status != Done|columns=key,summary,status,assignee&#125;常用 JQL：- project = RD AND assignee = currentUser()- project = RD AND priority = H...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/3375346777.html" title="实战案例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">实战案例</div></div><div class="info-2"><div class="info-item-1">实战案例 [!info] 本节目标通过三个完整案例串起 LDAP 全流程：企业统一认证、GitLab&#x2F;Jenkins 对接、密码自助与审计。  案例一：中小企业统一认证平台需求：60 人研发团队，统一账号登录 GitLab、Jenkins、Confluence、VPN。 实施步骤： 123456789101. 部署 OpenLDAP 2.5（Ubuntu 22.04）2. 规划目录结构   dc=example,dc=com   |- ou=people（员工）   |- ou=groups（研发/测试/运维）   |- ou=services（svc_gitlab、svc_jenkins）3. 启用 TLS（自建 CA 或 Let&#x27;s Encrypt 内网证书）4. 启用 ppolicy（密码 10 位以上、90 天过期、5 次锁定）5. 各应用配置 LDAP 认证（bind DN 用服务账号）6. 建立复制：主备各一台  关键配置：应用统一使用 (&amp;(objectClass=inetOrgPerson)(uid=&#123;0&#125;)) 过滤...</div></div></div></a><a class="pagination-related" href="/posts/182520488.html" title="SSO&#x2F;LDAP 集成"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">SSO&#x2F;LDAP 集成</div></div><div class="info-2"><div class="info-item-1">SSO&#x2F;LDAP 集成 [!info] 本篇目标将 GitLab 接入企业身份体系：LDAP&#x2F;AD 目录认证、SAML&#x2F;OIDC 单点登录，实现统一账号、自动建组与权限映射。  1. 为什么集成 SSO&#x2F;LDAP 账号统一：员工用企业账号登录，无需各自注册 GitLab 密码。 自动同步：LDAP 组自动映射 GitLab 组权限，成员增减一处生效。 审计合规：登录行为纳入企业统一审计。 减少弱口令：密码策略由企业目录统一管控。  2. LDAP&#x2F;AD 集成（Omnibus）编辑 /etc/gitlab/gitlab.rb： 123456789101112131415gitlab_rails[&#x27;ldap_enabled&#x27;] = truegitlab_rails[&#x27;ldap_servers&#x27;] = &#123;  &#x27;main&#x27; =&gt; &#123;    &#x27;label&#x27; =&gt; &#x27;AD&#x27;,    &#x27;host&#x27...</div></div></div></a><a class="pagination-related" href="/posts/3282951875.html" title="LDAP 从入门到精通 索引总览"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">LDAP 从入门到精通 索引总览</div></div><div class="info-2"><div class="info-item-1">LDAP 从入门到精通 索引总览 [!info] 本页概览LDAP 技术栈教程总览：目录服务概念、OpenLDAP 部署、目录设计、用户组管理、ACL、TLS、SSO&#x2F;AD 集成，共 17 篇。  什么是 LDAP1234567891011LDAP（Lightweight Directory Access Protocol）轻量级目录访问协议：- 用于访问分布式目录信息服务- 数据以树状结构组织（DIT）- 读多写少，优化查询- 广泛用于统一身份认证常见实现：- OpenLDAP（开源标准）- Microsoft AD（企业生态）- 云目录（Okta/Azure AD）  学习路线12345678910111213141516171819202122232425阶段一：入门（01-04）01 LDAP 概述02 目录概念与数据模型03 OpenLDAP 部署与安装04 基础配置与启动阶段二：设计（05-08）05 目录结构设计06 用户与组管理07 Schema 与对象类08 常见组织目录案例阶段三：进阶（09-12）09 搜索与过滤器10 ACL 访问控制11 TLS...</div></div></div></a><a class="pagination-related" href="/posts/3072724400.html" title="常用工具与运维"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">常用工具与运维</div></div><div class="info-2"><div class="info-item-1">常用工具与运维 [!info] 本节目标掌握 LDAP 日常运维工具链：命令行客户端、图形工具、备份恢复与监控告警，形成可落地的运维清单。  命令行客户端OpenLDAP 自带客户端是最可靠的运维工具： 12345678910111213141516# 查询ldapsearch -H ldap://localhost:389 -x -b &quot;dc=example,dc=com&quot; &quot;(uid=zhangsan)&quot;# 添加条目ldapadd -H ldap://localhost:389 -x -D &quot;cn=admin,dc=example,dc=com&quot; -w secret -f user.ldif# 修改ldapmodify -H ldap://localhost:389 -x -D &quot;cn=admin,dc=example,dc=com&quot; -w secret -f change.ldif# 删除ldapdelete -H ldap://localhost:389 -x -D &quot;cn=admi...</div></div></div></a><a class="pagination-related" href="/posts/436957435.html" title="复制与高可用"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">复制与高可用</div></div><div class="info-2"><div class="info-item-1">复制与高可用 [!info] 本节目标掌握 OpenLDAP 复制机制（syncrepl 与 Delta-syncrepl），能搭建主从复制与多主复制架构，并理解高可用方案选型。  为什么需要复制目录服务的典型特征：读多写少。生产环境单点 slapd 一旦故障，所有认证与查询全部中断。复制带来的核心价值：  读扩展：多个只读副本分摊查询压力 容灾：主节点故障时副本可切换 就近访问：分支机构使用本地副本 备份：副本可作为一致性快照来源  复制机制OpenLDAP 2.4+ 推荐使用 syncrepl（Synchronization Replication）作为 provider&#x2F;consumer 模型。 123主节点（provider）  --&gt;  syncrepl  --&gt;  副本节点（consumer）       |                                     |  修改日志（accesslog）              只读目录树（部分/全部）  关键术语：  Provider：提供复制的服务端（原 master） Con...</div></div></div></a><a class="pagination-related" href="/posts/3248798669.html" title="LDAP 资料索引指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-22</div><div class="info-item-2">LDAP 资料索引指南</div></div><div class="info-2"><div class="info-item-1">LDAP 资料索引指南 [!info] 本节目标汇总 LDAP 学习与运维所需的权威资料、官方文档、书籍与社区资源，形成可持续查阅的索引。  官方文档   来源 地址 说明    OpenLDAP 官方文档 https://www.openldap.org/doc/ 安装、配置、schema、复制的权威手册   OpenLDAP Admin Guide https://www.openldap.org/doc/admin24/ 系统管理指南（2.4&#x2F;2.5&#x2F;2.6 版本对应）   OpenLDAP Software FAQ https://www.openldap.org/faq/ 常见问题与坑点   IETF RFC 4510 系列 https://www.rfc-editor.org/rfc/rfc4511 LDAP 协议规范（rfc4511 协议、4512 DIT、4513 认证等）   Microsoft AD LDAP 文档 https://learn.microsoft.com/zh-cn/windows/win32/ad/ AD 与 LDAP 集...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E4%B8%8ESSO%E5%8D%95%E7%82%B9%E7%99%BB%E5%BD%95%E9%9B%86%E6%88%90"><span class="toc-number">1.</span> <span class="toc-text">与SSO单点登录集成</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#LDAP-%E4%B8%8E-SSO-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">1.1.</span> <span class="toc-text">LDAP 与 SSO 的关系</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%96%B9%E6%A1%88%E4%B8%80%EF%BC%9AKeycloak-LDAP"><span class="toc-number">1.2.</span> <span class="toc-text">方案一：Keycloak + LDAP</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%96%B9%E6%A1%88%E4%BA%8C%EF%BC%9ACAS-%E6%9C%8D%E5%8A%A1%E7%AB%AF%E5%AF%B9%E6%8E%A5-LDAP"><span class="toc-number">1.3.</span> <span class="toc-text">方案二：CAS 服务端对接 LDAP</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%96%B9%E6%A1%88%E4%B8%89%EF%BC%9A%E7%9B%B4%E6%8E%A5-LDAP-%E8%AE%A4%E8%AF%81%E7%9A%84%E5%BA%94%E7%94%A8"><span class="toc-number">1.4.</span> <span class="toc-text">方案三：直接 LDAP 认证的应用</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5%E8%81%94%E5%8A%A8"><span class="toc-number">1.5.</span> <span class="toc-text">密码策略联动</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8E%92%E9%94%99%E6%B8%85%E5%8D%95"><span class="toc-number">1.6.</span> <span class="toc-text">排错清单</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

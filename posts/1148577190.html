@@ -1,0 +1,611 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>19-CAN总线与车辆控制接口 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="CAN 是车载网络标准总线，Apollo 通过 CAN 卡与底盘控制器通信，下发转向、油门、刹车指令并读取车辆状态。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="19-CAN总线与车辆控制接口">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1148577190.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="CAN 是车载网络标准总线，Apollo 通过 CAN 卡与底盘控制器通信，下发转向、油门、刹车指令并读取车辆状态。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "19-CAN总线与车辆控制接口",
+  "url": "https://zeek-zhao.github.io/posts/1148577190.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/1148577190.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '19-CAN总线与车辆控制接口',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">19-CAN总线与车辆控制接口</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">19-CAN总线与车辆控制接口</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>理解 Apollo 通过 CAN 总线与车辆底盘交互的原理与配置。</p>
+</blockquote>
+<h2 id="1-CAN-总线概述"><a href="#1-CAN-总线概述" class="headerlink" title="1. CAN 总线概述"></a>1. CAN 总线概述</h2><p>CAN 是车载网络标准总线，Apollo 通过 CAN 卡与底盘控制器通信，下发转向、油门、刹车指令并读取车辆状态。</p>
+<h2 id="2-车辆接口协议"><a href="#2-车辆接口协议" class="headerlink" title="2. 车辆接口协议"></a>2. 车辆接口协议</h2><p>不同车型协议不同，Apollo 通过 chassis 消息统一抽象底盘接口。关键信号包括车速、转向角、挡位、油门、刹车状态。</p>
+<table>
+<thead>
+<tr>
+<th>信号</th>
+<th>方向</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>方向盘转角</td>
+<td>下发</td>
+<td>横向控制</td>
+</tr>
+<tr>
+<td>油门&#x2F;刹车</td>
+<td>下发</td>
+<td>纵向控制</td>
+</tr>
+<tr>
+<td>车速&#x2F;轮速</td>
+<td>上报</td>
+<td>状态反馈</td>
+</tr>
+<tr>
+<td>挡位</td>
+<td>下发</td>
+<td>换挡</td>
+</tr>
+</tbody></table>
+<h2 id="3-配置与实现"><a href="#3-配置与实现" class="headerlink" title="3. 配置与实现"></a>3. 配置与实现</h2><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># CAN 配置示例</span></span><br><span class="line"><span class="attr">canbus:</span></span><br><span class="line">  <span class="attr">can_card:</span> <span class="string">&quot;hercules&quot;</span></span><br><span class="line">  <span class="attr">chassis_protocol:</span> <span class="string">&quot;dmi&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>Apollo 的 canbus 模块负责协议解析与收发，控制模块下发指令经 canbus 转换为底盘 CAN 帧。</p>
+<h2 id="4-调试注意"><a href="#4-调试注意" class="headerlink" title="4. 调试注意"></a>4. 调试注意</h2><p>调试时先验证 CAN 收发正常，再手动控制底盘，最后切换到自动驾驶模式。安全建议见 <a href="/posts/2996463493.html">35-安全机制与冗余设计</a>。</p>
+<blockquote>
+<p>[!note] 延伸<br>控制指令来源见 纵向控制）；车辆动力学配合见 <a href="/posts/2046330891.html">16-车辆动力学基础</a>。</p>
+</blockquote>
+<h2 id="5-底盘协议适配"><a href="#5-底盘协议适配" class="headerlink" title="5. 底盘协议适配"></a>5. 底盘协议适配</h2><p>不同车型底盘协议差异较大，Apollo 通过协议配置与解析代码实现适配。适配工作包括：定义底盘信号映射、编写报文解析与封装逻辑、实现故障码处理。协议适配完成后需进行仿真验证与实车联调，确认指令与反馈信号双向正确。</p>
+<h2 id="6-安全联调要点"><a href="#6-安全联调要点" class="headerlink" title="6. 安全联调要点"></a>6. 安全联调要点</h2><p>CAN 联调必须遵循安全流程：先在车辆静态状态下验证报文收发，再使用诊断工具核对信号含义，最后进行低速人工监控下的闭环测试。联调期间需确保急停开关可用，任何异常立即断电。底盘指令通道是自动驾驶执行的关键路径，必须经过充分验证后才能投入实际使用。</p>
+<h2 id="7-底盘状态监控"><a href="#7-底盘状态监控" class="headerlink" title="7. 底盘状态监控"></a>7. 底盘状态监控</h2><p>运行期间应持续监控底盘状态：车速、挡位、转向与故障码。Apollo 将底盘信息发布为标准话题，供控制与安全模块使用。监控异常时触发降级或停车，保障安全。建立底盘故障码对照表，便于快速定位硬件问题。底盘状态监控是安全机制的重要组成部分。<br><em>上一篇：毫米波）　下一篇：<a href="/posts/1552856559.html">20-Apollo Cyber RT框架</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/1148577190.html">https://zeek-zhao.github.io/posts/1148577190.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2822540859.html" title="19-docker"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">19-docker</div></div><div class="info-2"><div class="info-item-1">docker [!abstract] 用途Docker 将应用及其依赖打包为镜像、以容器运行，实现环境一致与快速部署，是现代应用发布与测试环境搭建的主流方案。  1. 安装12345678910# 官方仓库安装（推荐）curl -fsSL https://get.docker.com | sudo sh# 或 apt 安装（Ubuntu 24.04 仓库自带）sudo apt install -y docker.iosudo systemctl enable --now docker# 将当前用户加入 docker 组（免 sudo）sudo usermod -aG docker $USER# 重新登录生效  2. 镜像管理123456789101112131415# 拉取镜像docker pull ubuntu:24.04docker pull nginx:latest# 查看本地镜像docker images# 搜索docker search nginx# 删除镜像docker rmi nginx:latest# 查看镜像详情docker inspect ubuntu:24....</div></div></div></a><a class="pagination-related" href="/posts/2454912129.html" title="19-BitLocker"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">19-BitLocker</div></div><div class="info-2"><div class="info-item-1">BitLocker [!abstract] 用途BitLocker 是 Windows 专业版&#x2F;企业版内置的全盘加密功能，对系统盘与数据盘进行 AES 加密，防止设备丢失后数据被读取；搭配 TPM 芯片实现无感解锁。  1. 启用条件123456Windows 专业版及以上（家庭版需另找方案）TPM 2.0（设备加密默认使用）系统盘 C: 启用时需要额外分区（自动创建恢复分区）查看 TPM：tpm.msc   # 状态应为&quot;已就绪&quot;  2. 启用 BitLocker123456控制面板 → BitLocker 驱动器加密 → 启用 BitLocker选择解锁方式：  TPM 自动解锁 / TPM+PIN / 密码解锁选择密钥保存方式（重要！）：  保存到 Microsoft 账户 / 保存到 U 盘 / 打印 / 保存到文件开始加密（后台进行，可继续使用）  3. 管理命令（manage-bde）1234567891011121314# 查看状态manage-bde -status C:# 开启（示例：密码解锁）manage-bde -on C: -...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/322975445.html" title="14-控制模块（横向纵向控制）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">14-控制模块（横向纵向控制）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 控制模块：横纵向控制策略、参数与调试。  1. 控制模块概述控制模块将规划轨迹转化为方向盘、油门、刹车指令，是自动驾驶执行末端。Apollo 控制基于横纵向解耦的控制器设计。 2. 横向控制横向控制保持车辆沿轨迹横向偏差最小，常用 LQR、MPC 等算法。输出前轮转角指令。    算法 特点    PID 简单、易调   LQR 状态反馈最优   MPC 带约束预测控制   3. 纵向控制纵向控制跟踪速度曲线，输出油门与刹车指令，通常采用 PID 加前馈补偿，并处理换挡与坡度。 4. 参数与调试控制器参数位于 modules&#x2F;control&#x2F;conf，可分别调整横纵向增益。调试常用 DreamView 观察跟踪误差，见 24-调试与可视化工具。车辆模型影响控制效果，见 16-车辆动力学基础。  [!note] 延伸控制指令通过 CAN 下发，见 19-CAN总线与车辆控制接口。  5. 控制器参数整定控制器参数整定是控制调试的核心工作：横向控制器需调整位置误差增益、航向误差增益与前馈系数；纵向控制器需调整速度误差增...</div></div></div></a><a class="pagination-related" href="/posts/1352878638.html" title="51-深度学习基础与CNN"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">51-深度学习基础与CNN</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标从零建立深度学习的概念框架：神经网络基本原理、CNN 核心组件、经典架构演进，以及 CNN 在自动驾驶感知系统中的实际应用，并了解 2024-2026 年感知模型的技术走向。训练框架选择见 52-PyTorch与自动驾驶实践 与 53-TensorFlow与Caffe2在自动驾驶中的应用。  1. 深度学习概述1.1 什么是深度学习深度学习是机器学习的一个子领域，使用多层神经网络模拟人脑的信息处理与模式识别能力，通过大量数据自动提取特征并做出决策。它是自动驾驶环境感知、轨迹预测等模块的算法基石。 1.2 发展简史 1943 年 McCulloch-Pitts 神经元模型；1958 年感知器 1986 年反向传播算法普及；1989 年早期 CNN；1997 年 LSTM 2012 年 AlexNet 在 ImageNet 突破，引爆深度学习革命 2017 年 Transformer 提出；2018 年后大规模预训练模型兴起 2020 年代：BEV 感知、Occupancy Network、端到端自动驾驶（详见第 7 节）  1.3 神经网络基本原理一个神经...</div></div></div></a><a class="pagination-related" href="/posts/2080454184.html" title="42-实战：搭建Demo自动驾驶演示"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">42-实战：搭建Demo自动驾驶演示</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标从零完成 Apollo 本地 Demo 自动驾驶演示：搭建 Docker 开发环境、编译源码、启动各核心模块，在 DreamView 中观察感知-规划-控制全链路数据流，并掌握演示过程的排查方法与进阶方向。  1. 实战目标使用 Apollo 演示地图与仿真&#x2F;回放数据，启动各模块，在 DreamView 中观察”感知框出现 → 轨迹生成 → 车辆沿轨迹行驶”的自动驾驶全过程。这是理解前述各篇（33-车道级导航与决策、36-高速场景 等）所讲机制的最好入手实验。 2. 准备环境2.1 硬件与软件要求   项目 最低配置 推荐配置    CPU i7 四核 Xeon&#x2F;多核 8 核以上   内存 32GB 64GB   硬盘 500GB SSD 1TB SSD   GPU GTX 1080 RTX 2080 Ti &#x2F; Tesla T4   系统 Ubuntu 18.04&#x2F;20.04 同左   驱动 NVIDIA Driver 460+ 470+   Docker 19.03+ + NVIDIA Docker 2.0+ 同...</div></div></div></a><a class="pagination-related" href="/posts/1294651885.html" title="49-KITTI与Waymo数据集实战"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">49-KITTI与Waymo数据集实战</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标手把手完成 KITTI 与 Waymo 两大基准数据集的实战：下载准备、目录结构、格式解析、坐标转换、构建数据加载器、跑通评估。数据集全景见 48-自动驾驶数据集总览。  1. KITTI 实战1.1 采集平台与评测项目KITTI 采集车配备：2 灰度 + 2 彩色 Point Grey Flea 2 相机（1382×512，10Hz）、1 台 Velodyne HDL-64E（64 线，约 130 万点&#x2F;秒，120m）、OXTS RT3003 GPS&#x2F;IMU（100Hz，厘米级）。采集于德国卡尔斯鲁厄市区、乡村与高速。 评测项目：立体视觉、光流、场景流、深度、视觉里程计&#x2F;SLAM、物体检测（2D&#x2F;3D&#x2F;BEV）、目标跟踪、道路&#x2F;车道检测、语义分割。 1.2 下载与存储123456789#!/bin/bash# 下载 KITTI 目标检测数据集mkdir -p kitti_data/object &amp;&amp; cd kitti_data/objectwget -c https://s3....</div></div></div></a><a class="pagination-related" href="/posts/1443278463.html" title="05-核心模块总览"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">05-核心模块总览</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标建立 Apollo 六大核心模块的整体认知，理解模块间数据流与依赖关系。  1. 模块划分Apollo 核心模块分为六类：高精地图（HD Map）、定位、感知、预测、规划、控制。    模块 输入 输出    高精地图 地图数据 车道、信号灯、路网信息   定位 传感器+地图 车辆位姿   感知 相机&#x2F;激光&#x2F;雷达 障碍物、车道线、红绿灯   预测 感知结果 障碍物轨迹预测   规划 定位+预测+地图 行驶轨迹   控制 规划轨迹 车辆控制指令   2. 数据流典型数据流为：地图与定位提供环境基准，感知识别障碍物，预测估计其未来状态，规划生成轨迹，控制执行并反馈。各模块通过 Cyber RT 消息解耦。 3. 模块间关系 定位为规划与控制提供坐标基准 感知质量直接影响预测与规划效果 控制是执行层，依赖规划轨迹 地图是全局先验，贯穿各模块  4. 学习建议先理解模块边界与消息接口，再深入各模块算法。推荐按地图-定位-感知-预测-规划-控制顺序阅读本套件 06-16 篇。  [!note] 延伸各模块深入见 06-高精地图HD Map 至 ...</div></div></div></a><a class="pagination-related" href="/posts/2046330891.html" title="16-车辆动力学基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">16-车辆动力学基础</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶规划控制所需的车辆运动学与动力学模型。  1. 模型的作用规划与控制依赖车辆模型来描述运动与响应。模型精度影响控制效果与仿真真实性。 2. 常用模型   模型 描述 用途    自行车模型 简化运动学 规划参考   运动学模型 位置+航向 低速场景   动力学模型 力与加速度 高速控制   轮胎模型 侧偏特性 极限工况   3. 关键参数车辆模型的参数包括轴距、轮距、整车质量、质心位置、轮胎侧偏刚度、转向传动比等。参数不准会导致控制偏差。 123456# 车辆参数示例vehicle_param:  front_edge_to_center: 3.89  length: 4.93  width: 1.96  max_acceleration: 3.0  4. 参数辨识通过实车试验（阶跃转向、加减速）辨识模型参数，写入车辆配置。辨识结果直接影响控制器的标定质量，见 14-控制模块。  [!note] 延伸控制依赖模型见 纵向控制）；仿真中模型一致性见 25-仿真平台（Sim Control）。  5. 模型在系统中的应用车辆模型在 Apollo ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-CAN-%E6%80%BB%E7%BA%BF%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">1. CAN 总线概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E8%BD%A6%E8%BE%86%E6%8E%A5%E5%8F%A3%E5%8D%8F%E8%AE%AE"><span class="toc-number">2.</span> <span class="toc-text">2. 车辆接口协议</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E9%85%8D%E7%BD%AE%E4%B8%8E%E5%AE%9E%E7%8E%B0"><span class="toc-number">3.</span> <span class="toc-text">3. 配置与实现</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E8%B0%83%E8%AF%95%E6%B3%A8%E6%84%8F"><span class="toc-number">4.</span> <span class="toc-text">4. 调试注意</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%BA%95%E7%9B%98%E5%8D%8F%E8%AE%AE%E9%80%82%E9%85%8D"><span class="toc-number">5.</span> <span class="toc-text">5. 底盘协议适配</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E5%AE%89%E5%85%A8%E8%81%94%E8%B0%83%E8%A6%81%E7%82%B9"><span class="toc-number">6.</span> <span class="toc-text">6. 安全联调要点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%BA%95%E7%9B%98%E7%8A%B6%E6%80%81%E7%9B%91%E6%8E%A7"><span class="toc-number">7.</span> <span class="toc-text">7. 底盘状态监控</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

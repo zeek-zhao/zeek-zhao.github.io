@@ -1,0 +1,677 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>24-AMCL定位 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="AMCL（Adaptive Monte Carlo Localization）是 ROS 导航栈的自适应蒙特卡洛定位节点：基于已知地图，结合激光与里程计，用粒子滤波估计机器人在地图中的位姿。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="24-AMCL定位">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2139127442.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="AMCL（Adaptive Monte Carlo Localization）是 ROS 导航栈的自适应蒙特卡洛定位节点：基于已知地图，结合激光与里程计，用粒子滤波估计机器人在地图中的位姿。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "24-AMCL定位",
+  "url": "https://zeek-zhao.github.io/posts/2139127442.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/2139127442.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '24-AMCL定位',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">24-AMCL定位</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">24-AMCL定位</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros1/">ros1</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="AMCL-定位"><a href="#AMCL-定位" class="headerlink" title="AMCL 定位"></a>AMCL 定位</h1><blockquote>
+<p>[!info] 本节目标<br>理解 AMCL 蒙特卡洛定位原理，掌握配置参数、初始位姿设置与重定位流程。</p>
+</blockquote>
+<h2 id="1-什么是-AMCL"><a href="#1-什么是-AMCL" class="headerlink" title="1. 什么是 AMCL"></a>1. 什么是 AMCL</h2><p>AMCL（Adaptive Monte Carlo Localization）是 ROS 导航栈的<strong>自适应蒙特卡洛定位</strong>节点：基于已知地图，结合激光与里程计，用粒子滤波估计机器人在地图中的位姿。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">已知地图 + 激光/scan + 里程计/odom</span><br><span class="line">  → AMCL</span><br><span class="line">  → 机器人位姿估计 + map→odom TF</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 为什么需要定位<br>里程计从起点累积漂移；AMCL 用激光匹配地图修正漂移，得到可靠全局位姿。</p>
+</blockquote>
+<h2 id="2-粒子滤波原理"><a href="#2-粒子滤波原理" class="headerlink" title="2. 粒子滤波原理"></a>2. 粒子滤波原理</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1. 初始化：在地图上撒 N 个粒子（猜测位姿）</span><br><span class="line">2. 预测：按里程计移动粒子</span><br><span class="line">3. 更新：用激光测量给粒子打分</span><br><span class="line">4. 重采样：保留高分粒子，淘汰低分粒子</span><br><span class="line">→ 粒子云收敛到真实位姿附近</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>min_particles &#x2F; max_particles</td>
+<td>粒子数下限&#x2F;上限（自适应）</td>
+</tr>
+<tr>
+<td>kld_err &#x2F; kld_z</td>
+<td>KLD 采样控制</td>
+</tr>
+<tr>
+<td>update_min_d &#x2F; update_min_a</td>
+<td>最小移动距离&#x2F;角度触发重采样</td>
+</tr>
+</tbody></table>
+<h2 id="3-启动-AMCL"><a href="#3-启动-AMCL" class="headerlink" title="3. 启动 AMCL"></a>3. 启动 AMCL</h2><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">launch</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">node</span> <span class="attr">name</span>=<span class="string">&quot;amcl&quot;</span> <span class="attr">pkg</span>=<span class="string">&quot;amcl&quot;</span> <span class="attr">type</span>=<span class="string">&quot;amcl&quot;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;use_map_topic&quot;</span> <span class="attr">value</span>=<span class="string">&quot;true&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;odom_frame_id&quot;</span> <span class="attr">value</span>=<span class="string">&quot;odom&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;base_frame_id&quot;</span> <span class="attr">value</span>=<span class="string">&quot;base_link&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;global_frame_id&quot;</span> <span class="attr">value</span>=<span class="string">&quot;map&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;min_particles&quot;</span> <span class="attr">value</span>=<span class="string">&quot;500&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;max_particles&quot;</span> <span class="attr">value</span>=<span class="string">&quot;5000&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;update_min_d&quot;</span> <span class="attr">value</span>=<span class="string">&quot;0.1&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;update_min_a&quot;</span> <span class="attr">value</span>=<span class="string">&quot;0.2&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;laser_min_range&quot;</span> <span class="attr">value</span>=<span class="string">&quot;0.1&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;laser_max_range&quot;</span> <span class="attr">value</span>=<span class="string">&quot;10.0&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">remap</span> <span class="attr">from</span>=<span class="string">&quot;scan&quot;</span> <span class="attr">to</span>=<span class="string">&quot;/scan&quot;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">node</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">launch</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] frame 配置<br><code>odom_frame_id=odom</code>、<code>base_frame_id=base_link</code>、<code>global_frame_id=map</code> 是标准配置，改错会导致 TF 断裂。</p>
+</blockquote>
+<h2 id="4-设置初始位姿"><a href="#4-设置初始位姿" class="headerlink" title="4. 设置初始位姿"></a>4. 设置初始位姿</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 方式1：rviz 2D Pose Estimate 按钮，点击地图设定初始位姿</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"><span class="keyword">import</span> rospy</span><br><span class="line"><span class="keyword">from</span> geometry_msgs.msg <span class="keyword">import</span> PoseWithCovarianceStamped</span><br><span class="line"></span><br><span class="line">rospy.init_node(<span class="string">&#x27;init_pose&#x27;</span>)</span><br><span class="line">pub = rospy.Publisher(<span class="string">&#x27;initialpose&#x27;</span>, PoseWithCovarianceStamped, queue_size=<span class="number">1</span>)</span><br><span class="line">rospy.sleep(<span class="number">1.0</span>)</span><br><span class="line"></span><br><span class="line">msg = PoseWithCovarianceStamped()</span><br><span class="line">msg.header.frame_id = <span class="string">&quot;map&quot;</span></span><br><span class="line">msg.header.stamp = rospy.Time.now()</span><br><span class="line">msg.pose.pose.position.x = <span class="number">0.0</span></span><br><span class="line">msg.pose.pose.position.y = <span class="number">0.0</span></span><br><span class="line">msg.pose.pose.orientation.w = <span class="number">1.0</span></span><br><span class="line">pub.publish(msg)</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 初始位姿重要性<br>初始位姿越准，粒子越早收敛。设置错误会长时间”假定位”（粒子分散但导航失败）。</p>
+</blockquote>
+<h2 id="5-重定位（kidnapped-robot）"><a href="#5-重定位（kidnapped-robot）" class="headerlink" title="5. 重定位（kidnapped robot）"></a>5. 重定位（kidnapped robot）</h2><p>机器人被抱起移动后需重定位：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># rviz 重新设置 2D Pose Estimate</span></span><br><span class="line"><span class="comment"># 或调用服务</span></span><br><span class="line">rosservice call /global_localization <span class="string">&quot;&#123;&#125;&quot;</span>   <span class="comment"># 全局撒粒子</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 处理流程<br>发现粒子散开&#x2F;定位不准时：先 <code>rosservice call /global_localization</code> 全局重撒粒子，再在 rviz 粗略设定位姿，等待收敛（粒子聚集）。</p>
+</blockquote>
+<h2 id="6-参数调优"><a href="#6-参数调优" class="headerlink" title="6. 参数调优"></a>6. 参数调优</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>调整</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>收敛慢</td>
+<td>增大 max_particles、减小 kld_err</td>
+</tr>
+<tr>
+<td>定位抖动</td>
+<td>降低 update_min_d、增大粒子数</td>
+</tr>
+<tr>
+<td>定位漂移</td>
+<td>检查激光&#x2F;里程计标定</td>
+</tr>
+<tr>
+<td>对称环境错位</td>
+<td>增大粒子数、多次重定位</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!warning] 对称环境<br>长廊、回字形等对称环境 AMCL 易出现位姿”左右镜像”错误，可增加里程计权重或人工干预。</p>
+</blockquote>
+<h2 id="7-与-move-base-集成"><a href="#7-与-move-base-集成" class="headerlink" title="7. 与 move_base 集成"></a>7. 与 move_base 集成</h2><p>AMCL 发布 <code>map→odom</code> TF，move_base 的全局代价地图挂在 map 帧，两者闭环：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">AMCL: map --map→odom TF--&gt; odom</span><br><span class="line">底盘: odom --odom→base_link TF--&gt; base_link</span><br><span class="line">导航: 全局地图(map) + 局部地图(odom) + 目标 → cmd_vel</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 检查定位状态<br>rviz 中开启 TF 与 ParticleCloud（&#x2F;particlecloud）显示，粒子聚集越紧定位越可信。</p>
+</blockquote>
+<h2 id="8-常见问题"><a href="#8-常见问题" class="headerlink" title="8. 常见问题"></a>8. 常见问题</h2><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因&#x2F;解决</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>“Cannot transform from map to base_link”</td>
+<td>AMCL 未启动或 TF 未发布</td>
+</tr>
+<tr>
+<td>粒子不收敛</td>
+<td>初始位姿太差、地图质量差</td>
+</tr>
+<tr>
+<td>导航乱走</td>
+<td>定位错误（重定位）或地图陈旧</td>
+</tr>
+<tr>
+<td>激光范围不匹配</td>
+<td>laser_max_range 与地图尺度不符</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>定位是导航的前提，导航整体见 <a href="/posts/1090496406.html">21-导航框架move_base</a>；建图质量对定位影响见 <a href="/posts/3445109373.html">22-建图</a>；实战集成见 <a href="/posts/1488454277.html">39-实战：小车自主导航</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/774536357.html">23-路径规划与避障</a>　下一篇：<a href="/posts/1373317896.html">25-视觉处理</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/2139127442.html">https://zeek-zhao.github.io/posts/2139127442.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros1/">ros1</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1380752574.html" title="24-Qt与C++进阶"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">24-Qt与C++进阶</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握现代 C++ 与 Qt 结合的高级实践。  1. 现代 C++ 概述C++11 起引入的移动语义、智能指针、lambda 与类型推导极大提升表达力，Qt6 全面支持现代特性。现代 C++ 与 Qt 互补：Qt 提供对象模型与容器，标准库提供算法与并发，合理混合发挥各自优势。 2. 智能指针与生命周期std::unique_ptr 独占所有权，std::shared_ptr 共享所有权。Qt 对象树提供父对象管理，结合智能指针明确所有权边界。循环引用用 weak_ptr 打破，资源释放顺序明确避免悬挂。 3. 移动语义与性能移动构造避免深拷贝，容器与字符串传递提升效率。QString、QByteArray 支持移动语义，返回大对象使用值语义自然移动。拷贝与移动策略评估，热路径优化收益明显。 4. Lambda 与函数式风格lambda 捕获上下文实现简洁回调，配合算法库函数式处理容器。std::function 与 Qt 信号槽结合灵活，泛型编程提升复用。可读性与可调试性平衡，避免过度嵌套。 5. 模板与泛型模板元编程与概念约束提升代码通用性，Qt 容...</div></div></div></a><a class="pagination-related" href="/posts/774536357.html" title="23-路径规划与避障"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">23-路径规划与避障</div></div><div class="info-2"><div class="info-item-1">路径规划与避障 [!info] 本节目标理解全局与局部路径规划的分工，掌握 Navfn&#x2F;GlobalPlanner、DWA&#x2F;TEB 局部规划器的配置与避障调参。  1. 两层规划架构1234全局规划：静态地图上找一条从起点到目标的无碰撞路径  （低频、全局、不实时）局部规划：跟随全局路径，实时避障、平滑控制  （高频、局部、实时）  12GlobalPlanner ── 全局路径 ──&gt; 局部规划器 ──&gt; /cmd_vel                                        ↑ 实时传感器  2. 全局规划器   算法 包 特点    Dijkstra navfn 经典、稳定、保证最优性   A* global_planner 更快、启发式   ARA* &#x2F; Anytime global_planner 可中断、大图   采样法（RRT 等） 第三方 高维空间   12345base_global_planner: global_planner/GlobalPlannerGlobalPlanner:  allo...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1504338169.html" title="40-实战：机械臂抓取"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">40-实战：机械臂抓取</div></div><div class="info-2"><div class="info-item-1">实战：机械臂抓取 [!info] 本节目标通过一个完整项目串联机械臂视觉抓取全流程：模型配置、视觉识别、位姿估计、运动规划与抓取执行。  1. 项目概览123目标：机械臂识别目标物体并完成抓取硬件：机械臂（6 轴）+ 深度/彩色相机 + 主控软件：MoveIt + 视觉检测 + 抓取规划     模块 对应章节    URDF&#x2F;工作空间 13-URDF机器人建模   MoveIt 配置 27-MoveIt机械臂控制   视觉处理 25-视觉处理   仿真验证 15-Gazebo仿真、33-仿真场景搭建   2. 系统架构1234567相机(/image_raw,/camera_info)  → 目标检测节点（YOLO/颜色分割）  → 目标像素坐标  → 深度/标定 → 3D 位姿（相机系）  → TF 变换 → base 系抓取位姿  → MoveIt 规划抓取轨迹  → 控制器 → 机械臂执行 + 夹爪闭合  3. 相机外参标定123# 用 aruco/棋盘格标定相机到机械臂基座的外参roslaunch easy_handeye demo.launch# 标定得到 ...</div></div></div></a><a class="pagination-related" href="/posts/774536357.html" title="23-路径规划与避障"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">23-路径规划与避障</div></div><div class="info-2"><div class="info-item-1">路径规划与避障 [!info] 本节目标理解全局与局部路径规划的分工，掌握 Navfn&#x2F;GlobalPlanner、DWA&#x2F;TEB 局部规划器的配置与避障调参。  1. 两层规划架构1234全局规划：静态地图上找一条从起点到目标的无碰撞路径  （低频、全局、不实时）局部规划：跟随全局路径，实时避障、平滑控制  （高频、局部、实时）  12GlobalPlanner ── 全局路径 ──&gt; 局部规划器 ──&gt; /cmd_vel                                        ↑ 实时传感器  2. 全局规划器   算法 包 特点    Dijkstra navfn 经典、稳定、保证最优性   A* global_planner 更快、启发式   ARA* &#x2F; Anytime global_planner 可中断、大图   采样法（RRT 等） 第三方 高维空间   12345base_global_planner: global_planner/GlobalPlannerGlobalPlanner:  allo...</div></div></div></a><a class="pagination-related" href="/posts/3615205173.html" title="11-rospy编程"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">11-rospy编程</div></div><div class="info-2"><div class="info-item-1">rospy 编程 [!info] 本节目标掌握 rospy 的节点初始化、发布&#x2F;订阅、服务、定时器、参数与日志 API，快速开发 Python ROS 节点。  1. rospy 概述rospy 是 ROS1 的 Python 客户端库，开发快、适合算法原型、脚本与工具。核心组成： 12345rospy.init_node     初始化节点rospy.Publisher / Subscriber / Service / ServiceProxyrospy.Timer         定时器rospy.spin()        回调循环rospy.Rate          频率控制   [!note] Python 版本Noetic 使用 Python 3（默认 &#x2F;usr&#x2F;bin&#x2F;python3），Melodic 及以前多为 Python 2。脚本首行写 #!/usr/bin/env python3。  2. 节点初始化12345#!/usr/bin/env python3import rospyrospy.init_node(&#x2...</div></div></div></a><a class="pagination-related" href="/posts/1090496406.html" title="21-导航框架move_base"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">21-导航框架move_base</div></div><div class="info-2"><div class="info-item-1">导航框架 move_base [!info] 本节目标理解 move_base 导航栈的架构、代价地图与全局&#x2F;局部规划器，掌握配置与运行方法。  1. 导航栈概述move_base 是 ROS1 最成熟的自主导航框架，通过动作服务器接收目标点，融合地图、定位、代价地图与规划器完成导航。 1234567目标点(动作) --&gt; move_base  ├── global_costmap  全局代价地图（静态地图+膨胀）  ├── local_costmap   局部代价地图（实时传感器）  ├── global_planner  全局路径规划  ├── local_planner   局部路径规划/避障  └── recovery        恢复行为输出：/cmd_vel --&gt; 底盘  2. 依赖的输入   输入 来源 说明    静态地图 map_server 已知环境地图（SLAM 结果）   定位 AMCL map→odom 变换（见 24-AMCL定位）   里程计 底盘 odom→base_link   激光&#x2F;深度 传感器 局部代价地图...</div></div></div></a><a class="pagination-related" href="/posts/1386748878.html" title="17-自定义消息与srv"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">17-自定义消息与srv</div></div><div class="info-2"><div class="info-item-1">自定义消息与 srv [!info] 本节目标掌握 .msg 与 .srv 文件的定义语法、编译配置与代码使用，能为业务数据定制通信类型。  1. 为什么需要自定义标准消息（std_msgs、geometry_msgs 等）覆盖通用场景，但业务数据往往需要组合字段，如：  机器人状态：位置+速度+温度+状态码 目标点：坐标+方向+优先级 检测结果：类别+置信度+包围盒  自定义 msg&#x2F;srv 让通信类型贴合业务语义，且跨语言共享。 2. msg 文件语法12345678910# 注释以 # 开头string robot_nameint32 idfloat64 xfloat64 yfloat64 theta# 嵌套标准消息geometry_msgs/Point positionstd_msgs/Header header  字段类型速查：    类型 说明    bool &#x2F; int8 &#x2F; int16 &#x2F; int32 &#x2F; int64 整型   uint8 &#x2F; uint16 &#x2F; uint32 &#x2F; uin...</div></div></div></a><a class="pagination-related" href="/posts/3445109373.html" title="22-建图"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">22-建图</div></div><div class="info-2"><div class="info-item-1">建图 [!info] 本节目标掌握 ROS1 主流 2D SLAM 建图工具（gmapping、hector、cartographer）的原理、配置与建图流程。  1. SLAM 与建图概述SLAM（Simultaneous Localization and Mapping）在未知环境中同时定位与建图。建图结果是一张二维栅格地图（PGM&#x2F;YAML），供后续导航使用。 123激光 + 里程计 + IMU  → SLAM 节点  → /map（occupancy grid）+ TF（map→odom）     方法 特点 适用    gmapping 粒子滤波，需里程计，小场景精确 室内小&#x2F;中场景   hector 无里程计，扫描匹配 无人机&#x2F;无轮式   cartographer 图优化，精度高，支持多传感器 大场景&#x2F;生产级   karto&#x2F;slam_toolbox 图优化，可回环 中大场景   2. 建图工作流123451. 启动底盘（/odom + /cmd_vel）2. 启动激光（/scan）3. 启动建图节点（gmapping...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#AMCL-%E5%AE%9A%E4%BD%8D"><span class="toc-number">1.</span> <span class="toc-text">AMCL 定位</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E4%BB%80%E4%B9%88%E6%98%AF-AMCL"><span class="toc-number">1.1.</span> <span class="toc-text">1. 什么是 AMCL</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E7%B2%92%E5%AD%90%E6%BB%A4%E6%B3%A2%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">2. 粒子滤波原理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%90%AF%E5%8A%A8-AMCL"><span class="toc-number">1.3.</span> <span class="toc-text">3. 启动 AMCL</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E8%AE%BE%E7%BD%AE%E5%88%9D%E5%A7%8B%E4%BD%8D%E5%A7%BF"><span class="toc-number">1.4.</span> <span class="toc-text">4. 设置初始位姿</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E9%87%8D%E5%AE%9A%E4%BD%8D%EF%BC%88kidnapped-robot%EF%BC%89"><span class="toc-number">1.5.</span> <span class="toc-text">5. 重定位（kidnapped robot）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E5%8F%82%E6%95%B0%E8%B0%83%E4%BC%98"><span class="toc-number">1.6.</span> <span class="toc-text">6. 参数调优</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E4%B8%8E-move-base-%E9%9B%86%E6%88%90"><span class="toc-number">1.7.</span> <span class="toc-text">7. 与 move_base 集成</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.8.</span> <span class="toc-text">8. 常见问题</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

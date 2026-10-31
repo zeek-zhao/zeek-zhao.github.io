@@ -1,0 +1,608 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>27-安全与签名机制 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="说明: 镜像安全加固、签名验证与供应链安全">
+<meta property="og:type" content="article">
+<meta property="og:title" content="27-安全与签名机制">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3763355679.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="说明: 镜像安全加固、签名验证与供应链安全">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="技能">
+<meta property="article:tag" content="yocto">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "27-安全与签名机制",
+  "url": "https://zeek-zhao.github.io/posts/3763355679.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3763355679.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '27-安全与签名机制',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">27-安全与签名机制</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">27-安全与签名机制</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/yocto/">yocto</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>为 Yocto 系统实施安全加固与镜像签名，保障供应链可信。</p>
+</blockquote>
+<h2 id="1-安全威胁"><a href="#1-安全威胁" class="headerlink" title="1. 安全威胁"></a>1. 安全威胁</h2><p>嵌入式系统面临固件篡改、未授权访问、漏洞利用与供应链攻击等威胁。安全设计贯穿构建、分发与运行全流程。</p>
+<h2 id="2-镜像签名"><a href="#2-镜像签名" class="headerlink" title="2. 镜像签名"></a>2. 镜像签名</h2><p>Yocto 支持对内核、rootfs 与包签名，设备启动时验证签名，防止篡改：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">UBOOT_SIGN_ENABLE = &quot;1&quot;</span><br><span class="line">KERNEL_IMAGE_SIGN = &quot;1&quot;</span><br></pre></td></tr></table></figure>
+
+<h2 id="3-安全加固措施"><a href="#3-安全加固措施" class="headerlink" title="3. 安全加固措施"></a>3. 安全加固措施</h2><table>
+<thead>
+<tr>
+<th>措施</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>只读 rootfs</td>
+<td>防止持久篡改</td>
+</tr>
+<tr>
+<td>最小化软件</td>
+<td>减少攻击面</td>
+</tr>
+<tr>
+<td>移除调试</td>
+<td>关闭调试接口</td>
+</tr>
+<tr>
+<td>安全启动</td>
+<td>链式验证</td>
+</tr>
+<tr>
+<td>更新机制</td>
+<td>及时修补漏洞</td>
+</tr>
+</tbody></table>
+<h2 id="4-包签名"><a href="#4-包签名" class="headerlink" title="4. 包签名"></a>4. 包签名</h2><p>对软件仓库包签名，目标机配置公钥验证，防止安装被篡改的包。</p>
+<h2 id="5-运行安全"><a href="#5-运行安全" class="headerlink" title="5. 运行安全"></a>5. 运行安全</h2><p>配置防火墙、SSH 加固、最小权限与审计日志，运行期持续监控异常。</p>
+<h2 id="6-供应链管理"><a href="#6-供应链管理" class="headerlink" title="6. 供应链管理"></a>6. 供应链管理</h2><p>锁定源码版本与哈希，审计许可证与依赖，使用 SBOM 记录组件清单，提升供应链透明度。</p>
+<h2 id="7-安全测试方法"><a href="#7-安全测试方法" class="headerlink" title="7. 安全测试方法"></a>7. 安全测试方法</h2><p>安全测试包括：漏洞扫描检查系统组件 CVE；渗透测试验证外部攻击面；固件分析确认敏感信息泄露；供应链审计检查依赖来源。Yocto 提供 CVE 检查工具与安全报告，配合外部扫描工具使用。安全测试应定期执行并纳入 CI，新漏洞披露后及时评估影响并安排更新，形成持续安全运营机制。</p>
+<h2 id="8-密钥与证书管理"><a href="#8-密钥与证书管理" class="headerlink" title="8. 密钥与证书管理"></a>8. 密钥与证书管理</h2><p>签名系统依赖密钥管理：私钥保存在安全环境，公钥部署到目标设备；密钥轮换机制定期更换；证书吊销处理失效信任。密钥泄露将破坏整个信任链，需制定严格访问控制与审计。设备端证书用于身份认证，生命周期管理保障长期安全。安全的密钥管理是签名体系有效运行的前提。</p>
+<h2 id="9-安全合规与审计"><a href="#9-安全合规与审计" class="headerlink" title="9. 安全合规与审计"></a>9. 安全合规与审计</h2><p>安全合规涉及行业标准与法规要求，审计保障持续达标：建立安全基线文档，记录安全设计与实现；定期安全评估与渗透测试；漏洞处理流程明确责任与时限。审计日志记录安全事件与操作，便于追溯。安全治理需要组织保障，将安全要求嵌入开发流程，形成持续改进的安全运营体系。<br><em>上一篇：<a href="/posts/3927590782.html">26-音频与多媒体</a>　下一篇：<a href="/posts/647585230.html">28-测试框架（oe-selftest与ptest）</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3763355679.html">https://zeek-zhao.github.io/posts/3763355679.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E6%8A%80%E8%83%BD/">技能</a><a class="post-meta__tags" href="/tags/yocto/">yocto</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/3852281270.html" title="27-安全加固实战"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">27-安全加固实战</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标通过真实场景掌握 SELinux 加固实施步骤。  1. 加固目标加固目标包括：核心服务运行受限域、数据文件独立标签、网络端口最小暴露、用户域受限、日志与审计完备。按资产价值与威胁面排序实施。 2. 服务域收紧案例以 Web 服务为例：确认 httpd_t 域、目录标签、端口标签，关闭不必要布尔值，为应用专属路径定义独立类型，实现进程最小权限。 3. 用户与角色收紧为运维用户映射 staff_u 或 user_u，限制非必要角色；管理员使用 sudo 提权而非直接 root。避免全部用户运行于非受限域。 4. 文件与目录策略敏感数据目录使用独立类型并限制访问域；共享目录明确共享范围；临时目录保持默认类型，防止跨域写。定期用 restorecon 维持标签一致。 5. 审计与监控配置审计事件采集与告警，关注高危拒绝模式；定期生成报告评估加固效果；将加固配置纳入基线管理与合规审计。 6. 加固验收通过模拟攻击与越权测试验证防护：尝试越权读敏感文件、连接未授权端口、执行域外程序，确认均被拒绝且日志有记录，形成加固闭环。 7. 加固清单模板清单应包含：服务域受限...</div></div></div></a><a class="pagination-related" href="/posts/1298008909.html" title="历史版本模块演进（2.0-5.0）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">历史版本模块演进（2.0-5.0）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标梳理 Apollo 2.0 到 5.0 的模块演进，理解关键技术路线的确立过程。  1. 演进总览Apollo 2.0 至 5.0 是从封闭场地走向开放道路、从单场景走向多场景的关键时期，奠定了感知融合、Cyber RT、车路协同等基础。 2. 版本模块对比   版本 感知 规划 平台    2.0 相机+雷达 规则规划 ROS   3.0 多传感器 场景决策 ROS   3.5 融合感知 城市道路 Cyber RT   5.0 点云升级 多场景 Cyber RT   3. 关键演进点 3.5 引入 Cyber RT，奠定高性能框架 5.0 强化点云感知与融合 车路协同逐步纳入系统 规划从规则向场景化发展  4. 演进启示理解演进有助于阅读源码：旧版本的简化实现更易上手，新版本功能完整但复杂度高。新版本方向见 33-端到端自动驾驶 与 34-车路协同。  [!note] 延伸完整版本时间线见 02-版本发展与架构演进；模块细节见 05-核心模块总览。  5. 源码阅读建议阅读历史版本源码有助于理解模块设计演进：2.0 版本结构简单适合入门，3.5 版本引...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/971154648.html" title="14-调试技巧与日志"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">14-调试技巧与日志</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握构建与运行时调试方法，快速定位问题根因。  1. 构建日志构建日志位于 tmp&#x2F;log 与各配方 tmp&#x2F;work&#x2F;…&#x2F;log.* 文件。常用日志包括 log.do_compile、log.do_install 与任务失败日志。 2. 运行时调试目标机调试常用工具：dmesg、journalctl、strace、gdb、tcpdump。Yocto 可配置包含 debug-tweaks 特性与相关工具包。 3. BitBake 调试选项   选项 作用    -e 展开环境查看变量   -c devshell 进入配方调试 shell   -c clean 清理任务   -k 出错后继续   -v 详细输出   4. 常见定位流程先复现问题，再缩小范围：构建问题查日志与环境，运行问题查启动日志与应用日志，网络问题用抓包验证。 5. 使用 buildhistorybuildhistory 记录镜像与包变化，便于对比定位回归。开启后定期检查差异。 6. 远程调试通过 SSH 进入目标机，配置 gdbserver 进行...</div></div></div></a><a class="pagination-related" href="/posts/1009190386.html" title="37-bbappend与补丁"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">37-bbappend与补丁</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 bbappend 扩展机制与补丁管理，实现无侵入定制。  1. bbappend 是什么bbappend 文件在保持原配方不变的前提下追加或覆盖内容，是层机制的核心扩展方式。文件名为原配方名加版本或通配符。 2. 示例覆盖配方变量与增加补丁： 12345# myapp_%.bbappendSRC_URI:append = &quot; file://fix.patch&quot;do_install:append() &#123;    install -m 0644 $&#123;WORKDIR&#125;/myapp.conf $&#123;D&#125;$&#123;sysconfdir&#125;/&#125;  3. 补丁管理补丁加入 SRC_URI，BitBake 自动应用。补丁应基于当前源码版本，说明变更原因，便于后续维护。 4. 生成补丁使用 devtool modify 修改源码后导出补丁，或使用 git format-patch 生成标准补丁。 5. 覆盖冲突多个层覆盖同一配方时按优先级生效，变量与函数覆盖需理解展开时机，避免冲...</div></div></div></a><a class="pagination-related" href="/posts/205673976.html" title="yocto 90-资料索引指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">yocto 90-资料索引指南</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标汇总 Yocto 官方与社区的真实资源入口，给出学习路径建议。  1. 官方文档中心   资源 地址 说明    文档总索引 https://docs.yoctoproject.org/index.html 全部手册入口   各版本手册 https://docs.yoctoproject.org/releases.html 按版本查阅对应手册   Quick Build https://docs.yoctoproject.org/brief-yoctoprojectqs/ 快速构建入门   新手必读 https://docs.yoctoproject.org/what-i-wish-id-known.html 我多么希望当初就知道的 Yocto 知识   概览与概念手册 https://docs.yoctoproject.org/overview-manual/ 体系结构与核心概念   2. 核心手册   手册 地址 用途    Development Tasks Manual https://docs.yoctoproject.org/dev-manu...</div></div></div></a><a class="pagination-related" href="/posts/2449330059.html" title="11-SDK与交叉编译"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">11-SDK与交叉编译</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标生成并使用 Yocto SDK，掌握交叉编译环境搭建与应用开发。  1. 交叉编译概念交叉编译指在宿主机架构上编译目标机架构可执行文件。Yocto 提供完整的交叉工具链，包括编译器、链接器、库与 sysroot。 2. 生成 SDK1bitbake core-image-minimal -c populate_sdk  SDK 脚本位于 tmp&#x2F;deploy&#x2F;sdk&#x2F;，在目标开发机上运行安装即可。 3. 使用 SDK12./tmp/deploy/sdk/*.shsource /opt/poky-sdk/environment-setup-*  设置后可直接使用 gcc、make 等交叉编译工具。 4. 外部工具链配置企业可在 TCMODE 与 EXTERNAL_TOOLCHAIN 配置中使用外部工具链，保证与量产工具链一致。 5. 开发集成SDK 支持与 IDE、CMake、Makefile 集成，便于应用开发团队独立开发。SDK 还包含 QEMU 环境用于目标机验证。 6. 常见问题交叉编译常见问题包括 sysroot 不...</div></div></div></a><a class="pagination-related" href="/posts/320111315.html" title="07-Image镜像构建"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">07-Image镜像构建</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握常用镜像配方，学会定制与生成多种镜像格式。  1. 镜像配方镜像配方（image-*.bb）描述最终系统包含的软件包集合。常用参考镜像：    镜像 内容    core-image-minimal 最小可启动系统   core-image-base 基础系统加常用工具   core-image-full-cmdline 命令行完整工具集   core-image-sato 带桌面 GUI 的系统   2. 自定义镜像创建自定义镜像配方： 1234SUMMARY = &quot;My product image&quot;IMAGE_FEATURES += &quot;ssh-server-openssh debug-tweaks&quot;IMAGE_INSTALL:append = &quot; myapp mylib&quot;inherit core-image  3. 镜像类型通过 IMAGE_FSTYPES 指定输出格式： 1IMAGE_FSTYPES = &quot;ext4 tar.gz wic&quot;  4. 构建与产物1bit...</div></div></div></a><a class="pagination-related" href="/posts/3275333067.html" title="35-容器与边缘计算"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">35-容器与边缘计算</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标在嵌入式 Linux 中部署容器，支撑边缘计算应用。  1. 容器价值容器提供应用隔离、快速部署与依赖管理，适合边缘设备的多应用场景。嵌入式容器需平衡资源开销。 2. 运行时选择常见运行时包括 Docker、containerd、podman 与轻量方案。嵌入式常选 containerd 或 podman 减少开销。 3. Yocto 集成12IMAGE_INSTALL:append = &quot; docker containerd&quot;DISTRO_FEATURES:append = &quot; virtualization&quot;  4. 镜像管理镜像仓库与拉取策略：离线设备需预置镜像，联网设备支持 OTA 更新。镜像层缓存减少存储占用。 5. 安全隔离容器安全依赖内核特性与权限控制，配置 seccomp、AppArmor 与只读根文件系统增强隔离。 6. 边缘实践边缘场景典型应用：数据处理、模型推理与协议网关。容器配合设备管理平台实现远程部署与监控。 7. 资源限制与监控嵌入式容器需限制资源：CPU、内存、磁盘与网络配额，防止单应用...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E5%AE%89%E5%85%A8%E5%A8%81%E8%83%81"><span class="toc-number">1.</span> <span class="toc-text">1. 安全威胁</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E9%95%9C%E5%83%8F%E7%AD%BE%E5%90%8D"><span class="toc-number">2.</span> <span class="toc-text">2. 镜像签名</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%AE%89%E5%85%A8%E5%8A%A0%E5%9B%BA%E6%8E%AA%E6%96%BD"><span class="toc-number">3.</span> <span class="toc-text">3. 安全加固措施</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%8C%85%E7%AD%BE%E5%90%8D"><span class="toc-number">4.</span> <span class="toc-text">4. 包签名</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E8%BF%90%E8%A1%8C%E5%AE%89%E5%85%A8"><span class="toc-number">5.</span> <span class="toc-text">5. 运行安全</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E4%BE%9B%E5%BA%94%E9%93%BE%E7%AE%A1%E7%90%86"><span class="toc-number">6.</span> <span class="toc-text">6. 供应链管理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%AE%89%E5%85%A8%E6%B5%8B%E8%AF%95%E6%96%B9%E6%B3%95"><span class="toc-number">7.</span> <span class="toc-text">7. 安全测试方法</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E5%AF%86%E9%92%A5%E4%B8%8E%E8%AF%81%E4%B9%A6%E7%AE%A1%E7%90%86"><span class="toc-number">8.</span> <span class="toc-text">8. 密钥与证书管理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#9-%E5%AE%89%E5%85%A8%E5%90%88%E8%A7%84%E4%B8%8E%E5%AE%A1%E8%AE%A1"><span class="toc-number">9.</span> <span class="toc-text">9. 安全合规与审计</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

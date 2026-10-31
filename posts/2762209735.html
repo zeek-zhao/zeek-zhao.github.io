@@ -1,0 +1,579 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>26-性能影响与优化 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="说明: SELinux 的性能开销与优化手段">
+<meta property="og:type" content="article">
+<meta property="og:title" content="26-性能影响与优化">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2762209735.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="说明: SELinux 的性能开销与优化手段">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="技能">
+<meta property="article:tag" content="selinux">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "26-性能影响与优化",
+  "url": "https://zeek-zhao.github.io/posts/2762209735.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/2762209735.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '26-性能影响与优化',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">26-性能影响与优化</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">26-性能影响与优化</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/selinux/">selinux</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>评估 SELinux 性能开销并掌握常用优化手段。</p>
+</blockquote>
+<h2 id="1-开销来源"><a href="#1-开销来源" class="headerlink" title="1. 开销来源"></a>1. 开销来源</h2><p>SELinux 在每次对象访问时执行策略检查，开销主要来自规则查找与安全服务器决策。现代内核采用缓存与向量化算法，平均开销通常低于百分之五。</p>
+<h2 id="2-主要影响因素"><a href="#2-主要影响因素" class="headerlink" title="2. 主要影响因素"></a>2. 主要影响因素</h2><p>规则数量、对象类别、日志记录量影响性能。海量规则增加查找时间，大量 AVC 拒绝写入日志造成 IO 开销。合理规划规则与日志策略可显著降低影响。</p>
+<h2 id="3-缓存机制"><a href="#3-缓存机制" class="headerlink" title="3. 缓存机制"></a>3. 缓存机制</h2><p>内核缓存 AVC 决策结果，重复访问命中缓存开销极小。合理使用 dontaudit 减少无关日志，但需谨慎避免掩盖问题。</p>
+<h2 id="4-基准测试方法"><a href="#4-基准测试方法" class="headerlink" title="4. 基准测试方法"></a>4. 基准测试方法</h2><p>使用基准工具对比 permissive 与 enforcing 模式性能，量化开销。测试应覆盖典型业务负载，关注吞吐量与延迟指标，而非理论峰值。</p>
+<h2 id="5-优化手段"><a href="#5-优化手段" class="headerlink" title="5. 优化手段"></a>5. 优化手段</h2><p>优化顺序：精简策略模块与规则、合理布尔值、日志分级与归档、避免频繁模式切换。针对高吞吐服务专项调优，如数据库与缓存服务。</p>
+<h2 id="6-权衡原则"><a href="#6-权衡原则" class="headerlink" title="6. 权衡原则"></a>6. 权衡原则</h2><p>安全与性能需平衡：核心安全功能不应为性能牺牲，性能瓶颈优先从应用层与系统配置入手。定期复测性能与安全基线，保持两者稳定。</p>
+<h2 id="7-性能监控"><a href="#7-性能监控" class="headerlink" title="7. 性能监控"></a>7. 性能监控</h2><p>使用 perf 或内核事件工具观测策略检查热点，结合拒绝日志数量评估异常负载。监控指标包括 AVC 拒绝数、规则命中耗时与缓存命中率。建立性能基线后，策略变更需回归测试。高并发场景下合理使用 dontaudit 与缓存优化，可兼顾安全与性能。</p>
+<h2 id="8-优化权衡案例"><a href="#8-优化权衡案例" class="headerlink" title="8. 优化权衡案例"></a>8. 优化权衡案例</h2><p>高并发网关场景下合理配置缓存与 dontaudit 可显著降低开销，但需评估日志盲区风险。核心数据库策略应保持完整审计。优化目标是在安全需求满足前提下的性能提升，不可牺牲关键防护。案例复盘指导后续调优方向。</p>
+<p><em>上一篇：<a href="/posts/2972766305.html">25-故障排查总览</a>　下一篇：<a href="/posts/3852281270.html">27-安全加固实战</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/2762209735.html">https://zeek-zhao.github.io/posts/2762209735.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E6%8A%80%E8%83%BD/">技能</a><a class="post-meta__tags" href="/tags/selinux/">selinux</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/826334473.html" title="特殊人群训练-青少年"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">特殊人群训练-青少年</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标青少年体能训练促进发育与运动习惯，需遵循生长发育规律设计。  1. 青少年训练价值青少年时期规律运动促进骨骼密度、心肺功能、协调性与心理韧性发展，改善体质与视力问题。 训练核心是发展基本动作技能与运动兴趣，而非过早专项化与极限力量。 2. 生长发育特点青少年骨骼未完全骨化，关节柔韧但力量发展不均；青春期激素变化带来力量与体型的快速增长。 女孩发育早于男孩，个体差异显著，训练强度与内容需个体评估。 3. 训练内容设计以自重与轻负荷训练为主，发展跑跳爬投等基本动作模式，加入平衡、协调与敏捷游戏化训练。 力量训练可适度进行但负荷控制严格，技术优先、避免大重量极限冲击。 4. 运动安全充分热身与补水，避免过度训练与专项过载（尤其投掷与跳跃类）；运动后拉伸与恢复。 青少年出现生长痛与疼痛需鉴别，教练不做诊断，必要时就医。 5. 兴趣与习惯培养训练设计游戏化、多样化、社交化，避免枯燥重复；家长参与建立家庭运动氛围。 以正面鼓励与进步记录激发成就感，帮助建立终身运动习惯。 6. 家校协作训练安排考虑学业负担与作息，与家长沟通目标、频次与营养睡眠建议。 特殊发育问题（肥...</div></div></div></a><a class="pagination-related" href="/posts/3074230429.html" title="场景与地图数据"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">场景与地图数据</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 场景与地图数据的组织、获取与使用方法。  1. 数据分类Apollo 数据分为地图数据、场景数据与测试数据。地图提供静态先验，场景数据用于仿真测试，测试数据用于验证算法。 2. 地图数据组织1234modules/map/data/├── demo_map/       # 演示地图├── sunnyloop/      # 示例地图└── borregas_ave/   # 道路地图  地图目录包含车道、信号灯、路口等数据文件。 3. 场景数据仿真场景以文本或脚本形式定义主车、障碍物与环境参数，见 25-仿真平台（Sim Control）。 4. 数据管理建议   事项 建议    版本管理 地图与场景纳入版本库   命名规范 按区域与用途命名   验证 新地图先仿真验证   更新 地图变化需重新验证    [!note] 延伸高精地图内容见 06-高精地图HD Map；数据采集相关见 18-传感器接入。  5. 数据获取途径地图数据可从 Apollo 官方示例与社区共享获取，也可通过采集车自制。场景数据可通过仿真场景编辑器构造或从...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1003762406.html" title="07-布尔值Boolean配置"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">07-布尔值Boolean配置</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握布尔值的查看、切换与持久化配置。  1. 布尔值概念布尔值（boolean）是策略中预定义的开关，用于在运行时调整策略行为，无需重编译策略。例如 httpd_can_network_connect 控制 Web 服务器能否发起网络连接，默认关闭以收紧权限。 2. 查看布尔值getsebool -a 列出全部布尔值及当前状态，semanage boolean -l 显示默认值与描述。结合 sesearch -b 可查看布尔值影响的规则，理解开关的实际效果。 3. 切换布尔值setsebool 命令临时或持久切换：setsebool -P 布尔值 1 将写入策略存储，重启生效。临时切换用于验证，持久切换用于正式配置，生产环境应记录变更原因。 4. 常见布尔值常见布尔值包括：httpd_can_network_connect、httpd_can_network_connect_db、samba_enable_home_dirs、ssh_sysadm_login、nfs_export_all_rw 等。按服务需求有针对性开启，避免过度放权。 5. 最佳实践最...</div></div></div></a><a class="pagination-related" href="/posts/387038460.html" title="12-RHEL-CentOS-Fedora配置"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">12-RHEL-CentOS-Fedora配置</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 RHEL 系发行版的 SELinux 安装、配置与维护。  1. 默认状态RHEL&#x2F;CentOS&#x2F;Fedora 默认启用 SELinux enforcing 模式，策略为 targeted。安装过程自动打标签，系统开箱即用受限保护，无需额外配置。 2. 模式切换配置文件 &#x2F;etc&#x2F;selinux&#x2F;config 设置 SELINUX&#x3D;enforcing|permissive|disabled。切换 enforcing 与 permissive 可通过 setenforce 命令即时生效，disabled 需重启且系统会重新打标签。 3. 策略包管理发行版提供 selinux-policy-targeted 等策略包，包含基础模块与工具链。通过 dnf 更新策略包与布尔值定义，保持安全补丁与最新规则。 4. 安装排障工具建议安装 setroubleshoot-server、setools-console、policycoreutils-python-utils 等工具包，提供 setroubl...</div></div></div></a><a class="pagination-related" href="/posts/3354707006.html" title="30-布尔值深度应用"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">30-布尔值深度应用</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标深入理解常用布尔值的语义与应用边界。  1. 布尔值本质布尔值是策略中的条件开关，控制一组规则是否生效。开启布尔值比新增规则更易维护与审计，但需理解其影响的完整范围，避免无意识放大权限。 2. 常用布尔值分类网络类如 httpd_can_network_connect 控制服务出网；文件类如 httpd_use_nfs 控制访问 NFS；系统类如 selinuxuser_execmod 控制执行非可执行文件。按域与资源维度分类记忆。 3. 查询与说明getsebool -a 与 semanage boolean -l 列出状态，-C 区分自定义修改。策略文档与 man 页提供说明，结合 sesearch 可查看布尔值对应的具体规则。 4. 开启决策模型决策路径：确认业务确实需要、评估影响面、优先白名单式选项、记录变更原因。禁用同理需验证服务无依赖，避免功能静默失效。 5. 自定义布尔值模块内使用 tunable_policy 宏定义布尔值条件规则，支持运行时切换。设计需明确默认值与语义，文档化触发条件与风险。 6. 安全审计定期审查已开启布尔值，对照业务...</div></div></div></a><a class="pagination-related" href="/posts/3234103349.html" title="35-上下文备份与恢复"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">35-上下文备份与恢复</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握安全上下文备份、迁移与恢复的方法。  1. 备份内容安全上下文备份包括标签数据与 fcontext 规则、布尔值状态、用户映射、自定义模块。仅备份数据文件不足以完整恢复，需配套策略配置备份。 2. 标签备份方法使用 getfattr -R -n security.selinux 导出标签，配合 fcontext 规则备份。批量迁移时保留标签可避免恢复后服务异常。 3. 策略配置备份semanage export 导出布尔值、端口、用户等运行时配置，模块源文件入库版本管理。恢复时先恢复模块与配置，再打标。 4. 恢复流程灾难恢复顺序：恢复系统、安装策略包、导入配置、安装自定义模块、restorecon 全盘打标、验证服务。恢复过程需在 permissive 模式预检。 5. 备份自动化将备份纳入定时任务，输出带时间戳快照；保留多代备份；异地存储。定期演练恢复流程，确保灾难时可快速重建。 6. 常见陷阱恢复后标签缺失导致服务无法启动；模块版本与策略不兼容；用户映射丢失导致登录异常。恢复后全面验证并记录差异。 7. 恢复验证清单恢复后逐项验证：getenf...</div></div></div></a><a class="pagination-related" href="/posts/3598652047.html" title="03-LSM与SELinux架构"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">03-LSM与SELinux架构</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 LSM 框架如何承载 SELinux，掌握其架构层次。  1. LSM 框架Linux 安全模块（LSM）是内核提供的一组安全钩子，在文件操作、进程操作、网络操作等关键路径插入检查点。SELinux、AppArmor、Smack 等模块通过钩子实现各自的访问控制逻辑，同一时间可挂载一个强制访问控制模块。 2. SELinux 模块组成SELinux 内核模块由三部分组成：安全服务器负责策略决策，访问向量缓存（AVC）缓存决策结果，对象管理器维护对象安全上下文。用户空间通过 libselinux 与内核交互。 3. 策略加载流程系统启动时，策略由加载程序读入内核安全服务器；运行时 semodule 等工具可增量加载模块。策略决策先查 AVC 缓存，未命中则调用安全服务器计算并回填缓存，保证访问控制高效执行。 4. 钩子覆盖范围LSM 钩子覆盖文件读写、执行、目录遍历、进程信号、网络收发、IPC 等数百个点。SELinux 通过钩子实现全面控制，任何绕过钩子的访问路径都会被内核统一拦截。 5. 与系统调用关系SELinux 工作在系统调用层之下：应用发...</div></div></div></a><a class="pagination-related" href="/posts/2972766305.html" title="25-故障排查总览"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">25-故障排查总览</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标建立系统化的 SELinux 故障排查流程与思维框架。  1. 排查思路框架故障定位遵循：确认模式与标签、查日志定位拒绝、分析规则缺失、补充规则或布尔值、验证闭环。先排除非 SELinux 因素，再聚焦策略问题，避免误诊。 2. 快速定位手段setenforce 0 临时切 permissive 验证是否 SELinux 导致；ausearch 定位拒绝事件；sesearch 检查规则存在性。三手段组合可快速确认问题域。 3. 常见故障分类文件访问拒绝、端口绑定拒绝、域转换失败、进程间通信拒绝、标签错乱是五类高频故障。分类后套用对应排查模板，效率显著提升。 4. 规则补齐路径补规则遵循最小权限：优先布尔值，其次 fcontext 修正标签，最后编写模块。audit2allow 生成建议后人工审查，防止过度授权。 5. 验证与回归修复后执行实际业务操作验证，重启服务确认域不变，检查日志无新拒绝。形成修复记录与知识库，减少同类问题重复排障。 6. 避免误区避免直接关闭 SELinux、避免大量 dontaudit、避免对策略文件手工篡改。坚持策略化修复，保持...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E5%BC%80%E9%94%80%E6%9D%A5%E6%BA%90"><span class="toc-number">1.</span> <span class="toc-text">1. 开销来源</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E4%B8%BB%E8%A6%81%E5%BD%B1%E5%93%8D%E5%9B%A0%E7%B4%A0"><span class="toc-number">2.</span> <span class="toc-text">2. 主要影响因素</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6"><span class="toc-number">3.</span> <span class="toc-text">3. 缓存机制</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%9F%BA%E5%87%86%E6%B5%8B%E8%AF%95%E6%96%B9%E6%B3%95"><span class="toc-number">4.</span> <span class="toc-text">4. 基准测试方法</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E4%BC%98%E5%8C%96%E6%89%8B%E6%AE%B5"><span class="toc-number">5.</span> <span class="toc-text">5. 优化手段</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E6%9D%83%E8%A1%A1%E5%8E%9F%E5%88%99"><span class="toc-number">6.</span> <span class="toc-text">6. 权衡原则</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7"><span class="toc-number">7.</span> <span class="toc-text">7. 性能监控</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E4%BC%98%E5%8C%96%E6%9D%83%E8%A1%A1%E6%A1%88%E4%BE%8B"><span class="toc-number">8.</span> <span class="toc-text">8. 优化权衡案例</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

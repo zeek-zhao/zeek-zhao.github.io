@@ -1,0 +1,678 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>30-rosbridge与Web端 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="rosbridge 把 ROS2 通信转换为 WebSocket JSON 协议，浏览器&#x2F;移动端无需安装 ROS 即可交互。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="30-rosbridge与Web端">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1138612136.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="rosbridge 把 ROS2 通信转换为 WebSocket JSON 协议，浏览器&#x2F;移动端无需安装 ROS 即可交互。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros2">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "30-rosbridge与Web端",
+  "url": "https://zeek-zhao.github.io/posts/1138612136.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/1138612136.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '30-rosbridge与Web端',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">30-rosbridge与Web端</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">30-rosbridge与Web端</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros2/">ros2</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="rosbridge-与-Web-端"><a href="#rosbridge-与-Web-端" class="headerlink" title="rosbridge 与 Web 端"></a>rosbridge 与 Web 端</h1><blockquote>
+<p>[!info] 本节目标<br>掌握 rosbridge 桥接机制，能通过 WebSocket 在浏览器中收发 ROS2 话题与服务。</p>
+</blockquote>
+<h2 id="1-rosbridge-架构"><a href="#1-rosbridge-架构" class="headerlink" title="1. rosbridge 架构"></a>1. rosbridge 架构</h2><p>rosbridge 把 ROS2 通信转换为 WebSocket JSON 协议，浏览器&#x2F;移动端无需安装 ROS 即可交互。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ROS2 节点 &lt;-&gt; rosbridge_server &lt;-&gt; WebSocket &lt;-&gt; Web 前端</span><br><span class="line">                                            (roslibjs)</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>rosbridge_server</td>
+<td>ROS2 侧 WebSocket 服务</td>
+</tr>
+<tr>
+<td>roslibjs</td>
+<td>前端 JS 库</td>
+</tr>
+<tr>
+<td>ros2djs &#x2F; ros2d</td>
+<td>2D 地图可视化</td>
+</tr>
+<tr>
+<td>rviz_web &#x2F; foxglove</td>
+<td>高级可视化</td>
+</tr>
+</tbody></table>
+<h2 id="2-安装与启动"><a href="#2-安装与启动" class="headerlink" title="2. 安装与启动"></a>2. 安装与启动</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> apt install -y ros-humble-rosbridge-suite</span><br><span class="line"></span><br><span class="line">ros2 launch rosbridge_server rosbridge_websocket_launch.xml</span><br><span class="line"><span class="comment"># 默认端口 9090</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 参数<br>可设置 <code>port</code>、<code>address</code>；跨机访问注意防火墙与回环地址。</p>
+</blockquote>
+<h2 id="3-前端连接（roslibjs）"><a href="#3-前端连接（roslibjs）" class="headerlink" title="3. 前端连接（roslibjs）"></a>3. 前端连接（roslibjs）</h2><figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">script</span> <span class="attr">src</span>=<span class="string">&quot;https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js&quot;</span>&gt;</span><span class="tag">&lt;/<span class="name">script</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">script</span>&gt;</span><span class="language-javascript"></span></span><br><span class="line"><span class="language-javascript"><span class="keyword">const</span> ros = <span class="keyword">new</span> <span class="variable constant_">ROSLIB</span>.<span class="title class_">Ros</span>(&#123; <span class="attr">url</span>: <span class="string">&#x27;ws://localhost:9090&#x27;</span> &#125;);</span></span><br><span class="line"><span class="language-javascript"></span></span><br><span class="line"><span class="language-javascript">ros.<span class="title function_">on</span>(<span class="string">&#x27;connection&#x27;</span>, <span class="function">() =&gt;</span> <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;connected&#x27;</span>));</span></span><br><span class="line"><span class="language-javascript">ros.<span class="title function_">on</span>(<span class="string">&#x27;error&#x27;</span>, <span class="function">(<span class="params">e</span>) =&gt;</span> <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;error&#x27;</span>, e));</span></span><br><span class="line"><span class="language-javascript">ros.<span class="title function_">on</span>(<span class="string">&#x27;close&#x27;</span>, <span class="function">() =&gt;</span> <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;closed&#x27;</span>));</span></span><br><span class="line"><span class="language-javascript"></span></span><br><span class="line"><span class="language-javascript"><span class="comment">// 订阅话题</span></span></span><br><span class="line"><span class="language-javascript"><span class="keyword">const</span> chatter = <span class="keyword">new</span> <span class="variable constant_">ROSLIB</span>.<span class="title class_">Topic</span>(&#123;</span></span><br><span class="line"><span class="language-javascript">  <span class="attr">ros</span>: ros, <span class="attr">name</span>: <span class="string">&#x27;/chatter&#x27;</span>, <span class="attr">messageType</span>: <span class="string">&#x27;std_msgs/msg/String&#x27;</span></span></span><br><span class="line"><span class="language-javascript">&#125;);</span></span><br><span class="line"><span class="language-javascript">chatter.<span class="title function_">subscribe</span>(<span class="function">(<span class="params">msg</span>) =&gt;</span> &#123;</span></span><br><span class="line"><span class="language-javascript">  <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;received:&#x27;</span>, msg.<span class="property">data</span>);</span></span><br><span class="line"><span class="language-javascript">  <span class="variable language_">document</span>.<span class="title function_">getElementById</span>(<span class="string">&#x27;msg&#x27;</span>).<span class="property">innerText</span> = msg.<span class="property">data</span>;</span></span><br><span class="line"><span class="language-javascript">&#125;);</span></span><br><span class="line"><span class="language-javascript"></span></span><br><span class="line"><span class="language-javascript"><span class="comment">// 发布话题</span></span></span><br><span class="line"><span class="language-javascript"><span class="keyword">const</span> cmdVel = <span class="keyword">new</span> <span class="variable constant_">ROSLIB</span>.<span class="title class_">Topic</span>(&#123;</span></span><br><span class="line"><span class="language-javascript">  <span class="attr">ros</span>: ros, <span class="attr">name</span>: <span class="string">&#x27;/cmd_vel&#x27;</span>, <span class="attr">messageType</span>: <span class="string">&#x27;geometry_msgs/msg/Twist&#x27;</span></span></span><br><span class="line"><span class="language-javascript">&#125;);</span></span><br><span class="line"><span class="language-javascript"><span class="keyword">function</span> <span class="title function_">move</span>(<span class="params"></span>) &#123;</span></span><br><span class="line"><span class="language-javascript">  <span class="keyword">const</span> twist = <span class="keyword">new</span> <span class="variable constant_">ROSLIB</span>.<span class="title class_">Message</span>(&#123;</span></span><br><span class="line"><span class="language-javascript">    <span class="attr">linear</span>: &#123; <span class="attr">x</span>: <span class="number">0.2</span>, <span class="attr">y</span>: <span class="number">0.0</span>, <span class="attr">z</span>: <span class="number">0.0</span> &#125;,</span></span><br><span class="line"><span class="language-javascript">    <span class="attr">angular</span>: &#123; <span class="attr">x</span>: <span class="number">0.0</span>, <span class="attr">y</span>: <span class="number">0.0</span>, <span class="attr">z</span>: <span class="number">0.5</span> &#125;</span></span><br><span class="line"><span class="language-javascript">  &#125;);</span></span><br><span class="line"><span class="language-javascript">  cmdVel.<span class="title function_">publish</span>(twist);</span></span><br><span class="line"><span class="language-javascript">&#125;</span></span><br><span class="line"><span class="language-javascript"></span><span class="tag">&lt;/<span class="name">script</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 消息类型<br>前端 messageType 必须与 ROS2 侧完全一致（含包名前缀），否则订阅无数据。</p>
+</blockquote>
+<h2 id="4-服务调用"><a href="#4-服务调用" class="headerlink" title="4. 服务调用"></a>4. 服务调用</h2><figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">script</span>&gt;</span><span class="language-javascript"></span></span><br><span class="line"><span class="language-javascript"><span class="keyword">const</span> addTwoInts = <span class="keyword">new</span> <span class="variable constant_">ROSLIB</span>.<span class="title class_">Service</span>(&#123;</span></span><br><span class="line"><span class="language-javascript">  <span class="attr">ros</span>: ros, <span class="attr">name</span>: <span class="string">&#x27;/add_two_ints&#x27;</span>,</span></span><br><span class="line"><span class="language-javascript">  <span class="attr">serviceType</span>: <span class="string">&#x27;example_interfaces/srv/AddTwoInts&#x27;</span></span></span><br><span class="line"><span class="language-javascript">&#125;);</span></span><br><span class="line"><span class="language-javascript"><span class="keyword">const</span> request = <span class="keyword">new</span> <span class="variable constant_">ROSLIB</span>.<span class="title class_">ServiceRequest</span>(&#123; <span class="attr">a</span>: <span class="number">2</span>, <span class="attr">b</span>: <span class="number">3</span> &#125;);</span></span><br><span class="line"><span class="language-javascript">addTwoInts.<span class="title function_">callService</span>(request, <span class="function">(<span class="params">result</span>) =&gt;</span> &#123;</span></span><br><span class="line"><span class="language-javascript">  <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;sum:&#x27;</span>, result.<span class="property">sum</span>);</span></span><br><span class="line"><span class="language-javascript">&#125;);</span></span><br><span class="line"><span class="language-javascript"></span><span class="tag">&lt;/<span class="name">script</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 服务超时<br>Web 服务调用是异步的；前端可加 loading 状态，服务端不可用时设置超时提示。</p>
+</blockquote>
+<h2 id="5-TF-与地图可视化"><a href="#5-TF-与地图可视化" class="headerlink" title="5. TF 与地图可视化"></a>5. TF 与地图可视化</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">方案 A：ros2djs + map（OccupancyGrid）</span><br><span class="line">方案 B：web_video_server 视频流</span><br><span class="line">方案 C：Foxglove Studio WebSocket 接入</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 视频流方案</span></span><br><span class="line"><span class="built_in">sudo</span> apt install -y ros-humble-web-video-server</span><br><span class="line">ros2 run web_video_server web_video_server</span><br><span class="line"><span class="comment"># 浏览器访问 http://localhost:8080/stream?topic=/image_raw</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 地图可视化<br>ros2djs 通过订阅 <code>/map</code>（nav_msgs&#x2F;OccupancyGrid）渲染二维栅格，配合机器人位姿显示。</p>
+</blockquote>
+<h2 id="6-安全考虑"><a href="#6-安全考虑" class="headerlink" title="6. 安全考虑"></a>6. 安全考虑</h2><table>
+<thead>
+<tr>
+<th>风险</th>
+<th>对策</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>未授权访问</td>
+<td>部署在可信网络、加认证代理</td>
+</tr>
+<tr>
+<td>指令滥用</td>
+<td>服务端做权限校验</td>
+</tr>
+<tr>
+<td>明文传输</td>
+<td>WebSocket 升级 TLS（wss）</td>
+</tr>
+<tr>
+<td>端口暴露</td>
+<td>不直接暴露公网</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!warning] 安全提示<br>rosbridge 本身无认证机制；远程控制机器人务必加访问控制层（见 <a href="/posts/26068340.html">34-安全与权限</a>）。</p>
+</blockquote>
+<h2 id="7-常见问题"><a href="#7-常见问题" class="headerlink" title="7. 常见问题"></a>7. 常见问题</h2><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>排查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>连接失败</td>
+<td>端口、地址、防火墙</td>
+</tr>
+<tr>
+<td>订阅无数据</td>
+<td>类型名、QoS 不匹配</td>
+</tr>
+<tr>
+<td>中文乱码</td>
+<td>统一 UTF-8 编码</td>
+</tr>
+<tr>
+<td>高负载卡顿</td>
+<td>消息频率、压缩</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>跨网络通信见 <a href="/posts/4265837254.html">29-多机器人协同</a>；部署安全见 <a href="/posts/26068340.html">34-安全与权限</a>；Web 可视化常与 <a href="/posts/1106872961.html">17-rviz2可视化</a> 对照。</p>
+</blockquote>
+<h2 id="8-Web-端工程实践"><a href="#8-Web-端工程实践" class="headerlink" title="8. Web 端工程实践"></a>8. Web 端工程实践</h2><p>Web 端工程实践注意：rosbridge 转发时需控制消息带宽，高频话题在服务端降采样或只转发摘要，避免浏览器与网络过载；前端订阅话题需处理断线重连与 QoS 差异。安全方面 WebSocket 端口应加鉴权与 TLS（见 <a href="/posts/26068340.html">34-安全与权限</a>）。常用模式是 Web 端下发目标、接收状态与可视化，复杂计算留在机器人端。调试用 rosbridge 自带测试页与 WebSocket 抓包工具。上线前做多浏览器与弱网测试。</p>
+<blockquote>
+<p>[!note] 建议<br>rosbridge 是 ROS2 与互联网世界连接的桥梁，适合远程监控与云端调度；与多机器人、部署结合见 <a href="/posts/4265837254.html">29-多机器人协同</a>、<a href="/posts/496626970.html">38-产品化与部署实践</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/4265837254.html">29-多机器人协同</a>　下一篇：<a href="/posts/1661557767.html">31-ROS2与Docker</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/1138612136.html">https://zeek-zhao.github.io/posts/1138612136.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros2/">ros2</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2405586932.html" title="30-中断安全编程"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">30-中断安全编程</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握中断服务程序安全编程实践。  1. ISR 编程原则中断服务程序应短小快速，只处理必要的硬件状态与数据传递。耗时逻辑移交任务执行。ISR 中调用 API 必须使用 FromISR 后缀版本，确保内核状态安全。 2. 安全 API 清单队列、信号量、事件组、任务通知与缓冲提供 FromISR 版本。发送与通知接口可在 ISR 使用，接收接口部分支持。获取系统状态如 Tick 计数有中断安全版本。 3. 高优先级任务唤醒ISR 通知后调用 portYIELD_FROM_ISR，若唤醒任务优先级高于当前任务立即切换。优化中断到任务响应延迟。条件切换减少无谓上下文切换。 4. ISR 与共享数据ISR 与任务共享数据需保护，使用临界区或原子操作。ISR 中临界区使用中断安全宏。数据传递优先通过队列与缓冲，避免直接共享复杂结构。 5. 中断嵌套嵌套中断中高优先级中断可打断低优先级中断，ISR 内仍需保持安全。嵌套深度影响栈使用与响应。FreeRTOS 配置限制可调用 API 的中断优先级，避免破坏临界区。 6. 外设中断实践外设中断处理典型流程：读取状态与数据...</div></div></div></a><a class="pagination-related" href="/posts/1820681443.html" title="30-ROS与Docker"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">30-ROS与Docker</div></div><div class="info-2"><div class="info-item-1">ROS 与 Docker [!info] 本节目标掌握使用 Docker 构建 ROS1 开发&#x2F;运行环境、镜像制作与常见部署方式。  1. 为什么用 Docker   优势 说明    环境隔离 不同 ROS 版本&#x2F;依赖共存   快速部署 一键拉取镜像即用   可复现 团队统一环境   干净卸载 删除容器即可   2. 基础镜像1234# 官方 ROS 镜像docker pull ros:noeticdocker pull ros:noetic-ros-coredocker pull ros:noetic-ros-base     镜像标签 内容    ros:noetic-ros-core 最小核心   ros:noetic-ros-base 基础工具   ros:noetic 完整桌面    [!tip] 国内加速网络慢时配置 Docker 镜像加速器（如 daocloud 等），或使用国内源构建基础镜像。  3. 运行交互容器1234567891011# 交互式启动（挂载工作空间）docker run -it --rm \  --name ros_noe...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/2928992651.html" title="23-SLAM建图"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">23-SLAM建图</div></div><div class="info-2"><div class="info-item-1">SLAM 建图 [!info] 本节目标理解 SLAM 原理，掌握 cartographer 与 slam_toolbox 在 ROS2 中的建图配置与流程。  1. SLAM 概述SLAM（Simultaneous Localization and Mapping）同时解决定位与建图：机器人边移动边更新地图与自身位姿。    流派 代表 特点    2D 栅格 cartographer、slam_toolbox 激光、室内   3D LIO-SAM、FAST-LIO LiDAR+IMU   视觉 ORB-SLAM3 相机   多传感器 融合方案 复杂环境    [!note] 导航关系SLAM 建图与 Nav2 定位是两阶段：先建图（cartographer&#x2F;slam_toolbox），后导航（AMCL 加载地图）。  2. slam_toolbox 建图1234sudo apt install -y ros-humble-slam-toolboxros2 launch slam_toolbox online_async_launch.py \  params_fil...</div></div></div></a><a class="pagination-related" href="/posts/3559813711.html" title="20-日志与调试工具"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">20-日志与调试工具</div></div><div class="info-2"><div class="info-item-1">日志与调试工具 [!info] 本节目标掌握 ROS2 日志系统、日志级别控制、ros2 doctor 诊断与常用调试工具链。  1. 日志系统ROS2 日志输出到 stdout（默认）并可通过 RCLCPP_INFO &#x2F; get_logger().info 控制。    级别 用途    DEBUG 调试细节   INFO 常规信息   WARN 警告   ERROR 错误   FATAL 致命   1234# 设置日志级别ros2 run my_pkg node --ros-args --log-level debugros2 run my_pkg node --ros-args \  --log-level my_pkg:=warn   [!note] 按节点设置--log-level pkg:=level 只对该包节点生效；全局用 --log-level level。  2. 日志 API1234RCLCPP_DEBUG(get_logger(), &quot;debug: %d&quot;, x);RCLCPP_INFO(get_logger(), &quot...</div></div></div></a><a class="pagination-related" href="/posts/344998706.html" title="ros2 06-话题通信"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">ros2 06-话题通信</div></div><div class="info-2"><div class="info-item-1">话题通信 [!info] 本节目标掌握 ROS2 话题通信机制，能用 rclcpp 与 rclpy 编写发布者&#x2F;订阅者，并理解 QoS 的作用。  1. 话题通信模型话题是异步单向通道：发布者（Publisher）向话题名写入消息，订阅者（Subscriber）从话题名读取消息。一对多、多对多皆可，两端完全解耦。 12[发布者] --msg--&gt; /chatter --&gt; [订阅者1]                            --&gt; [订阅者2]     特性 说明    方向 单向异步   匹配 话题名 + 消息类型 + QoS   可靠性 由 QoS 决定（可靠&#x2F;尽力）   适用 传感器流、状态流、命令流   2. Python 发布者12345678910111213141516171819202122232425262728#!/usr/bin/env python3import rclpyfrom rclpy.node import Nodefrom std_msgs.msg import Stringclass Ta...</div></div></div></a><a class="pagination-related" href="/posts/1106872961.html" title="17-rviz2可视化"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">17-rviz2可视化</div></div><div class="info-2"><div class="info-item-1">rviz2 可视化 [!info] 本节目标掌握 rviz2 的显示类型、话题订阅、TF 树显示与配置保存，高效可视化调试。  1. rviz2 简介rviz2 是 ROS2 的 3D 可视化工具，用于显示机器人模型、传感器数据、TF 树、路径等。 1ros2 run rviz2 rviz2   [!note] 界面左侧 Display 面板管理显示项，中央 3D 视图，顶部工具栏切换视角&#x2F;测量。  2. 常用 Display 类型   Display 用途    RobotModel 显示 URDF 模型   LaserScan 2D 激光点云   PointCloud2 3D 点云   TF 坐标系与箭头   Image 图像话题（相机）   Path 路径   Marker 标记（文本&#x2F;箭头&#x2F;立方体）   Map 栅格地图   3. 添加与配置 Display 点击 Add → 选择 Display 类型 设置 Topic（如 /scan） 设置 Fixed Frame（如 map 或 odom） 调节 Size&#x2F;Color&#x2F...</div></div></div></a><a class="pagination-related" href="/posts/131381209.html" title="ros2 07-服务通信"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">ros2 07-服务通信</div></div><div class="info-2"><div class="info-item-1">服务通信 [!info] 本节目标掌握 ROS2 服务通信机制，能编写服务端与客户端，并理解同步请求-响应模型。  1. 服务通信模型服务是同步双向通信：客户端发送请求，服务端处理并返回响应。服务接口（srv）由请求（request）与响应（response）两部分组成。 12[客户端] --request--&gt; /add_two_ints --&gt; [服务端]         &lt;--response--                      特性 说明    方向 同步请求-响应   接口 srv（request + response）   并发 一个服务端可服务多个客户端   适用 查询、配置、低频指令   2. 定义服务接口12345# srv/AddTwoInts.srvint64 aint64 b---int64 sum  12&lt;!-- package.xml 增加 --&gt;&lt;depend&gt;example_interfaces&lt;/depend&gt;   [!note] 内置服务std_srvs/srv/Empty（无参数...</div></div></div></a><a class="pagination-related" href="/posts/3191786011.html" title="11-rclpy编程"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">11-rclpy编程</div></div><div class="info-2"><div class="info-item-1">rclpy 编程（Python） [!info] 本节目标掌握 rclpy Python 客户端库的节点编写、发布订阅、服务、动作、参数与定时器用法。  1. rclpy 概览rclpy 是 ROS2 的 Python 客户端库，适合快速原型、逻辑型节点、胶水代码与工具脚本。 12ros2 pkg create py_demo --build-type ament_python \  --dependencies rclpy std_msgs   [!note] 包结构ament_python 包：setup.py 声明入口点，包目录放 .py 源码；详见 04-工作空间与colcon构建。  2. 入口点配置12345678910111213# setup.pyfrom setuptools import find_packages, setupsetup(    name=&#x27;py_demo&#x27;,    packages=find_packages(exclude=[&#x27;test&#x27;]),    entry_points=&#123;     ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#rosbridge-%E4%B8%8E-Web-%E7%AB%AF"><span class="toc-number">1.</span> <span class="toc-text">rosbridge 与 Web 端</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-rosbridge-%E6%9E%B6%E6%9E%84"><span class="toc-number">1.1.</span> <span class="toc-text">1. rosbridge 架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%AE%89%E8%A3%85%E4%B8%8E%E5%90%AF%E5%8A%A8"><span class="toc-number">1.2.</span> <span class="toc-text">2. 安装与启动</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%89%8D%E7%AB%AF%E8%BF%9E%E6%8E%A5%EF%BC%88roslibjs%EF%BC%89"><span class="toc-number">1.3.</span> <span class="toc-text">3. 前端连接（roslibjs）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E6%9C%8D%E5%8A%A1%E8%B0%83%E7%94%A8"><span class="toc-number">1.4.</span> <span class="toc-text">4. 服务调用</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-TF-%E4%B8%8E%E5%9C%B0%E5%9B%BE%E5%8F%AF%E8%A7%86%E5%8C%96"><span class="toc-number">1.5.</span> <span class="toc-text">5. TF 与地图可视化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E5%AE%89%E5%85%A8%E8%80%83%E8%99%91"><span class="toc-number">1.6.</span> <span class="toc-text">6. 安全考虑</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.7.</span> <span class="toc-text">7. 常见问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-Web-%E7%AB%AF%E5%B7%A5%E7%A8%8B%E5%AE%9E%E8%B7%B5"><span class="toc-number">1.8.</span> <span class="toc-text">8. Web 端工程实践</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

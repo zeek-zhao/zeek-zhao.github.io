@@ -1,0 +1,681 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>25-AMCL定位 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="AMCL（Adaptive Monte Carlo Localization）用粒子滤波估计机器人在地图上的位姿：粒子集合表示概率分布，随激光观测不断重采样收敛。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="25-AMCL定位">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3827643133.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="AMCL（Adaptive Monte Carlo Localization）用粒子滤波估计机器人在地图上的位姿：粒子集合表示概率分布，随激光观测不断重采样收敛。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros2">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "25-AMCL定位",
+  "url": "https://zeek-zhao.github.io/posts/3827643133.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3827643133.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '25-AMCL定位',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">25-AMCL定位</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">25-AMCL定位</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros2/">ros2</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="AMCL-定位"><a href="#AMCL-定位" class="headerlink" title="AMCL 定位"></a>AMCL 定位</h1><blockquote>
+<p>[!info] 本节目标<br>理解 AMCL 粒子滤波定位原理，掌握在已知地图上的定位配置与初始位姿设置。</p>
+</blockquote>
+<h2 id="1-AMCL-原理"><a href="#1-AMCL-原理" class="headerlink" title="1. AMCL 原理"></a>1. AMCL 原理</h2><p>AMCL（Adaptive Monte Carlo Localization）用粒子滤波估计机器人在地图上的位姿：粒子集合表示概率分布，随激光观测不断重采样收敛。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">初始粒子（均匀/指定） -&gt; 运动预测 -&gt; 激光观测更新权重 -&gt; 重采样</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>粒子</td>
+<td>候选位姿（x, y, theta）</td>
+</tr>
+<tr>
+<td>重采样</td>
+<td>淘汰低权重粒子</td>
+</tr>
+<tr>
+<td>收敛</td>
+<td>粒子聚集到真实位姿</td>
+</tr>
+<tr>
+<td>绑架恢复</td>
+<td>粒子扩散重新定位</td>
+</tr>
+</tbody></table>
+<h2 id="2-安装与启动"><a href="#2-安装与启动" class="headerlink" title="2. 安装与启动"></a>2. 安装与启动</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> apt install -y ros-humble-nav2-amcl</span><br><span class="line"></span><br><span class="line"><span class="comment"># 随 Nav2 一起启动（navigation_launch.py 内含 amcl）</span></span><br><span class="line">ros2 launch nav2_bringup navigation_launch.py \</span><br><span class="line">  params_file:=/path/to/nav2_params.yaml</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 前提<br>AMCL 需要：静态地图（map_server 发布 &#x2F;map）、TF（odom-&gt;base_link）、激光话题。</p>
+</blockquote>
+<h2 id="3-参数配置"><a href="#3-参数配置" class="headerlink" title="3. 参数配置"></a>3. 参数配置</h2><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">amcl:</span></span><br><span class="line">  <span class="attr">ros__parameters:</span></span><br><span class="line">    <span class="attr">use_sim_time:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">alpha1:</span> <span class="number">0.2</span></span><br><span class="line">    <span class="attr">alpha2:</span> <span class="number">0.2</span></span><br><span class="line">    <span class="attr">alpha3:</span> <span class="number">0.2</span></span><br><span class="line">    <span class="attr">alpha4:</span> <span class="number">0.2</span></span><br><span class="line">    <span class="attr">alpha5:</span> <span class="number">0.2</span></span><br><span class="line">    <span class="attr">base_frame_id:</span> <span class="string">base_link</span></span><br><span class="line">    <span class="attr">global_frame_id:</span> <span class="string">map</span></span><br><span class="line">    <span class="attr">odom_frame_id:</span> <span class="string">odom</span></span><br><span class="line">    <span class="attr">scan_topic:</span> <span class="string">/scan</span></span><br><span class="line">    <span class="attr">max_particles:</span> <span class="number">2000</span></span><br><span class="line">    <span class="attr">min_particles:</span> <span class="number">500</span></span><br><span class="line">    <span class="attr">pf_err:</span> <span class="number">0.05</span></span><br><span class="line">    <span class="attr">pf_z:</span> <span class="number">0.99</span></span><br><span class="line">    <span class="attr">transform_tolerance:</span> <span class="number">1.0</span></span><br><span class="line">    <span class="attr">update_min_d:</span> <span class="number">0.25</span></span><br><span class="line">    <span class="attr">update_min_a:</span> <span class="number">0.2</span></span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>alpha1-5</td>
+<td>运动模型噪声（越大扩散越快）</td>
+</tr>
+<tr>
+<td>max&#x2F;min_particles</td>
+<td>精度与性能平衡</td>
+</tr>
+<tr>
+<td>update_min_d&#x2F;a</td>
+<td>最小位移&#x2F;角度触发更新</td>
+</tr>
+<tr>
+<td>pf_err &#x2F; pf_z</td>
+<td>重采样阈值</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!tip] 收敛慢<br>增大粒子数或调大 alpha 噪声；定位抖动则适当降低噪声。</p>
+</blockquote>
+<h2 id="4-设置初始位姿"><a href="#4-设置初始位姿" class="headerlink" title="4. 设置初始位姿"></a>4. 设置初始位姿</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">rviz2:</span><br><span class="line">1. 加载地图</span><br><span class="line">2. 点击 &quot;2D Pose Estimate&quot;</span><br><span class="line">3. 在地图上点击并拖出方向（大致机器人朝向）</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 命令行方式（等价）</span></span><br><span class="line">ros2 topic pub /initialpose geometry_msgs/msg/PoseWithCovarianceStamped \</span><br><span class="line">  <span class="string">&quot;&#123;header: &#123;frame_id: &#x27;map&#x27;&#125;,</span></span><br><span class="line"><span class="string">   pose: &#123;pose: &#123;position: &#123;x: 0.5, y: 0.2, z: 0.0&#125;,</span></span><br><span class="line"><span class="string">   orientation: &#123;w: 1.0&#125;&#125;&#125;&#125;&quot;</span> --once</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 初始位姿<br>初始位姿差太多会导致粒子长时间不收敛；尽量给准确朝向，必要时多次发布。</p>
+</blockquote>
+<h2 id="5-定位输出"><a href="#5-定位输出" class="headerlink" title="5. 定位输出"></a>5. 定位输出</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">/amcl_pose          PoseWithCovarianceStamped（定位结果）</span><br><span class="line">/particlecloud      ParticleCloud（粒子可视化）</span><br><span class="line">map -&gt; odom TF      由 AMCL 发布（修正累积漂移）</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ros2 topic <span class="built_in">echo</span> /amcl_pose --once</span><br><span class="line"><span class="comment"># rviz 中显示粒子云可观察收敛程度</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 观察收敛<br>粒子聚集程度是定位是否成功的直接指标；分散说明未收敛。</p>
+</blockquote>
+<h2 id="6-全局重定位（绑架）"><a href="#6-全局重定位（绑架）" class="headerlink" title="6. 全局重定位（绑架）"></a>6. 全局重定位（绑架）</h2><p>机器人被搬动或定位丢失时，重新发布初始位姿（2D Pose Estimate）即可重新收敛；也可设置 <code>resampling_interval</code> 让粒子定期扩散。</p>
+<blockquote>
+<p>[!note] 重定位技巧<br>先手动把机器人放回地图上已知位置，发布准确初始位姿，等粒子收敛后再导航。</p>
+</blockquote>
+<h2 id="7-常见问题"><a href="#7-常见问题" class="headerlink" title="7. 常见问题"></a>7. 常见问题</h2><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>排查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定位漂移</td>
+<td>初始位姿不准、里程计差、地图精度</td>
+</tr>
+<tr>
+<td>粒子不收敛</td>
+<td>初始位姿差、激光盲区多</td>
+</tr>
+<tr>
+<td>TF 跳变</td>
+<td>amcl 与 odom 冲突</td>
+</tr>
+<tr>
+<td>定位丢失</td>
+<td>重新发布 initialpose</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>与建图衔接见 <a href="/posts/2928992651.html">23-SLAM建图</a>；导航整体见 <a href="/posts/2969019117.html">22-导航2框架</a>；实战见 <a href="/posts/4258040718.html">39-实战：自动驾驶小车</a>。</p>
+</blockquote>
+<h2 id="8-定位调参技巧"><a href="#8-定位调参技巧" class="headerlink" title="8. 定位调参技巧"></a>8. 定位调参技巧</h2><p>定位调参要点：初始位姿必须大致准确，误差过大时粒子难以收敛；里程计精度差时适当增大运动模型噪声让粒子更快扩散，但过大则定位抖动。环境特征稀疏时增加粒子数或改用更好的传感器融合。定位漂移的常见原因有地图质量差、激光盲区、里程计打滑，逐项排查。多楼层或大场景建议分区地图与初始位姿脚本化，简化现场操作。定位与导航是闭环，定位稳定后才能谈导航性能。</p>
+<blockquote>
+<p>[!note] 建议<br>定位是导航闭环的基石，定位不稳应先解决定位再调规划；导航整体见 <a href="/posts/2969019117.html">22-导航2框架</a>，实战见 <a href="/posts/4258040718.html">39-实战：自动驾驶小车</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/1486087179.html">24-路径规划与避障</a>　下一篇：<a href="/posts/767168211.html">26-视觉处理</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3827643133.html">https://zeek-zhao.github.io/posts/3827643133.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros2/">ros2</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/4025911074.html" title="25-DFS文件系统"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">25-DFS文件系统</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 DFS 文件系统与存储设备集成。  1. DFS 概述DFS 是 RT-Thread 虚拟文件系统，提供统一文件操作接口。DFS 管理挂载点，支持多种底层文件系统与存储设备。应用通过标准接口访问文件，与具体文件系统解耦。 2. 文件系统类型RT-Thread 支持 FatFS、littlefs 与 ext 等文件系统。FatFS 兼容性好，适合 SD 卡与 U 盘；littlefs 适合 Flash 磨损均衡。按存储介质与可靠性需求选择，配置对应文件系统。 3. 挂载与格式化存储设备注册后，使用 mkfs 格式化并 mount 挂载。挂载点关联设备与文件系统，常用 &#x2F; 根挂载。df 查看挂载与空间，挂载信息持久化配置。文件系统初始化在启动流程配置。 4. 文件操作接口open、read、write、close 与目录遍历接口统一，POSIX 兼容。文件偏移与缓冲管理，错误码规范。文件系统操作支持多线程访问，锁机制保证并发安全。 5. 存储设备对接块设备驱动对接 SD 卡、SPI Flash 与 eMMC。驱动提供读写与擦除接口，文件系统管...</div></div></div></a><a class="pagination-related" href="/posts/1542539527.html" title="运动补剂知识"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">运动补剂知识</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标补剂是营养方案的补充而非替代，教练需要掌握成分与用法常识。  1. 补剂定位补剂用于补充日常饮食难以满足的营养缺口或提升训练便利性，优先通过食物满足需求。 教练应客观介绍补剂，不夸大效果，不诱导依赖。 2. 蛋白粉乳清蛋白吸收快适合训练后，酪蛋白缓释适合夜间；按蛋白质含量与个人乳糖耐受选择。 蛋白粉是便捷蛋白来源，替代部分饮食需计算总蛋白摄入，过量增加负担但无额外收益。 3. 肌酸肌酸是研究证据充分的力量补剂，每日 3-5 克持续使用提升高强度输出与肌量；注意饮水与肾功能评估。 肌酸增加肌肉水分含量，初期体重略增属正常，无需冲击期。 4. 支链氨基酸与谷氨酰胺支链氨基酸（BCAA）在蛋白充足时收益有限，更多价值在于便捷；谷氨酰胺对肠道与免疫有潜在作用。 与整体蛋白摄入比较，多数情况下优先保证全蛋白而非单独补充 BCAA。 5. 咖啡因与其他咖啡因提升警觉与训练表现，训练前 30-60 分钟适量使用，注意耐受与晚间影响；氮泵类注意成分剂量。 维生素 D、鱼油、复合维生素等按个体缺乏情况补充，过量风险需提示。 6. 安全与合规购买正规渠道有第三方检测的产品，...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1488323843.html" title="ros2 05-命令行工具"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">ros2 05-命令行工具</div></div><div class="info-2"><div class="info-item-1">命令行工具 [!info] 本节目标熟练使用 ros2 命令行工具进行节点、话题、服务、动作、参数的全方位检查与操作。  1. ros2 命令总览123456789ros2 node     节点管理ros2 topic    话题管理ros2 service  服务管理ros2 action   动作管理ros2 param    参数管理ros2 pkg      包管理ros2 launch   启动 launch 文件ros2 doctor   环境诊断ros2 daemon   后台守护进程  123# 全局帮助ros2 --helpros2 topic --help  2. 节点命令123ros2 node list                     # 列出节点ros2 node info /talker             # 节点详情（话题/服务/参数）ros2 node list --include-hidden    # 含隐藏节点     命令 说明    ros2 node list 列出所有节点   ros2 node info &lt;no...</div></div></div></a><a class="pagination-related" href="/posts/513154547.html" title="ros2 90-资料索引指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">ros2 90-资料索引指南</div></div><div class="info-2"><div class="info-item-1">资料索引指南 [!info] 本节目标汇总 ROS2 从入门到精通的全链路学习资源，覆盖官方文档、GitHub 仓库、中文课程与社区，并给出学习路径建议。  1. 学习路径总览1入门（1-2周）-&gt; 核心（2-3周）-&gt; 进阶（2-3周）-&gt; 实战（2-4周）     阶段 本套件对应篇目 目标    入门 01-07、09 安装、核心概念、命令行、通信基础   核心 08、10-19 编程（C++&#x2F;Python）、接口、launch、仿真   进阶 20-37 导航、视觉、机械臂、Docker、安全、性能   实战 38-40 部署实践、小车导航、机械臂抓取    [!note] 配套主线官方文档 Tutorials（Beginner-Intermediate-Advanced）作为主线，本套件按主题组织，两者配合使用效率最高。  2. 官方文档   资源 链接 说明    ROS 开发者文档总入口 https://docs.ros.org/ 各发行版文档、CLI、客户端库   ROS2 官方教程（Humble） https://docs.ros.o...</div></div></div></a><a class="pagination-related" href="/posts/742500733.html" title="14-执行器与回调组"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">14-执行器与回调组</div></div><div class="info-2"><div class="info-item-1">执行器与回调组 [!info] 本节目标理解 ROS2 Executor 与回调组（Callback Group）机制，掌握多线程执行与并发控制方法。  1. Executor 概念Executor 负责调度节点的回调（订阅、服务、动作、定时器、参数回调）。回调不会自动并发执行，由 Executor 的线程模型决定。    Executor 特点    SingleThreadedExecutor 默认，单线程串行处理所有回调   MultiThreadedExecutor 多线程，可并行不同回调组   StaticSingleThreadedExecutor 静态单线程，回调预注册，性能更佳    [!warning] 默认陷阱默认单线程 Executor 下，耗时回调会阻塞其他所有回调（如 1 秒的 sleep 会拖慢订阅频率）。  2. 回调组类型   回调组 行为    MutuallyExclusive（默认） 组内回调串行执行   Reentrant 组内回调可并发执行（可重入）   每个节点可建多个回调组，将不同业务回调分到不同组，配合 MultiThreadedE...</div></div></div></a><a class="pagination-related" href="/posts/496626970.html" title="38-产品化与部署实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">38-产品化与部署实践</div></div><div class="info-2"><div class="info-item-1">产品化与部署实践 [!info] 本节目标掌握 ROS2 产品化部署：启动管理、日志归档、版本管理与 CI&#x2F;CD。  1. 部署架构1234567生产部署组件：├── 系统服务（systemd 管理节点）├── 环境配置（.env / launch 参数）├── 日志（集中式/归档）├── 版本管理（Git 标签/镜像）├── 监控（healthcheck、告警）└── 升级（蓝绿/回滚）   [!note] 目标产品化要解决：开机自启、崩溃自愈、日志可追溯、版本可回滚、资源可监控。  2. systemd 服务123456789101112131415161718192021# /etc/systemd/system/my_robot.service[Unit]Description=My Robot ROS2 LaunchAfter=network-online.targetWants=network-online.target[Service]Type=simpleUser=rosEnvironment=&quot;ROS_DOMAIN_ID=1&quot;Env...</div></div></div></a><a class="pagination-related" href="/posts/4284941043.html" title="35-性能优化与Benchmark"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">35-性能优化与Benchmark</div></div><div class="info-2"><div class="info-item-1">性能优化与 Benchmark [!info] 本节目标掌握 ROS2 性能分析方法、基准测试工具与常见优化手段。  1. 性能指标   指标 含义 工具    发布频率 话题实际频率 ros2 topic hz   端到端延迟 发布到接收时间差 topic delay &#x2F; 自定义   丢包&#x2F;乱序 队列丢包 QoS 统计   CPU&#x2F;内存 节点资源 top&#x2F;htop、perf   消息吞吐 单位时间消息量 自定义测量    [!note] 测量注意性能测量需在稳定负载与固定网络下进行；先记录基线再优化，一次只改一个变量。  2. 快速测量123456ros2 topic hz /odomros2 topic delay /odomros2 topic bw /chatterros2 topic info -v /chatter# 进程资源pidstat -u -p $(pgrep -f talker) 1   [!tip] 消息大小ros2 topic bw 看带宽；大消息（点云&#x2F;图像）优先压缩或降采样。  3. 常见瓶颈   瓶...</div></div></div></a><a class="pagination-related" href="/posts/512206225.html" title="36-常见问题排查"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">36-常见问题排查</div></div><div class="info-2"><div class="info-item-1">常见问题排查 [!info] 本节目标掌握 ROS2 常见问题诊断方法、常用排查命令与解决套路。  1. 排查思路123451. 确认环境（source、版本、domain）2. 确认发现（节点/话题是否可见）3. 确认通信（话题/服务/QoS）4. 确认资源（CPU/内存/网络）5. 确认日志（ros2 doctor、log）     工具 用途    ros2 doctor 综合诊断   ros2 node list &#x2F; info 发现与连接   ros2 topic list &#x2F; info -v 话题状态   ros2 service list 服务状态   ros2 daemon stop&#x2F;start 守护进程重置    [!tip] 万能三连遇到问题先跑：ros2 doctor、ros2 node list、ros2 topic info -v &lt;topic&gt;，多数问题可见端倪。  2. 环境与启动问题   错误 原因 解决    command not found 未 source source /opt/ros/humble...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#AMCL-%E5%AE%9A%E4%BD%8D"><span class="toc-number">1.</span> <span class="toc-text">AMCL 定位</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-AMCL-%E5%8E%9F%E7%90%86"><span class="toc-number">1.1.</span> <span class="toc-text">1. AMCL 原理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%AE%89%E8%A3%85%E4%B8%8E%E5%90%AF%E5%8A%A8"><span class="toc-number">1.2.</span> <span class="toc-text">2. 安装与启动</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%8F%82%E6%95%B0%E9%85%8D%E7%BD%AE"><span class="toc-number">1.3.</span> <span class="toc-text">3. 参数配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E8%AE%BE%E7%BD%AE%E5%88%9D%E5%A7%8B%E4%BD%8D%E5%A7%BF"><span class="toc-number">1.4.</span> <span class="toc-text">4. 设置初始位姿</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%AE%9A%E4%BD%8D%E8%BE%93%E5%87%BA"><span class="toc-number">1.5.</span> <span class="toc-text">5. 定位输出</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E5%85%A8%E5%B1%80%E9%87%8D%E5%AE%9A%E4%BD%8D%EF%BC%88%E7%BB%91%E6%9E%B6%EF%BC%89"><span class="toc-number">1.6.</span> <span class="toc-text">6. 全局重定位（绑架）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.7.</span> <span class="toc-text">7. 常见问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E5%AE%9A%E4%BD%8D%E8%B0%83%E5%8F%82%E6%8A%80%E5%B7%A7"><span class="toc-number">1.8.</span> <span class="toc-text">8. 定位调参技巧</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

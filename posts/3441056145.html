@@ -1,0 +1,686 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>12-生命周期节点 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="生命周期节点（Lifecycle Node）是 ROS2 提供的受管节点机制：节点在不同生命周期状态间受控切换，便于系统级配置、启动、关闭与故障恢复。典型场景：导航、传感器驱动等需要按序初始化的组件。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="12-生命周期节点">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3441056145.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="生命周期节点（Lifecycle Node）是 ROS2 提供的受管节点机制：节点在不同生命周期状态间受控切换，便于系统级配置、启动、关闭与故障恢复。典型场景：导航、传感器驱动等需要按序初始化的组件。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros2">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "12-生命周期节点",
+  "url": "https://zeek-zhao.github.io/posts/3441056145.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3441056145.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '12-生命周期节点',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">12-生命周期节点</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">12-生命周期节点</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros2/">ros2</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="生命周期节点"><a href="#生命周期节点" class="headerlink" title="生命周期节点"></a>生命周期节点</h1><blockquote>
+<p>[!info] 本节目标<br>理解 ROS2 生命周期（Lifecycle）节点状态机，掌握受管节点的配置、激活与状态转换管理。</p>
+</blockquote>
+<h2 id="1-生命周期概念"><a href="#1-生命周期概念" class="headerlink" title="1. 生命周期概念"></a>1. 生命周期概念</h2><p>生命周期节点（Lifecycle Node）是 ROS2 提供的<strong>受管节点</strong>机制：节点在不同生命周期状态间受控切换，便于系统级配置、启动、关闭与故障恢复。典型场景：导航、传感器驱动等需要按序初始化的组件。</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Unconfigured</td>
+<td>未配置（初始）</td>
+</tr>
+<tr>
+<td>Inactive</td>
+<td>已配置但未激活（不通信）</td>
+</tr>
+<tr>
+<td>Active</td>
+<td>运行中（正常收发）</td>
+</tr>
+<tr>
+<td>Finalized</td>
+<td>已销毁</td>
+</tr>
+</tbody></table>
+<h2 id="2-状态机与转换"><a href="#2-状态机与转换" class="headerlink" title="2. 状态机与转换"></a>2. 状态机与转换</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Unconfigured --configure--&gt; Inactive --activate--&gt; Active</span><br><span class="line">     ^                            |                  |</span><br><span class="line">     |                            |                  |</span><br><span class="line">     +--cleanup-------------------+--deactivate------+</span><br><span class="line">     </span><br><span class="line">Active --shutdown--&gt; Finalized</span><br><span class="line">Inactive/Unconfigured --shutdown--&gt; Finalized</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>转换</th>
+<th>触发</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>configure</td>
+<td>configure</td>
+<td>分配资源、加载参数</td>
+</tr>
+<tr>
+<td>activate</td>
+<td>activate</td>
+<td>启动通信与主循环</td>
+</tr>
+<tr>
+<td>deactivate</td>
+<td>deactivate</td>
+<td>停止通信（可恢复）</td>
+</tr>
+<tr>
+<td>cleanup</td>
+<td>cleanup</td>
+<td>释放配置资源</td>
+</tr>
+<tr>
+<td>shutdown</td>
+<td>shutdown</td>
+<td>销毁节点</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!warning] 状态转换失败<br>每个转换通过 service 触发并返回状态；失败时节点保持原状态，需检查回调返回值。</p>
+</blockquote>
+<h2 id="3-Python-生命周期节点"><a href="#3-Python-生命周期节点" class="headerlink" title="3. Python 生命周期节点"></a>3. Python 生命周期节点</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"><span class="keyword">import</span> rclpy</span><br><span class="line"><span class="keyword">from</span> rclpy.lifecycle <span class="keyword">import</span> LifecycleNode</span><br><span class="line"><span class="keyword">from</span> rclpy.lifecycle <span class="keyword">import</span> State, TransitionCallbackReturn</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">LifecycleDemo</span>(<span class="title class_ inherited__">LifecycleNode</span>):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__(<span class="string">&#x27;lifecycle_demo&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.declare_parameter(<span class="string">&#x27;threshold&#x27;</span>, <span class="number">0.5</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">on_configure</span>(<span class="params">self, state: State</span>) -&gt; TransitionCallbackReturn:</span><br><span class="line">        <span class="variable language_">self</span>.get_logger().info(<span class="string">&#x27;configure&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.threshold = <span class="variable language_">self</span>.get_parameter(<span class="string">&#x27;threshold&#x27;</span>).value</span><br><span class="line">        <span class="keyword">return</span> TransitionCallbackReturn.SUCCESS</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">on_activate</span>(<span class="params">self, state: State</span>) -&gt; TransitionCallbackReturn:</span><br><span class="line">        <span class="variable language_">self</span>.get_logger().info(<span class="string">&#x27;activate&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.pub = <span class="variable language_">self</span>.create_publisher(</span><br><span class="line">            std_msgs.msg.String, <span class="string">&#x27;data&#x27;</span>, <span class="number">10</span>)</span><br><span class="line">        <span class="keyword">return</span> TransitionCallbackReturn.SUCCESS</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">on_deactivate</span>(<span class="params">self, state: State</span>) -&gt; TransitionCallbackReturn:</span><br><span class="line">        <span class="variable language_">self</span>.get_logger().info(<span class="string">&#x27;deactivate&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.destroy_publisher(<span class="variable language_">self</span>.pub)</span><br><span class="line">        <span class="keyword">return</span> TransitionCallbackReturn.SUCCESS</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">on_cleanup</span>(<span class="params">self, state: State</span>) -&gt; TransitionCallbackReturn:</span><br><span class="line">        <span class="variable language_">self</span>.get_logger().info(<span class="string">&#x27;cleanup&#x27;</span>)</span><br><span class="line">        <span class="keyword">return</span> TransitionCallbackReturn.SUCCESS</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 状态钩子<br><code>on_configure</code>、<code>on_activate</code>、<code>on_deactivate</code>、<code>on_cleanup</code>、<code>on_shutdown</code> 返回 <code>SUCCESS/FAILURE/ERROR</code> 控制转换。</p>
+</blockquote>
+<h2 id="4-命令行控制"><a href="#4-命令行控制" class="headerlink" title="4. 命令行控制"></a>4. 命令行控制</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 启动后查看状态</span></span><br><span class="line">ros2 lifecycle get /lifecycle_demo</span><br><span class="line"><span class="comment"># 转换</span></span><br><span class="line">ros2 lifecycle <span class="built_in">set</span> /lifecycle_demo configure</span><br><span class="line">ros2 lifecycle <span class="built_in">set</span> /lifecycle_demo activate</span><br><span class="line">ros2 lifecycle <span class="built_in">set</span> /lifecycle_demo deactivate</span><br><span class="line"><span class="comment"># 自动按序转换</span></span><br><span class="line">ros2 lifecycle list /lifecycle_demo</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 状态服务<br>生命周期转换通过 <code>/lifecycle_demo/change_state</code> 等服务实现，<code>ros2 lifecycle</code> 命令封装了这些服务。</p>
+</blockquote>
+<h2 id="5-生命周期客户端"><a href="#5-生命周期客户端" class="headerlink" title="5. 生命周期客户端"></a>5. 生命周期客户端</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"><span class="keyword">import</span> rclpy</span><br><span class="line"><span class="keyword">from</span> rclpy.lifecycle <span class="keyword">import</span> LifecycleNode</span><br><span class="line"><span class="keyword">from</span> rclpy.lifecycle <span class="keyword">import</span> LifecycleClient</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用 ros2 lifecycle 之外的编程式控制</span></span><br><span class="line"><span class="keyword">from</span> rclpy.lifecycle.client <span class="keyword">import</span> LifecycleServiceClient</span><br><span class="line"></span><br><span class="line">client = LifecycleServiceClient(<span class="string">&#x27;lifecycle_demo&#x27;</span>, <span class="string">&#x27;lifecycle_client&#x27;</span>)</span><br><span class="line">client.change_state(Transition.CONFIGURE)</span><br><span class="line">client.change_state(Transition.ACTIVATE)</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 编程控制<br>生命周期客户端需自行处理超时与错误；生产系统建议用 launch 的 <code>OnStateTransition</code> 事件驱动。</p>
+</blockquote>
+<h2 id="6-launch-中管理生命周期"><a href="#6-launch-中管理生命周期" class="headerlink" title="6. launch 中管理生命周期"></a>6. launch 中管理生命周期</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> launch <span class="keyword">import</span> LaunchDescription</span><br><span class="line"><span class="keyword">from</span> launch_ros.actions <span class="keyword">import</span> Node, LifecycleNode</span><br><span class="line"><span class="keyword">from</span> launch_ros.event_handlers <span class="keyword">import</span> OnStateTransition</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">generate_launch_description</span>():</span><br><span class="line">    nav_node = LifecycleNode(</span><br><span class="line">        package=<span class="string">&#x27;nav2_controller&#x27;</span>, executable=<span class="string">&#x27;controller_server&#x27;</span>,</span><br><span class="line">        name=<span class="string">&#x27;controller_server&#x27;</span>, output=<span class="string">&#x27;screen&#x27;</span>)</span><br><span class="line">    <span class="keyword">return</span> LaunchDescription([</span><br><span class="line">        nav_node,</span><br><span class="line">        <span class="comment"># 在 configure 成功后自动 activate</span></span><br><span class="line">        RegisterEventHandler(</span><br><span class="line">            OnStateTransition(</span><br><span class="line">                target_lifecycle_node=nav_node,</span><br><span class="line">                start_state=<span class="string">&#x27;configuring&#x27;</span>, goal_state=<span class="string">&#x27;inactive&#x27;</span>,</span><br><span class="line">                entities=[SetState(target=ActiveState())])),</span><br><span class="line">    ])</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] Nav2 惯例<br>Nav2 各服务器都是生命周期节点，launch 通过 <code>OnStateTransition</code> 链式激活：configure 成功后自动 activate。</p>
+</blockquote>
+<h2 id="7-常见问题"><a href="#7-常见问题" class="headerlink" title="7. 常见问题"></a>7. 常见问题</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>排查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>节点状态一直 Unconfigured</td>
+<td>未调用 lifecycle set configure</td>
+</tr>
+<tr>
+<td>转换失败</td>
+<td>检查 on_xxx 返回值与资源</td>
+</tr>
+<tr>
+<td>Active 后无通信</td>
+<td>发布器在 activate 创建</td>
+</tr>
+<tr>
+<td>launch 卡住</td>
+<td>事件处理器状态名写错</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>Nav2 各模块均为生命周期节点（见 <a href="/posts/2969019117.html">22-导航2框架</a>）；launch 事件机制见 <a href="/posts/3503988486.html">19-launch系统</a>。</p>
+</blockquote>
+<h2 id="8-生命周期节点应用场景"><a href="#8-生命周期节点应用场景" class="headerlink" title="8. 生命周期节点应用场景"></a>8. 生命周期节点应用场景</h2><p>生命周期状态机适合需要明确启动顺序与可配置管理的系统，典型应用包括传感器驱动（配置-激活后发布数据）、导航模块（激活后才开始计算）、相机标定流程（未配置时禁止拍照）。使用生命周期节点时，上层管理器需负责状态切换与错误恢复，节点上报失败状态后管理器可决定重试或降级。状态迁移回调内应做完整的资源分配与释放，保证重复迁移不泄漏。调试时用 <code>ros2 lifecycle</code> 命令手动切换状态，验证各阶段行为。</p>
+<blockquote>
+<p>[!note] 建议<br>生命周期与行为树思想相通，适合大型系统编排；Nav2 即大量使用生命周期节点管理模块（见 <a href="/posts/2969019117.html">22-导航2框架</a>）。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/3191786011.html">11-rclpy编程</a>　下一篇：<a href="/posts/3898278822.html">13-自定义消息接口</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3441056145.html">https://zeek-zhao.github.io/posts/3441056145.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros2/">ros2</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2353222172.html" title="12-规划模块（路径规划）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">12-规划模块（路径规划）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 规划模块：参考线处理、路径规划与速度规划。  1. 规划模块概述规划模块接收定位、预测、地图与决策结果，生成安全、舒适、可执行的轨迹，由控制模块执行。规划核心是路径规划与速度规划的组合。 2. 主要子模块   子模块 作用    参考线 生成平滑车道中心线   路径规划 生成横向路径   速度规划 生成纵向速度曲线   轨迹拼接 合并为完整轨迹   3. 规划流程 从地图与定位生成参考线 结合决策与预测生成路径候选 在路径上规划速度曲线 输出带时间戳的轨迹点  1234# 规划配置示例planning:  trajectory_period: 8.0  # 规划时域  trajectory_time_resolution: 0.1  4. 优化目标规划需平衡安全、舒适与效率：约束包括碰撞、动力学与交通规则；代价函数考虑平顺性、效率与车道中心偏移。  [!note] 延伸规划依赖决策，见 13-决策模块（场景决策）；执行由控制完成，见 14-控制模块。  5. 参考线系统参考线是规划的基础几何结构，由地图车道中心线生成并经过平滑处理。A...</div></div></div></a><a class="pagination-related" href="/posts/2338699416.html" title="智能硬件联动"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">智能硬件联动</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标智能硬件让 Keep 从手机软件升级为软硬一体系统，学会绑定与联动提升数据完整性。  1. 硬件生态概览Keep 智能硬件包括手环、体脂秤、智能单车、智能跑步机与体感运动主机 KS 等，与 App 数据互通，形成吃穿用练闭环中的硬件版图。 硬件作为线上内容的动态触点，采集真实生理信号并反哺课程与 AI 模型，让训练更个性化。 2. 智能手环Keep 手环监测心率、睡眠与血氧，六轴加速度计加陀螺仪捕捉动作；新一代 B6 手环支持游泳泳姿识别、震动心率区间提醒与长续航。 手环佩戴后心率数据实时同步课程，跑步时震动提醒进入燃脂区间，睡眠数据进入恢复评估。 3. 智能体脂秤体脂秤测量体重、体脂率等十五项身体数据并同步 App，支持十人共用，家庭成员的称重自动区分到各自账号。 体脂率、内脏脂肪、基础代谢等指标帮助用户超越体重看身体成分，是减脂监控的重要工具。 4. 智能跑步机与单车智能跑步机配合课程自动调速、语音指导跑姿并记录分析数据；智能单车依据课程目标实时自动调阻，直播课联动灯光音乐模拟团体氛围。 器械阻力与速度跟随视频自适应，用户无需手动调节，训练沉浸感与数...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/4265837254.html" title="29-多机器人协同"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">29-多机器人协同</div></div><div class="info-2"><div class="info-item-1">多机器人协同 [!info] 本节目标掌握 ROS2 多机器人系统的命名空间隔离、ROS_DOMAIN_ID 分域与协同通信方案。  1. 多机器人挑战   挑战 方案    话题冲突 命名空间隔离   网络隔离 ROS_DOMAIN_ID &#x2F; 多域   资源共享 协商&#x2F;任务分配   时间同步 PTP&#x2F;NTP   2. 命名空间隔离1234567Node(    package=&#x27;my_pkg&#x27;,    executable=&#x27;talker&#x27;,    namespace=&#x27;robot1&#x27;,    name=&#x27;talker&#x27;,)# 话题：/robot1/chatter  12robot1: /robot1/cmd_vel /robot1/odomrobot2: /robot2/cmd_vel /robot2/odom   [!tip] 参数化命名空间用 LaunchConfiguration 传 robot_id，一个 launch 启动多机器人：  12345678910...</div></div></div></a><a class="pagination-related" href="/posts/3898278822.html" title="13-自定义消息接口"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">13-自定义消息接口</div></div><div class="info-2"><div class="info-item-1">自定义消息接口 [!info] 本节目标掌握 ROS2 自定义接口（msg&#x2F;srv&#x2F;action）的定义、编译生成与跨包使用。  1. 接口概念ROS2 接口分三类：    类型 后缀 用途    消息 .msg 话题数据结构   服务 .srv 请求-响应结构   动作 .action goal&#x2F;feedback&#x2F;result 三段结构   接口定义后通过 rosidl 生成各语言的代码（C++、Python 等），节点代码直接使用生成类型。 2. 创建接口包123456789ros2 pkg create my_interfaces \  --build-type ament_cmake \  --dependencies rosidl_default_generators \    builtin_interfaces geometry_msgs std_msgs# 创建目录mkdir -p my_interfaces/msgmkdir -p my_interfaces/srvmkdir -p my_interfaces/action...</div></div></div></a><a class="pagination-related" href="/posts/3927300417.html" title="09-参数机制"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">09-参数机制</div></div><div class="info-2"><div class="info-item-1">参数机制 [!info] 本节目标掌握 ROS2 参数机制：声明、读写、动态修改、回调与参数文件持久化。  1. 参数概念参数（Parameter）是节点内的键值配置项。每个节点维护自己的参数表，可被 ros2 param 命令或其他节点动态读取&#x2F;写入。    参数类型 说明    bool 布尔   int &#x2F; double 整数&#x2F;浮点   string 字符串   array 上述类型的数组    [!note] 参数 vs ROS1ROS1 有全局参数服务器，ROS2 参数归属于节点，不再有独立参数服务器。  2. Python 声明与读写12345678910111213141516171819202122232425262728293031#!/usr/bin/env python3import rclpyfrom rclpy.node import Nodefrom rcl_interfaces.msg import ParameterDescriptor, IntegerRangeclass ParamNode(Node):    de...</div></div></div></a><a class="pagination-related" href="/posts/1106872961.html" title="17-rviz2可视化"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">17-rviz2可视化</div></div><div class="info-2"><div class="info-item-1">rviz2 可视化 [!info] 本节目标掌握 rviz2 的显示类型、话题订阅、TF 树显示与配置保存，高效可视化调试。  1. rviz2 简介rviz2 是 ROS2 的 3D 可视化工具，用于显示机器人模型、传感器数据、TF 树、路径等。 1ros2 run rviz2 rviz2   [!note] 界面左侧 Display 面板管理显示项，中央 3D 视图，顶部工具栏切换视角&#x2F;测量。  2. 常用 Display 类型   Display 用途    RobotModel 显示 URDF 模型   LaserScan 2D 激光点云   PointCloud2 3D 点云   TF 坐标系与箭头   Image 图像话题（相机）   Path 路径   Marker 标记（文本&#x2F;箭头&#x2F;立方体）   Map 栅格地图   3. 添加与配置 Display 点击 Add → 选择 Display 类型 设置 Topic（如 /scan） 设置 Fixed Frame（如 map 或 odom） 调节 Size&#x2F;Color&#x2F...</div></div></div></a><a class="pagination-related" href="/posts/2049131804.html" title="18-Gazebo与Ignition仿真"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">18-Gazebo与Ignition仿真</div></div><div class="info-2"><div class="info-item-1">Gazebo 与 Ignition 仿真 [!info] 本节目标掌握 Gazebo（Classic）与 Gazebo Sim（Ignition）仿真环境的安装、世界构建与机器人导入。  1. 仿真器概览   仿真器 ROS2 版本 说明    Gazebo Classic 默认支持到 Humble 成熟稳定，教程多   Gazebo Sim（Ignition） Fortress 起 新一代，物理引擎更强   其他 - Webots、Isaac Sim 等    [!note] 发行版对应Humble 对应 Gazebo 11（Classic）与 Ignition Fortress；Jazzy 起默认 Gazebo Harmonic。  2. 安装12345678# Humble：Gazebo Classicsudo apt install -y ros-humble-gazebo-ros-pkgs# 验证gazebo --version# 简易启动ros2 launch gazebo_ros gazebo.launch.py   [!warning] 显卡与头显服务器无显示可用...</div></div></div></a><a class="pagination-related" href="/posts/514195102.html" title="33-实时性与QoS策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">33-实时性与QoS策略</div></div><div class="info-2"><div class="info-item-1">实时性与 QoS 策略 [!info] 本节目标深入理解 QoS 策略与实时性设计，能在工业&#x2F;控制场景正确配置可靠性、延迟与线程。  1. 实时性需求   场景 延迟要求 说明    传感器流 数 ms 高频数据尽力传输   控制回路 硬实时 毫秒级确定性   状态查询 可容忍 低优先级   安全急停 硬实时 最高优先级    [!note] 硬实时 vs 软实时硬实时必须确定性响应（错过即失败）；软实时允许偶发延迟。ROS2 本身非硬实时，需配合 RT 内核与策略。  2. QoS 策略详解   策略 选项 场景    Reliability RELIABLE &#x2F; BEST_EFFORT 传感器 BEST_EFFORT，指令 RELIABLE   History KEEP_LAST &#x2F; KEEP_ALL KEEP_LAST(N) 默认   Durability VOLATILE &#x2F; TRANSIENT_LOCAL 地图&#x2F;静态数据 TRANSIENT_LOCAL   Deadline 时长 超时告警   Liveliness AU...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E8%8A%82%E7%82%B9"><span class="toc-number">1.</span> <span class="toc-text">生命周期节点</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E6%A6%82%E5%BF%B5"><span class="toc-number">1.1.</span> <span class="toc-text">1. 生命周期概念</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E7%8A%B6%E6%80%81%E6%9C%BA%E4%B8%8E%E8%BD%AC%E6%8D%A2"><span class="toc-number">1.2.</span> <span class="toc-text">2. 状态机与转换</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-Python-%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E8%8A%82%E7%82%B9"><span class="toc-number">1.3.</span> <span class="toc-text">3. Python 生命周期节点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%91%BD%E4%BB%A4%E8%A1%8C%E6%8E%A7%E5%88%B6"><span class="toc-number">1.4.</span> <span class="toc-text">4. 命令行控制</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="toc-number">1.5.</span> <span class="toc-text">5. 生命周期客户端</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-launch-%E4%B8%AD%E7%AE%A1%E7%90%86%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="toc-number">1.6.</span> <span class="toc-text">6. launch 中管理生命周期</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.7.</span> <span class="toc-text">7. 常见问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E8%8A%82%E7%82%B9%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.8.</span> <span class="toc-text">8. 生命周期节点应用场景</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

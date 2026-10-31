@@ -1,0 +1,727 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>28-Cyber异步调用机制 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="解析 Cyber RT 异步调用：Async&#x2F;Yield 协程原语、TaskManager 有界任务队列与 SysMo 运行时监控。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="28-Cyber异步调用机制">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3670574823.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="解析 Cyber RT 异步调用：Async&#x2F;Yield 协程原语、TaskManager 有界任务队列与 SysMo 运行时监控。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "28-Cyber异步调用机制",
+  "url": "https://zeek-zhao.github.io/posts/3670574823.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3670574823.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '28-Cyber异步调用机制',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">28-Cyber异步调用机制</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">28-Cyber异步调用机制</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握 Cyber RT 的异步编程层：<code>Async</code>&#x2F;<code>Yield</code>&#x2F;<code>SleepFor</code> 原语、TaskManager 的协程池与有界队列实现、实模式&#x2F;仿真模式双路径设计，以及 SysMo 对异步任务的监控手段。</p>
+</blockquote>
+<p>本篇是第四阶段 Cyber RT 深度剖析的第四篇。组件的”消息驱动”路径由 <a href="/posts/3931639321.html">29-Cyber数据系统详解</a> 负责，本篇讲”代码主动并发”路径——<code>cyber::Async</code> 一行调用背后的完整基础设施，它同样构建在 <a href="/posts/2526415752.html">26-Cyber调度系统详解</a> 的协程之上。</p>
+<h2 id="1-设计定位"><a href="#1-设计定位" class="headerlink" title="1. 设计定位"></a>1. 设计定位</h2><p>自动驾驶软件反复出现这类需求：点云预处理耗时但不挡主流程、MPC 求解可能超时、路径要并行生成多方案。Cyber 的异步机制围绕五个目标设计：</p>
+<ol>
+<li><strong>高性能</strong>：实模式下走协程，上下文切换开销近于零</li>
+<li><strong>易用</strong>：API 形态对齐 <code>std::async</code>，返回 <code>std::future</code></li>
+<li><strong>灵活</strong>：协程&#x2F;线程双模型，按运行模式自动切换</li>
+<li><strong>资源可控</strong>：有界队列 + 池化协程，防任务风暴</li>
+<li><strong>可观测</strong>：SysMo 持续输出协程执行快照</li>
+</ol>
+<p>源码目录：<code>cyber/task/</code>（task.h、task_manager.h&#x2F;cc）。</p>
+<h2 id="2-Task-接口一览"><a href="#2-Task-接口一览" class="headerlink" title="2. Task 接口一览"></a>2. Task 接口一览</h2><p><code>cyber/task/task.h</code> 暴露四个原语：</p>
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Async(f, args...)</code></td>
+<td>提交异步任务，返回 <code>std::future</code></td>
+</tr>
+<tr>
+<td><code>Yield()</code></td>
+<td>让出执行权（协程让出 &#x2F; 线程 yield）</td>
+</tr>
+<tr>
+<td><code>SleepFor(dur)</code></td>
+<td>异步休眠指定 Duration</td>
+</tr>
+<tr>
+<td><code>USleep(us)</code></td>
+<td>微秒级异步休眠</td>
+</tr>
+</tbody></table>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// cyber/task/task.h（核心）</span></span><br><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">typename</span> F, <span class="keyword">typename</span>... Args&gt;</span><br><span class="line"><span class="function"><span class="type">static</span> <span class="keyword">auto</span> <span class="title">Async</span><span class="params">(F&amp;&amp; f, Args&amp;&amp;... args)</span></span></span><br><span class="line"><span class="function">    -&gt; std::future&lt;<span class="keyword">typename</span> std::result_of&lt;<span class="title">F</span><span class="params">(Args...)</span>&gt;::type&gt; </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> GlobalData::<span class="built_in">Instance</span>()-&gt;<span class="built_in">IsRealityMode</span>()</span><br><span class="line">             ? TaskManager::<span class="built_in">Instance</span>()-&gt;<span class="built_in">Enqueue</span>(std::forward&lt;F&gt;(f),</span><br><span class="line">                                                std::forward&lt;Args&gt;(args)...)</span><br><span class="line">             : std::<span class="built_in">async</span>(std::launch::async,</span><br><span class="line">                          std::<span class="built_in">bind</span>(std::forward&lt;F&gt;(f),</span><br><span class="line">                                    std::forward&lt;Args&gt;(args)...));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title">Yield</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (croutine::CRoutine::<span class="built_in">GetCurrentRoutine</span>()) &#123;</span><br><span class="line">    croutine::CRoutine::<span class="built_in">Yield</span>();   <span class="comment">// 协程上下文：让出协程</span></span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    std::this_thread::<span class="built_in">yield</span>();     <span class="comment">// 线程上下文：让出线程</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 双模式设计的用意<br><code>IsRealityMode()</code> 为 false 时（仿真&#x2F;单测，<code>cyber::Init</code> 前设 <code>CYBER_AGENT</code> 或 flag 控制），Async 退化为 <code>std::async</code> 起线程。这保证单测环境无需拉起整套调度器即可验证业务逻辑——工程上非常实用的逃生门。</p>
+</blockquote>
+<h2 id="3-TaskManager：异步调用的引擎"><a href="#3-TaskManager：异步调用的引擎" class="headerlink" title="3. TaskManager：异步调用的引擎"></a>3. TaskManager：异步调用的引擎</h2><h3 id="3-1-结构与初始化"><a href="#3-1-结构与初始化" class="headerlink" title="3.1 结构与初始化"></a>3.1 结构与初始化</h3><p>TaskManager 是进程级单例：<strong>一个有界队列 + 一组消费协程</strong>。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">classDiagram</span><br><span class="line">    class TaskManager &#123;</span><br><span class="line">        &lt;&lt;singleton&gt;&gt;</span><br><span class="line">        -BoundedQueue&lt;function&gt; task_queue_</span><br><span class="line">        -vector&lt;uint64_t&gt; tasks_</span><br><span class="line">        -uint32_t num_threads_</span><br><span class="line">        -atomic&lt;bool&gt; stop_</span><br><span class="line">        +Enqueue(func, args) future</span><br><span class="line">        +Shutdown()</span><br><span class="line">    &#125;</span><br><span class="line">    TaskManager o-- BoundedQueue</span><br><span class="line">    TaskManager ..&gt; Scheduler : CreateTask 池化协程</span><br></pre></td></tr></table></figure>
+
+<p>构造函数（<code>cyber/task/task_manager.cc</code>）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">TaskManager::<span class="built_in">TaskManager</span>()</span><br><span class="line">    : <span class="built_in">task_queue_size_</span>(<span class="number">1000</span>),</span><br><span class="line">      <span class="built_in">task_queue_</span>(<span class="keyword">new</span> base::BoundedQueue&lt;std::function&lt;<span class="built_in">void</span>()&gt;&gt;()) &#123;</span><br><span class="line">  <span class="comment">// 有界队列：容量 1000，阻塞等待策略</span></span><br><span class="line">  <span class="keyword">if</span> (!task_queue_-&gt;<span class="built_in">Init</span>(task_queue_size_, <span class="keyword">new</span> base::<span class="built_in">BlockWaitStrategy</span>())) &#123;</span><br><span class="line">    AERROR &lt;&lt; <span class="string">&quot;Task queue init failed&quot;</span>;</span><br><span class="line">    <span class="keyword">throw</span> std::<span class="built_in">runtime_error</span>(<span class="string">&quot;Task queue init failed&quot;</span>);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 消费者逻辑：取任务执行；队列空则挂起协程</span></span><br><span class="line">  <span class="keyword">auto</span> func = [<span class="keyword">this</span>]() &#123;</span><br><span class="line">    <span class="keyword">while</span> (!stop_) &#123;</span><br><span class="line">      std::function&lt;<span class="built_in">void</span>()&gt; task;</span><br><span class="line">      <span class="keyword">if</span> (!task_queue_-&gt;<span class="built_in">Dequeue</span>(&amp;task)) &#123;</span><br><span class="line">        <span class="keyword">auto</span> routine = croutine::CRoutine::<span class="built_in">GetCurrentRoutine</span>();</span><br><span class="line">        routine-&gt;<span class="built_in">HangUp</span>();   <span class="comment">// 协程休眠，等 Enqueue 唤醒</span></span><br><span class="line">        <span class="keyword">continue</span>;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="built_in">task</span>();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 协程数量取自调度器 TaskPoolSize 配置</span></span><br><span class="line">  num_threads_ = scheduler::<span class="built_in">Instance</span>()-&gt;<span class="built_in">TaskPoolSize</span>();</span><br><span class="line">  <span class="keyword">auto</span> factory = croutine::<span class="built_in">CreateRoutineFactory</span>(std::<span class="built_in">move</span>(func));</span><br><span class="line">  tasks_.<span class="built_in">reserve</span>(num_threads_);</span><br><span class="line">  <span class="keyword">for</span> (<span class="type">uint32_t</span> i = <span class="number">0</span>; i &lt; num_threads_; i++) &#123;</span><br><span class="line">    <span class="keyword">auto</span> task_name = task_prefix + std::<span class="built_in">to_string</span>(i);</span><br><span class="line">    tasks_.<span class="built_in">push_back</span>(common::GlobalData::<span class="built_in">RegisterTaskName</span>(task_name));</span><br><span class="line">    <span class="keyword">if</span> (!scheduler::<span class="built_in">Instance</span>()-&gt;<span class="built_in">CreateTask</span>(factory, task_name)) &#123;</span><br><span class="line">      AERROR &lt;&lt; <span class="string">&quot;CreateTask failed:&quot;</span> &lt;&lt; task_name;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>要点：</p>
+<ul>
+<li>消费者不是线程而是<strong>协程</strong>，数量 &#x3D; 调度器 <code>TaskPoolSize</code>，与组件任务共存于同一调度器，共享优先级体系</li>
+<li><code>HangUp()</code> 让空转协程睡眠；<code>Enqueue</code> 时逐个 <code>NotifyTask</code> 唤醒</li>
+<li>有界队列天然提供<strong>背压</strong>：任务洪峰时队列满，后续提交阻塞</li>
+</ul>
+<h3 id="3-2-Enqueue：任务提交全流程"><a href="#3-2-Enqueue：任务提交全流程" class="headerlink" title="3.2 Enqueue：任务提交全流程"></a>3.2 Enqueue：任务提交全流程</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">typename</span> F, <span class="keyword">typename</span>... Args&gt;</span><br><span class="line"><span class="function"><span class="keyword">auto</span> <span class="title">Enqueue</span><span class="params">(F&amp;&amp; func, Args&amp;&amp;... args)</span></span></span><br><span class="line"><span class="function">    -&gt; std::future&lt;<span class="keyword">typename</span> std::result_of&lt;<span class="title">F</span><span class="params">(Args...)</span>&gt;::type&gt; </span>&#123;</span><br><span class="line">  <span class="keyword">using</span> return_type = <span class="keyword">typename</span> std::result_of&lt;<span class="built_in">F</span>(Args...)&gt;::type;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// packaged_task 承载返回值 → future 桥接</span></span><br><span class="line">  <span class="keyword">auto</span> task = std::make_shared&lt;std::packaged_task&lt;return_type()&gt;&gt;(</span><br><span class="line">      std::<span class="built_in">bind</span>(std::forward&lt;F&gt;(func), std::forward&lt;Args&gt;(args)...));</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (!stop_.<span class="built_in">load</span>()) &#123;</span><br><span class="line">    <span class="comment">// 打包进队列</span></span><br><span class="line">    task_queue_-&gt;<span class="built_in">Enqueue</span>([task]() &#123; (*task)(); &#125;);</span><br><span class="line">    <span class="comment">// 唤醒所有消费协程</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span>&amp; t : tasks_) &#123;</span><br><span class="line">      scheduler::<span class="built_in">Instance</span>()-&gt;<span class="built_in">NotifyTask</span>(t);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="function">std::future&lt;return_type&gt; <span class="title">res</span><span class="params">(task-&gt;get_future())</span></span>;</span><br><span class="line">  <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>全链路时序：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">    participant U as 用户代码</span><br><span class="line">    participant A as cyber::Async</span><br><span class="line">    participant TM as TaskManager</span><br><span class="line">    participant Q as BoundedQueue</span><br><span class="line">    participant S as Scheduler</span><br><span class="line">    participant CR as 消费协程</span><br><span class="line"></span><br><span class="line">    U-&gt;&gt;A: Async(f, args)</span><br><span class="line">    A-&gt;&gt;TM: Enqueue(f, args)</span><br><span class="line">    TM-&gt;&gt;Q: 入队 packaged_task</span><br><span class="line">    TM-&gt;&gt;S: NotifyTask(每个消费协程)</span><br><span class="line">    S-&gt;&gt;CR: 唤醒挂起协程</span><br><span class="line">    CR-&gt;&gt;Q: Dequeue</span><br><span class="line">    CR-&gt;&gt;CR: (*task)() 执行</span><br><span class="line">    CR--&gt;&gt;U: 结果写入 future</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-SleepFor-与协程休眠"><a href="#3-3-SleepFor-与协程休眠" class="headerlink" title="3.3 SleepFor 与协程休眠"></a>3.3 SleepFor 与协程休眠</h3><p>异步休眠同样走协程路径：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title">SleepFor</span><span class="params">(<span class="type">const</span> Duration&amp; duration)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (croutine::CRoutine::<span class="built_in">GetCurrentRoutine</span>()) &#123;</span><br><span class="line">    <span class="comment">// 协程：标记 SLEEP 状态并让出，由时间轮到期唤醒</span></span><br><span class="line">    croutine::CRoutine::<span class="built_in">GetCurrentRoutine</span>()-&gt;<span class="built_in">Sleep</span>(</span><br><span class="line">        duration.<span class="built_in">ToNanosecond</span>());</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    std::this_thread::<span class="built_in">sleep_for</span>(</span><br><span class="line">        std::chrono::<span class="built_in">nanoseconds</span>(duration.<span class="built_in">ToNanosecond</span>()));</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>协程 Sleep 到期的唤醒依赖 <a href="/posts/2588802797.html">27-Cyber时间系统与定时器</a> 的调度机制；对比线程 <code>sleep_for</code>，协程版本<strong>不占用任何线程</strong>——这在协程池中休眠 1000 个任务也不产生 1000 个线程。</p>
+<h2 id="4-与调度器的关系"><a href="#4-与调度器的关系" class="headerlink" title="4. 与调度器的关系"></a>4. 与调度器的关系</h2><p>异步任务池不是独立的执行体系，而是调度器上的一组”命名协程”：</p>
+<ul>
+<li><strong>优先级可控</strong>：在调度配置文件中给 <code>task_xxx</code> 前缀任务配置 prio，可让异步任务整体让位于控制任务</li>
+<li><strong>亲和性可控</strong>：Choreography 策略下可绑定处理器</li>
+<li><strong>与消息驱动任务竞争同一批 Processor</strong>：因此 TaskPoolSize 配置要量入为出，过大反而加剧队列锁与上下文切换竞争</li>
+</ul>
+<h2 id="5-使用模式与最佳实践"><a href="#5-使用模式与最佳实践" class="headerlink" title="5. 使用模式与最佳实践"></a>5. 使用模式与最佳实践</h2><h3 id="5-1-基本模式"><a href="#5-1-基本模式" class="headerlink" title="5.1 基本模式"></a>5.1 基本模式</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. 普通异步：后台执行，稍后取结果</span></span><br><span class="line"><span class="keyword">auto</span> fut = cyber::<span class="built_in">Async</span>([]() &#123; <span class="keyword">return</span> <span class="built_in">HeavyCompute</span>(); &#125;);</span><br><span class="line"><span class="keyword">auto</span> result = fut.<span class="built_in">get</span>();   <span class="comment">// 阻塞取结果</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 2. 带超时：控制类场景必备</span></span><br><span class="line"><span class="keyword">auto</span> fut2 = cyber::<span class="built_in">Async</span>([&amp;]() &#123; <span class="keyword">return</span> <span class="built_in">SolveMPC</span>(problem); &#125;);</span><br><span class="line"><span class="keyword">if</span> (fut2.<span class="built_in">wait_for</span>(std::chrono::<span class="built_in">milliseconds</span>(<span class="number">50</span>)) ==</span><br><span class="line">    std::future_status::timeout) &#123;</span><br><span class="line">  <span class="keyword">return</span> <span class="built_in">FallbackControl</span>();   <span class="comment">// 超时降级，绝不无限等待</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">auto</span> solution = fut2.<span class="built_in">get</span>();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 3. 并行扇出：多方案同时生成</span></span><br><span class="line"><span class="keyword">auto</span> f1 = cyber::<span class="built_in">Async</span>([<span class="keyword">this</span>]() &#123; <span class="keyword">return</span> <span class="built_in">GeneratePath</span>(LANE_FOLLOW); &#125;);</span><br><span class="line"><span class="keyword">auto</span> f2 = cyber::<span class="built_in">Async</span>([<span class="keyword">this</span>]() &#123; <span class="keyword">return</span> <span class="built_in">GeneratePath</span>(LANE_CHANGE_LEFT); &#125;);</span><br><span class="line"><span class="keyword">auto</span> f3 = cyber::<span class="built_in">Async</span>([<span class="keyword">this</span>]() &#123; <span class="keyword">return</span> <span class="built_in">GeneratePath</span>(LANE_CHANGE_RIGHT); &#125;);</span><br><span class="line">std::vector&lt;PathPtr&gt; paths&#123;f1.<span class="built_in">get</span>(), f2.<span class="built_in">get</span>(), f3.<span class="built_in">get</span>()&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 4. 在协程回调内休眠（不占线程）</span></span><br><span class="line"><span class="keyword">auto</span> fut3 = cyber::<span class="built_in">Async</span>([]() &#123;</span><br><span class="line">  cyber::<span class="built_in">SleepFor</span>(cyber::<span class="built_in">Duration</span>(<span class="number">0.1</span>));  <span class="comment">// 协程睡眠 100ms</span></span><br><span class="line">  <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-何时该用"><a href="#5-2-何时该用" class="headerlink" title="5.2 何时该用"></a>5.2 何时该用</h3><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>适合度</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IO 密集（网络&#x2F;文件）</td>
+<td>优</td>
+</tr>
+<tr>
+<td>非关键路径的重计算</td>
+<td>优</td>
+</tr>
+<tr>
+<td>超时可控的求解器</td>
+<td>优（future.wait_for）</td>
+</tr>
+<tr>
+<td>硬实时控制回路主逻辑</td>
+<td>否——应走组件 Proc + 高优先级调度</td>
+</tr>
+</tbody></table>
+<h3 id="5-3-注意事项"><a href="#5-3-注意事项" class="headerlink" title="5.3 注意事项"></a>5.3 注意事项</h3><blockquote>
+<p>[!warning] 异步调用五大坑</p>
+<ol>
+<li><strong>协程里阻塞</strong>：回调中调用阻塞系统调用（<code>read</code>&#x2F;<code>cudaMemcpy 同步版</code>）会钉死整个 Processor 线程，所有共驻协程遭殃</li>
+<li><strong>future.get 死锁</strong>：在消费协程内 get 另一个永不完成的任务</li>
+<li><strong>队列积压</strong>：生产速率持续高于 TaskPoolSize 消化能力，1000 深的队列会掩盖问题直到爆发</li>
+<li><strong>数据竞争</strong>：future 返回前共享状态的写操作需同步，lambda 捕获引用要小心生命周期</li>
+<li><strong>小任务风暴</strong>：每个任务有队列 + future 开销，微任务应合并批处理</li>
+</ol>
+</blockquote>
+<h2 id="6-SysMo：异步任务的监控"><a href="#6-SysMo：异步任务的监控" class="headerlink" title="6. SysMo：异步任务的监控"></a>6. SysMo：异步任务的监控</h2><p>SysMo（System Monitor）是可选的监控线程，通过环境变量 <code>sysmo_start=1</code> 开启：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// cyber/sysmo/sysmo.cc</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">SysMo::Start</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="keyword">auto</span> sysmo_start = <span class="built_in">GetEnv</span>(<span class="string">&quot;sysmo_start&quot;</span>);</span><br><span class="line">  <span class="keyword">if</span> (sysmo_start != <span class="string">&quot;&quot;</span> &amp;&amp; std::<span class="built_in">stoi</span>(sysmo_start)) &#123;</span><br><span class="line">    start_ = <span class="literal">true</span>;</span><br><span class="line">    sysmo_ = std::<span class="built_in">thread</span>(&amp;SysMo::Checker, <span class="keyword">this</span>);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">SysMo::Checker</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="keyword">while</span> (<span class="built_in">cyber_unlikely</span>(!shut_down_.<span class="built_in">load</span>())) &#123;</span><br><span class="line">    scheduler::<span class="built_in">Instance</span>()-&gt;<span class="built_in">CheckSchedStatus</span>();  <span class="comment">// 输出快照</span></span><br><span class="line">    <span class="function">std::unique_lock&lt;std::mutex&gt; <span class="title">lk</span><span class="params">(lk_)</span></span>;</span><br><span class="line">    cv_.<span class="built_in">wait_for</span>(lk, std::chrono::<span class="built_in">milliseconds</span>(sysmo_interval_ms_));</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>快照内容（<code>CheckSchedStatus</code> 的完整实现在 <a href="/posts/2526415752.html">26-Cyber调度系统详解</a> 第 5.4 节）格式为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">0:Planning:23, 1:task_3:102, 2:idle, ...</span><br></pre></td></tr></table></figure>
+
+<p>即 <code>处理器:协程名:已执行毫秒</code>。监控读法：</p>
+<ul>
+<li><code>task_N</code> 名字表示异步任务池的协程——执行时间异常长说明有慢任务</li>
+<li>某处理器长时间不 idle 且同一协程名不变 → 疑似协程内阻塞</li>
+<li>配合 <code>cyber_monitor</code> 观察对应组件消息频率是否掉队</li>
+</ul>
+<h2 id="7-与其他异步机制对比"><a href="#7-与其他异步机制对比" class="headerlink" title="7. 与其他异步机制对比"></a>7. 与其他异步机制对比</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>cyber::Async</th>
+<th>std::async</th>
+<th>ROS 回调队列</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>底层模型</td>
+<td>协程（实）&#x2F;线程（仿真）</td>
+<td>线程</td>
+<td>回调 + 线程池</td>
+</tr>
+<tr>
+<td>返回值</td>
+<td>std::future</td>
+<td>std::future</td>
+<td>回调函数</td>
+</tr>
+<tr>
+<td>资源限制</td>
+<td>有界队列 + TaskPoolSize</td>
+<td>无（系统资源）</td>
+<td>队列长度</td>
+</tr>
+<tr>
+<td>优先级&#x2F;亲和</td>
+<td>可经调度配置控制</td>
+<td>仅 launch 策略</td>
+<td>有限</td>
+</tr>
+<tr>
+<td>运行时监控</td>
+<td>SysMo</td>
+<td>无</td>
+<td>rqt 等外部工具</td>
+</tr>
+</tbody></table>
+<h2 id="8-小结"><a href="#8-小结" class="headerlink" title="8. 小结"></a>8. 小结</h2><p><code>cyber::Async</code> &#x3D; 一行 API 背后的四件套：<strong>packaged_task&#x2F;future 桥接 + 有界队列背压 + 池化消费协程 + 调度器统一编排</strong>；<code>Yield</code>&#x2F;<code>SleepFor</code> 则是协程感知的通用原语，在线程环境自动退化。它让”组件主流程短平快、重活异步化”成为 Cyber 应用的标准写法。任务从何而来（消息驱动）见 <a href="/posts/3931639321.html">29-Cyber数据系统详解</a>，任务跑在什么环境（协程与优先级）见 <a href="/posts/2526415752.html">26-Cyber调度系统详解</a>。</p>
+<p><em>上一篇：<a href="/posts/2588802797.html">27-Cyber时间系统与定时器</a>　下一篇：<a href="/posts/3931639321.html">29-Cyber数据系统详解</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3670574823.html">https://zeek-zhao.github.io/posts/3670574823.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/3931639321.html" title="29-Cyber数据系统详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">29-Cyber数据系统详解</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标深入消息从”到达本进程”到”触发组件回调”之间的内部机制：DataDispatcher、CacheBuffer、DataNotifier、DataVisitor 与数据融合策略，理解零拷贝与无锁设计如何支撑高吞吐。  本篇是第四阶段 Cyber RT 深度剖析的第五篇。第二阶段 12-消息通信与组件开发 讲的是使用层 API（怎么建 Writer&#x2F;Reader、怎么发消息）；本篇聚焦框架内部——消息进来之后发生了什么。它与 26-Cyber调度系统详解 的唤醒链路是同一条故事的两侧。 1. 数据系统全景一条消息的生命周期（本进程视角）可归纳为六步： 123456789101112131415161718sequenceDiagram    participant W as Writer    participant TR as Transmitter    participant RE as Receiver    participant DD as DataDispatcher    participant CB as CacheBuffer...</div></div></div></a><a class="pagination-related" href="/posts/1617959215.html" title="28-AST转换"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">28-AST转换</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标AST 转换在编译期生成与修改代码，学习常用注解与自定义转换。  1. AST 转换概述AST（抽象语法树）转换在编译阶段修改或生成代码，实现编译期元编程。与运行时元编程不同，AST 转换发生在编译期，生成高效代码。 Groovy 内置大量 AST 转换注解，也有开放 API 支持自定义转换。 2. 常用内置注解@ToString 生成字符串表示，@EqualsAndHashCode 生成相等与哈希，@Canonical 组合两者，@TupleConstructor 生成元组构造器。这些注解大幅减少样板代码。 @Immutable 生成不可变类，@Delegate 生成委托方法，@Lazy 惰性初始化字段，@Memoized 方法结果缓存。 3. 局部与全局转换@TypeChecked 与 @CompileStatic 是类型相关转换，为方法启用静态检查或静态编译，是性能与安全的关键工具。 @Singleton 生成单例模式，@PackageScope 控制字段可见性，@Field 脚本中声明字段。 4. 自定义 AST 转换实现 ASTTransfor...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1834975411.html" title="20-规划模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">20-规划模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Apollo Planning 模块：基于场景(Scenario-based)的规划架构、参考线生成与平滑、路径规划与速度规划的解耦优化（EM Planner 思想）、QP&#x2F;Piecewise-Jerk 核心算法与轨迹安全校验。行为层面的场景决策单独立篇，见 21-决策模块与场景决策。  1. 规划模块概述规划(Planning)模块是自动驾驶系统的核心组件，扮演车辆”大脑”的角色：根据感知与预测结果，结合导航路径，规划出安全、舒适、高效的行驶轨迹，输出带时间戳的轨迹点序列供控制模块执行。 123456graph LR    A[HD Map 地图] --&gt; C[Planning]    B[Localization 定位] --&gt; C    D[Prediction 预测] --&gt;|障碍物预测轨迹| C    E[Routing 路由] --&gt;|导航路径| C    C --&gt;|规划轨迹| F[Control 控制]  核心目标：在确保安全的前提下，生成平滑舒适、高效节能、符合交通规则的轨迹。 2. 架构与...</div></div></div></a><a class="pagination-related" href="/posts/928100527.html" title="07-定位模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">07-定位模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 定位模块的整体架构：RTK 定位、激光点云定位、视觉定位及多传感器融合策略。  1. 定位模块概述定位是自动驾驶的核心能力之一，决定了车辆在高精地图中的精确位置与姿态。Apollo 定位模块采用多传感器融合方案，结合 RTK（载波相位差分）、激光雷达点云配准、视觉特征匹配与 IMU 惯性导航数据，输出厘米级定位结果。 123456定位输入源：- GNSS/RTK：全球导航卫星系统 + 差分基准站- IMU：三轴加速度计 + 陀螺仪- 激光雷达：点云配准（NDT/Monte Carlo）- 相机：视觉特征匹配与车道线约束- 轮速计：车辆里程计约束  2. RTK 定位原理RTK 通过基准站与移动站的载波相位差分消除卫星误差：  基准站播发改正数（RTCM 协议） 移动站解算模糊度获得厘米级定位 更新频率 10-20 Hz，适合开阔场景  12345# 定位配置要点rtk:  base_station: 192.168.1.100  protocol: rtcm3  survey_in: false  RTK 的局限：高楼峡谷、隧道等遮挡...</div></div></div></a><a class="pagination-related" href="/posts/143389874.html" title="41-性能优化与车规级部署"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">41-性能优化与车规级部署</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标本篇融合性能优化与车规级部署两大主题：掌握 Apollo 系统的性能指标体系与瓶颈定位方法、算法&#x2F;通信&#x2F;调度三层优化手段与实测案例，理解从工控机研发环境到国产芯片域控制器量产部署的完整路径。  1. 性能指标体系自动驾驶系统在严格实时约束下处理海量传感器数据，性能直接影响行车安全。核心指标：    指标 含义 目标    端到端延迟 感知到控制的全程耗时 百毫秒级   模块频率 各模块消息更新率 达标且稳定   CPU&#x2F;GPU 占用 计算资源使用 留有冗余   内存 占用与稳定性 无泄漏   抖动 延迟的波动幅度 越小越好   1.1 定位瓶颈优化以数据为依据，先建立基线再动手： 123456# 检查各话题频率是否达标cyber_monitorcyber_monitor -c /apollo/sensor/Livox/lidar64# 模块日志统计处理耗时tail -f /apollo/data/log/planning.INFO  使用 profiler 定位耗时函数（火焰图），关注端到端链路中耗时最长与波动最大的环节，优...</div></div></div></a><a class="pagination-related" href="/posts/3071498226.html" title="03-开发环境搭建（Docker）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">03-开发环境搭建（Docker）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标使用官方 Docker 镜像搭建 Apollo 开发环境，掌握容器启动、环境变量与常用工具链。  1. 前置条件需要 Ubuntu 主机（或虚拟机）并安装 NVIDIA 驱动与 Docker。Apollo 官方镜像体积较大，建议预留足够磁盘空间并配置国内镜像加速。 123# 安装 docker（Ubuntu 示例）sudo apt update &amp;&amp; sudo apt install -y docker.iosudo systemctl enable --now docker  2. 拉取镜像与启动Apollo 提供 dev 与 runtime 两类镜像，开发阶段使用 dev 镜像： 123# 进入 apollo 源码目录后执行bash docker/scripts/dev_start.shbash docker/scripts/dev_into.sh  脚本会自动拉取对应发行版镜像并挂载源码目录。进入容器后可执行： 1source /apollo/scripts/apollo_base.sh  3. 环境验证   检查项 命令 预期  ...</div></div></div></a><a class="pagination-related" href="/posts/1946355615.html" title="32-历史版本模块演进（2.0-5.0）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">32-历史版本模块演进（2.0-5.0）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标梳理 Apollo 2.0 到 5.0 的模块演进，理解感知融合、Cyber RT、场景化规划等关键技术路线的确立过程，掌握按版本纵向阅读源码的方法，为后续场景实战篇（33-车道级导航与决策、36-高速场景 等）打下版本认知基础。  1. 演进总览Apollo 2.0 至 5.0 是从封闭场地走向开放道路、从单场景走向多场景的关键时期。这一阶段的演进主线可以概括为三条：  感知路线：从相机+雷达简单组合 → 多传感器融合 → 深度学习强化的点云感知 框架路线：从 ROS → 场景化决策 → Cyber RT 高性能实时框架 场景路线：从封闭场地 → 简单城市道路 → 复杂城市+高速多场景  理解这三条主线，才能明白 Apollo 后续 6.0&#x2F;7.0 的端到端探索（见 38-端到端自动驾驶与大模型）与 10.0 的大模型混合架构是从何而来的。 123456timeline    title Apollo 关键版本演进    2018.1 : Apollo 2.0 : 支持简单城市道路自动驾驶    2018.7 : Apollo 3.0 : 支...</div></div></div></a><a class="pagination-related" href="/posts/3264947560.html" title="35-泊车场景"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">35-泊车场景</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 泊车场景的完整链路：环视相机与超声波雷达的车位感知、考虑运动学约束的泊车轨迹规划、低速精细控制，以及泊车特有的安全策略与失败退出机制。  1. 泊车场景概述泊车是典型的低速精细操作场景：车速低（通常 &lt; 5 km&#x2F;h）、空间狭小、障碍近身、控制精度要求高。它与道路行驶场景的本质区别在于：  感知重点不同：不追求远距离感知，而要求近距离高精度（厘米级车位边界） 控制重点不同：不追求动态稳定性，而要求静态精确性（最终泊入偏差） 轨迹形态不同：需要倒车、原地小半径转向，超出常规路径规划的假设范围  Apollo 提供独立的泊车场景（Valet Parking）模块，与车道行驶规划体系并行，由场景决策器按工况切换。 2. 泊车流程   阶段 内容 关键技术    车位检测 识别空车位与类型（平行&#x2F;垂直&#x2F;斜向） 环视相机 + 超声波雷达融合   路径规划 生成入库轨迹 多段轨迹生成（圆弧+直线&#x2F;样条）   轨迹优化 满足运动学与碰撞约束 平滑衔接 + 碰撞检测校验   低速控制 精确跟踪泊车轨迹 低...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E8%AE%BE%E8%AE%A1%E5%AE%9A%E4%BD%8D"><span class="toc-number">1.</span> <span class="toc-text">1. 设计定位</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-Task-%E6%8E%A5%E5%8F%A3%E4%B8%80%E8%A7%88"><span class="toc-number">2.</span> <span class="toc-text">2. Task 接口一览</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-TaskManager%EF%BC%9A%E5%BC%82%E6%AD%A5%E8%B0%83%E7%94%A8%E7%9A%84%E5%BC%95%E6%93%8E"><span class="toc-number">3.</span> <span class="toc-text">3. TaskManager：异步调用的引擎</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E7%BB%93%E6%9E%84%E4%B8%8E%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 结构与初始化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-Enqueue%EF%BC%9A%E4%BB%BB%E5%8A%A1%E6%8F%90%E4%BA%A4%E5%85%A8%E6%B5%81%E7%A8%8B"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 Enqueue：任务提交全流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-SleepFor-%E4%B8%8E%E5%8D%8F%E7%A8%8B%E4%BC%91%E7%9C%A0"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 SleepFor 与协程休眠</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E4%B8%8E%E8%B0%83%E5%BA%A6%E5%99%A8%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">4.</span> <span class="toc-text">4. 与调度器的关系</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E4%BD%BF%E7%94%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="toc-number">5.</span> <span class="toc-text">5. 使用模式与最佳实践</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E5%9F%BA%E6%9C%AC%E6%A8%A1%E5%BC%8F"><span class="toc-number">5.1.</span> <span class="toc-text">5.1 基本模式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E4%BD%95%E6%97%B6%E8%AF%A5%E7%94%A8"><span class="toc-number">5.2.</span> <span class="toc-text">5.2 何时该用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="toc-number">5.3.</span> <span class="toc-text">5.3 注意事项</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-SysMo%EF%BC%9A%E5%BC%82%E6%AD%A5%E4%BB%BB%E5%8A%A1%E7%9A%84%E7%9B%91%E6%8E%A7"><span class="toc-number">6.</span> <span class="toc-text">6. SysMo：异步任务的监控</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E4%B8%8E%E5%85%B6%E4%BB%96%E5%BC%82%E6%AD%A5%E6%9C%BA%E5%88%B6%E5%AF%B9%E6%AF%94"><span class="toc-number">7.</span> <span class="toc-text">7. 与其他异步机制对比</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E5%B0%8F%E7%BB%93"><span class="toc-number">8.</span> <span class="toc-text">8. 小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

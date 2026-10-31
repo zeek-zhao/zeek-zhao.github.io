@@ -1,0 +1,580 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>06-策略语言与语法基础 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="SELinux 策略源文件的组成与规则语法">
+<meta property="og:type" content="article">
+<meta property="og:title" content="06-策略语言与语法基础">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1420374886.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="SELinux 策略源文件的组成与规则语法">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="技能">
+<meta property="article:tag" content="selinux">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "06-策略语言与语法基础",
+  "url": "https://zeek-zhao.github.io/posts/1420374886.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/1420374886.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '06-策略语言与语法基础',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">06-策略语言与语法基础</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">06-策略语言与语法基础</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/selinux/">selinux</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握策略语言的核心语法，能读懂与编写基本规则。</p>
+</blockquote>
+<h2 id="1-策略文件组成"><a href="#1-策略文件组成" class="headerlink" title="1. 策略文件组成"></a>1. 策略文件组成</h2><p>SELinux 策略由多个模块组成，每个模块文件包含类型声明、属性、规则与辅助语句。模块编译为二进制策略模块，通过 semodule 安装到系统策略库。</p>
+<h2 id="2-类型与属性声明"><a href="#2-类型与属性声明" class="headerlink" title="2. 类型与属性声明"></a>2. 类型与属性声明</h2><p>类型声明使用 type 关键字，属性声明使用 attribute 关键字。可声明别名与角色关联。类型与属性的合理设计决定策略可维护性。</p>
+<h2 id="3-allow-规则"><a href="#3-allow-规则" class="headerlink" title="3. allow 规则"></a>3. allow 规则</h2><p>allow 规则是策略主体：allow httpd_t httpd_sys_content_t:file read; 声明 httpd 域可读 Web 内容文件。规则可写多源多目标，操作集以类别+权限组合。</p>
+<h2 id="4-权限类别"><a href="#4-权限类别" class="headerlink" title="4. 权限类别"></a>4. 权限类别</h2><p>权限类别（class）对应内核对象类型：file、dir、process、tcp_socket、unix_stream_socket 等。每类有权限集合，规则按需组合，权限粒度细化到具体操作。</p>
+<h2 id="5-辅助语句"><a href="#5-辅助语句" class="headerlink" title="5. 辅助语句"></a>5. 辅助语句</h2><p>策略语言提供 bool、ifelse、optional、require 等辅助语句。bool 定义运行时布尔，ifelse 按布尔值条件加载规则，optional 处理依赖缺失，require 声明外部引用。</p>
+<h2 id="6-宏与模板"><a href="#6-宏与模板" class="headerlink" title="6. 宏与模板"></a>6. 宏与模板</h2><p>参考策略（refpolicy）提供大量宏与接口，如 gen_require、files_type 等，封装常见规则模式。使用宏可显著简化自定义模块，减少重复代码与错误。</p>
+<h2 id="7-编译与验证"><a href="#7-编译与验证" class="headerlink" title="7. 编译与验证"></a>7. 编译与验证</h2><p>策略源通过 checkmodule 编译为模块，semodule_package 打包，semodule 安装。安装前可用 semodule -l 查看已安装模块，验证规则冲突与依赖完整。</p>
+<h2 id="7-策略文件组织"><a href="#7-策略文件组织" class="headerlink" title="7. 策略文件组织"></a>7. 策略文件组织</h2><p>策略源文件通常按模块组织：te 文件存放规则，if 文件定义接口，fc 文件描述文件上下文。编译时通过 Makefile 统一处理，生成可加载模块。合理的文件组织便于团队协作与版本管理，也是大型策略项目可维护性的关键。掌握组织规范后再编写规则，能显著减少混乱与重复。</p>
+<h2 id="8-规则匹配与优先级"><a href="#8-规则匹配与优先级" class="headerlink" title="8. 规则匹配与优先级"></a>8. 规则匹配与优先级</h2><p>策略规则按最具体优先原则匹配，属性与通配符规则优先级较低。理解匹配顺序有助于预测实际授权结果，避免规则冲突。编写规则时尽量使用具体类型，减少对属性的依赖。使用 sesearch 验证生效规则，是确认策略行为的可靠手段。</p>
+<p><em>上一篇：<a href="/posts/3591270430.html">05-类型强制TE模型</a>　下一篇：<a href="/posts/1003762406.html">07-布尔值Boolean配置</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/1420374886.html">https://zeek-zhao.github.io/posts/1420374886.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E6%8A%80%E8%83%BD/">技能</a><a class="post-meta__tags" href="/tags/selinux/">selinux</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2405339367.html" title="腿部臀部塑形系列"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">腿部臀部塑形系列</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握帕梅拉腿臀塑形系列的课程结构与发力要点，塑造紧致下肢线条。  1. 系列构成腿臀系列是帕梅拉最具人气的板块，典型课程包括 10 分钟臀部激活、15 分钟腿部塑形、20 分钟臀腿训练与低冲击臀部版本。多数课程以自重为主，部分版本加入弹力带或哑铃增强阻力。 课程通常采用循环结构：深蹲、弓步、臀桥、侧抬腿等动作按组循环，每组动作间仅短休甚至不休，保持肌肉持续紧张。 2. 发力要点臀部发力关键是髋关节主导：深蹲时臀部向后坐、膝盖与脚尖同向；臀桥顶峰主动夹臀、骨盆后倾，避免只用腰顶起。 腿部训练注意膝盖稳定：弓步时前膝不超过脚尖过多，后膝垂直下放；侧抬腿保持骨盆水平，避免身体晃动借力。 3. 常见错误常见错误包括：弓步膝盖内扣、深蹲重心前移、臀桥塌腰、侧抬腿骨盆翻转等，都会削弱目标肌肉刺激并增加受伤风险。跟练时对照视频中的标准示范逐项纠正，必要时放慢节奏。 帕梅拉课程节奏较快，初学者容易为了跟上速度而牺牲动作质量，建议先看一遍动作演示再正式跟练。 4. 训练安排建议新手每周 2~3 次腿臀训练，与腹部、上肢训练穿插；进阶者可在自重基础上加弹力带或哑铃，并采用慢...</div></div></div></a><a class="pagination-related" href="/posts/861959827.html" title="06-注册表编辑器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">06-注册表编辑器</div></div><div class="info-2"><div class="info-item-1">注册表编辑器 [!abstract] 用途注册表是 Windows 的分层配置数据库，保存系统、软件、用户与硬件设置。注册表编辑器（regedit）用于查看与修改这些配置，是高级运维与软件排错的必备工具。  1. 打开方式123Win+R → regedit开始菜单搜索 &quot;regedit&quot;PowerShell: Start-Process regedit   [!warning] 高风险注册表错误修改可能导致系统无法启动。修改前务必先导出备份该项。  2. 注册表结构（五大根键）   根键 内容    HKEY_LOCAL_MACHINE (HKLM) 系统全局配置（服务、驱动、硬件）   HKEY_CURRENT_USER (HKCU) 当前用户配置   HKEY_CLASSES_ROOT (HKCR) 文件关联、COM 对象   HKEY_USERS (HKU) 所有用户配置   HKEY_CURRENT_CONFIG (HKCC) 当前硬件配置   每个键下含子键与值：字符串（REG_SZ）、二进制（REG_BINARY）、DWORD（REG_DWORD...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/2762209735.html" title="26-性能影响与优化"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">26-性能影响与优化</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标评估 SELinux 性能开销并掌握常用优化手段。  1. 开销来源SELinux 在每次对象访问时执行策略检查，开销主要来自规则查找与安全服务器决策。现代内核采用缓存与向量化算法，平均开销通常低于百分之五。 2. 主要影响因素规则数量、对象类别、日志记录量影响性能。海量规则增加查找时间，大量 AVC 拒绝写入日志造成 IO 开销。合理规划规则与日志策略可显著降低影响。 3. 缓存机制内核缓存 AVC 决策结果，重复访问命中缓存开销极小。合理使用 dontaudit 减少无关日志，但需谨慎避免掩盖问题。 4. 基准测试方法使用基准工具对比 permissive 与 enforcing 模式性能，量化开销。测试应覆盖典型业务负载，关注吞吐量与延迟指标，而非理论峰值。 5. 优化手段优化顺序：精简策略模块与规则、合理布尔值、日志分级与归档、避免频繁模式切换。针对高吞吐服务专项调优，如数据库与缓存服务。 6. 权衡原则安全与性能需平衡：核心安全功能不应为性能牺牲，性能瓶颈优先从应用层与系统配置入手。定期复测性能与安全基线，保持两者稳定。 7. 性能监控使用 p...</div></div></div></a><a class="pagination-related" href="/posts/250200199.html" title="32-文件系统打标与restorecon"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">32-文件系统打标与restorecon</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握文件系统打标机制与 restorecon 的深度应用。  1. 打标过程安装系统或首次启用 SELinux 时执行全盘打标，依据默认 fcontext 规则为每个文件写入标签。后续新文件由系统默认规则或父目录继承决定标签。 2. restorecon 用法restorecon 按规则重打指定路径标签：restorecon -Rv &#x2F;path 递归、-F 强制重打、-n 预演。fixfiles 封装全盘或分区打标，适合批量场景。 3. 自定义规则应用semanage fcontext 定义规则后必须 restorecon 应用。规则匹配按最长前缀或正则优先级，理解匹配顺序避免标签意外。 4. 标签继承与默认新创建文件默认继承父目录类型或采用 default_t。特殊目录如 &#x2F;tmp 有独立规则，服务临时文件常因标签错乱引发拒绝，需显式定义。 5. 打标性能与窗口全盘打标耗时随文件数增长，生产环境安排在维护窗口。增量场景使用 restorecon -R 仅重打规则变更部分，缩短时间窗口。 6. 校验与排障打标后使用 matchpath...</div></div></div></a><a class="pagination-related" href="/posts/3270790140.html" title="31-角色与用户管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">31-角色与用户管理</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 SELinux 用户、角色与登录映射的配置方法。  1. SELinux 用户体系SELinux 用户是策略层的身份抽象，如 root、user_u、staff_u。登录用户通过映射绑定 SELinux 用户，决定其初始域与可用角色，是权限边界的基础。 2. 默认映射系统默认将普通登录用户映射到 unconfined_u 或 user_u，root 映射到 root。映射决定用户进程域：user_u 受限、unconfined_u 非受限，安全差异显著。 3. 角色与域角色（role）关联域集合，如 staff_r 含 sysadm_t 与 staff_t，通过角色切换实现提权。角色机制实现职责分离，管理员与普通用户使用不同角色域。 4. 配置命令semanage login -a&#x2F;-m&#x2F;-d 管理登录映射，semanage user -a&#x2F;-m 管理用户定义，semanage login -l 查看映射。修改后新登录生效，现有会话不受影响。 5. 场景实践安全环境将普通用户映射 user_u，运维用户映射 staff...</div></div></div></a><a class="pagination-related" href="/posts/1822616807.html" title="16-sepolicy策略工具"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">16-sepolicy策略工具</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 sepolicy 系列命令的功能与典型用法。  1. sepolicy 命令族sepolicy 提供 generate、manpage、interface、network 等子命令，覆盖策略模块生成、文档生成与信息查询，是开发与排障的集成工具链。 2. 生成策略模块sepolicy generate -c 命令基于程序路径自动生成最小策略模块模板，包含接口、类型与规则骨架。开发人员可在此基础上扩充权限，大幅降低编写成本。 3. 生成 man 手册sepolicy manpage 为自定义模块生成策略 man 手册，说明类型、布尔值与接口。安装手册后管理员可通过 man 查询模块用法，便于团队协作。 4. 接口与网络查询sepolicy interface 列出策略接口，sepolicy network 查询网络相关类型与端口。结合 sesearch 使用可全面掌握模块对外暴露能力。 5. 与策略包关系sepolicy 工具基于当前加载策略工作，查询结果反映实际策略内容。自定义模块安装后工具即识别，无需额外索引，保证查询实时性。 6. 实战流程开发新...</div></div></div></a><a class="pagination-related" href="/posts/3814999692.html" title="13-Ubuntu-Debian配置"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">13-Ubuntu-Debian配置</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握在 Ubuntu&#x2F;Debian 上启用与维护 SELinux。  1. 默认情况Ubuntu&#x2F;Debian 默认使用 AppArmor，未启用 SELinux。如需切换需安装对应内核模块与用户空间工具，并安装完整策略包，过程比 RHEL 系略复杂。 2. 安装准备安装 selinux-basics、selinux-policy-default 等包，确认内核支持 SELinux（Ubuntu 内核默认包含），编辑内核参数与 &#x2F;etc&#x2F;selinux&#x2F;config 启用，重启后系统重新打标签。 3. 首次启动注意首次启用 SELinux 时系统会对全盘打标签，耗时较长；建议先 permissive 模式启动确认无重大异常，再切换 enforcing。打标签期间避免中断。 4. 工具链差异Debian 系提供 policycoreutils、setools 等工具，命令与 RHEL 系基本一致：semanage、getsebool、setsebool、restorecon 均可用。部分工具包名不同，需按发...</div></div></div></a><a class="pagination-related" href="/posts/2950431380.html" title="08-文件上下文"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">08-文件上下文</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握文件上下文的规则定义、查看与修复方法。  1. 文件上下文作用文件上下文规则决定目录与文件的默认标签。安装软件或创建目录时，系统依据规则自动打标，保证应用进程能正确访问资源。标签错误会导致应用无法访问文件，产生大量拒绝日志。 2. 查看文件标签使用 ls -Z 查看文件标签，stat -c %C 查看单个文件，namei -Z 查看路径各级标签。理解标签显示有助于对照规则判断标签是否预期。 3. 定义持久规则使用 semanage fcontext 定义路径规则：semanage fcontext -a -t httpd_sys_content_t ‘&#x2F;web(&#x2F;.*)?’。规则支持正则路径，持久保存在策略存储中，重启不丢失。 4. 应用标签定义规则后需 restorecon 应用：restorecon -Rv &#x2F;web 递归重打标签。fixfiles 可对全系统重打。新安装软件后执行 restorecon 确保标签与规则一致。 5. chcon 临时修改chcon 可临时修改单个文件标签，适合测试。但 chcon 修改...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E7%AD%96%E7%95%A5%E6%96%87%E4%BB%B6%E7%BB%84%E6%88%90"><span class="toc-number">1.</span> <span class="toc-text">1. 策略文件组成</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E7%B1%BB%E5%9E%8B%E4%B8%8E%E5%B1%9E%E6%80%A7%E5%A3%B0%E6%98%8E"><span class="toc-number">2.</span> <span class="toc-text">2. 类型与属性声明</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-allow-%E8%A7%84%E5%88%99"><span class="toc-number">3.</span> <span class="toc-text">3. allow 规则</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E6%9D%83%E9%99%90%E7%B1%BB%E5%88%AB"><span class="toc-number">4.</span> <span class="toc-text">4. 权限类别</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E8%BE%85%E5%8A%A9%E8%AF%AD%E5%8F%A5"><span class="toc-number">5.</span> <span class="toc-text">5. 辅助语句</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E5%AE%8F%E4%B8%8E%E6%A8%A1%E6%9D%BF"><span class="toc-number">6.</span> <span class="toc-text">6. 宏与模板</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E7%BC%96%E8%AF%91%E4%B8%8E%E9%AA%8C%E8%AF%81"><span class="toc-number">7.</span> <span class="toc-text">7. 编译与验证</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E7%AD%96%E7%95%A5%E6%96%87%E4%BB%B6%E7%BB%84%E7%BB%87"><span class="toc-number">8.</span> <span class="toc-text">7. 策略文件组织</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E8%A7%84%E5%88%99%E5%8C%B9%E9%85%8D%E4%B8%8E%E4%BC%98%E5%85%88%E7%BA%A7"><span class="toc-number">9.</span> <span class="toc-text">8. 规则匹配与优先级</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

@@ -1,0 +1,578 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>06-队列 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="说明: 任务间数据传递的核心机制">
+<meta property="og:type" content="article">
+<meta property="og:title" content="06-队列">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/586549084.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="说明: 任务间数据传递的核心机制">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="FreeRTOS">
+<meta property="article:tag" content="系统">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "06-队列",
+  "url": "https://zeek-zhao.github.io/posts/586549084.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/586549084.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '06-队列',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">06-队列</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">06-队列</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/FreeRTOS/">FreeRTOS</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握队列机制实现任务间数据传递。</p>
+</blockquote>
+<h2 id="1-队列概述"><a href="#1-队列概述" class="headerlink" title="1. 队列概述"></a>1. 队列概述</h2><p>队列是 FreeRTOS 任务间通信的核心机制，提供先进先出的数据传递通道。发送方将数据拷贝入队，接收方从队首取出，队列内部管理缓冲区与阻塞等待，天然支持多生产者多消费者模型。</p>
+<h2 id="2-队列创建"><a href="#2-队列创建" class="headerlink" title="2. 队列创建"></a>2. 队列创建</h2><p>xQueueCreate 指定队列长度与数据项大小，动态或静态创建两种方式。队列内存由内核分配，创建成功后返回句柄。数据项大小决定单条消息容量，长度决定缓冲深度，按吞吐需求配置。</p>
+<h2 id="3-发送与接收"><a href="#3-发送与接收" class="headerlink" title="3. 发送与接收"></a>3. 发送与接收</h2><p>xQueueSend 与 xQueueSendToBack 从队尾发送，xQueueSendToFront 从队首发送，xQueueReceive 接收数据。带超时版本支持阻塞等待，ISR 中使用 FromISR 后缀安全 API。发送接收均支持超时与立即返回。</p>
+<h2 id="4-阻塞行为"><a href="#4-阻塞行为" class="headerlink" title="4. 阻塞行为"></a>4. 阻塞行为</h2><p>发送时队列满则阻塞直至有空间或超时，接收时队列空则阻塞直至有数据或超时。阻塞任务按优先级排队等待，唤醒后重新竞争。超时设计避免无限等待，保证系统可恢复。</p>
+<h2 id="5-队列与中断"><a href="#5-队列与中断" class="headerlink" title="5. 队列与中断"></a>5. 队列与中断</h2><p>中断服务程序中发送数据使用 xQueueSendFromISR，接收使用 xQueueReceiveFromISR。ISR 版本不会阻塞，通过更高优先级任务唤醒机制处理。中断到任务的经典解耦模式由队列承载。</p>
+<h2 id="6-队列管理"><a href="#6-队列管理" class="headerlink" title="6. 队列管理"></a>6. 队列管理</h2><p>uxQueueMessagesWaiting 查询队列消息数，uxQueueSpacesAvailable 查询剩余空间，vQueueDelete 删除队列。队列复位与消息覆盖等扩展功能按需使用。队列生命周期管理避免悬空句柄。</p>
+<h2 id="7-实践要点"><a href="#7-实践要点" class="headerlink" title="7. 实践要点"></a>7. 实践要点</h2><p>队列传递小尺寸数据效率高，大对象建议传指针并管理生命周期。队列长度按生产速率与消费速率匹配，防止数据丢失或内存浪费。多队列组织消息路由，配合事件组实现复杂同步。</p>
+<p><em>上一篇：<a href="/posts/45138943.html">05-优先级与时间片</a>　下一篇：<a href="/posts/129125089.html">07-信号量</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/586549084.html">https://zeek-zhao.github.io/posts/586549084.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/FreeRTOS/">FreeRTOS</a><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/3991985180.html" title="06-高精地图HD Map"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">06-高精地图HD Map</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解高精地图在 Apollo 中的作用、数据组织与使用流程。  1. 什么是高精地图高精地图（HD Map）提供厘米级车道几何、拓扑关系与道路语义，是自动驾驶的先验信息源。与导航地图相比，高精地图包含车道中心线、边界、坡度曲率、信号灯位置、限速等要素。 2. 地图要素   要素 内容 用途    车道 中心线、宽度、连接关系 规划与定位   信号灯 位置、相位关系 感知关联   停止线 位置、方向 决策与停车   参考线 道路几何 轨迹生成   交叉口 拓扑 通行决策   3. 数据格式Apollo 地图基于 OpenDRIVE 与 protobuf 定义，核心消息为 Map 与 MapMsg。地图数据以二进制或文本形式加载，供定位与规划使用。 12# 地图文件示例路径/apollo/modules/map/data/&#123;map_name&#125;/  4. 使用流程 获取或制作地图数据 放置到 modules&#x2F;map&#x2F;data 目录 配置地图名与坐标系 启动定位与规划时加载  地图质量直接影响定位与规划，制作与验证是重点。...</div></div></div></a><a class="pagination-related" href="/posts/949416713.html" title="06-话题通信"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">06-话题通信</div></div><div class="info-2"><div class="info-item-1">话题通信 [!info] 本节目标深入理解 ROS1 话题通信的发布&#x2F;订阅模型，掌握 rospy 与 roscpp 两种语言的话题编程。  1. 通信模型话题通信是 ROS 最核心的异步发布&#x2F;订阅模式： 1发布者(Publisher) --消息--&gt; [话题 Topic] --消息--&gt; 订阅者(Subscriber)   一个话题可有多个发布者、多个订阅者（多对多）。 消息按数据类型传输，连接建立后数据不再经过 Master，直接点对点传输。 订阅者不会因无发布者而报错，只是收不到数据。  2. 消息类型话题使用的消息定义在 .msg 文件中，常见标准消息：    消息 作用    std_msgs&#x2F;String 字符串   std_msgs&#x2F;Int32 整型   geometry_msgs&#x2F;Twist 速度（线速度+角速度）   geometry_msgs&#x2F;Pose 位姿（位置+姿态）   sensor_msgs&#x2F;LaserScan 激光扫描数据   sensor_msgs&#x2F;Image...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/944546225.html" title="36-外设驱动集成"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">36-外设驱动集成</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握外设驱动与 FreeRTOS 任务模型集成。  1. 驱动架构外设驱动分层设计：硬件抽象、接口封装与业务逻辑。驱动通过中断与 DMA 高效处理数据，通过队列与任务交互。架构清晰支持复用与替换。 2. 中断驱动模式外设中断触发数据就绪，ISR 快速保存数据并通知任务。任务消费数据执行协议处理。中断频率与数据处理速度匹配，防止缓冲溢出与丢数据。 3. DMA 集成DMA 传输减少 CPU 占用，完成中断通知任务处理。缓冲管理与对齐要求满足 DMA 约束。多缓冲轮换提升吞吐。DMA 与任务并发访问保护。 4. 轮询与超时低速或简单外设可用轮询模式，结合超时避免忙等。轮询周期与功耗平衡。任务阻塞等待轮询结果，事件驱动更优时优先中断。 5. 驱动接口设计接口抽象外设能力，任务调用统一 API。初始化、读写、控制与关闭接口完备。错误码与状态反馈机制清晰。接口文档化便于集成与测试。 6. 驱动与任务解耦驱动层不感知业务逻辑，通过回调或队列上报事件。任务层实现协议与业务。分层解耦支持单元测试与模块复用。依赖注入便于模拟硬件。 7. 实践要点驱动开发先验证硬件寄存器，...</div></div></div></a><a class="pagination-related" href="/posts/574731705.html" title="23-调试与跟踪"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">23-调试与跟踪</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 FreeRTOS 调试与跟踪工具使用。  1. 调试需求实时系统问题难复现，需要观察任务调度、时序与资源使用。调试器提供断点与变量查看，跟踪工具提供运行时事件流，两者结合定位复杂问题。 2. 调试器集成主流 IDE 集成 FreeRTOS 插件，可查看任务列表、栈使用与内核对象。断点调试调度相关代码需注意实时性影响。系统视图插件可视化队列、信号量与事件组状态。 3. SEGGER SystemViewSystemView 记录内核事件并实时可视化，展示任务切换、中断与 API 调用时间线。事件记录开销低，适合运行时分析。可定位优先级反转、阻塞时间与响应延迟。 4. TracealyzerTracealyzer 提供深度分析视图，包括调度图、CPU 负载、互斥量持有时间与通信图。自动诊断优先级反转、死锁与过度调度。记录可在目标端或主机端分析，支持长时间采集。 5. 打印与日志日志输出辅助调试，注意在 ISR 与临界区中避免阻塞打印。日志分级与环形缓冲减少开销。关键路径记录时间戳，量化性能指标。 6. 性能分析CPU 负载、任务执行时间与阻塞占比来自跟...</div></div></div></a><a class="pagination-related" href="/posts/918463786.html" title="34-多核任务设计"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">34-多核任务设计</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握多核 SMP 应用任务设计方法。  1. 多核设计视角SMP 系统任务可并行执行，设计关注负载均衡、数据局部性与核间同步。多核收益来自并行任务划分，避免共享热点限制扩展性。 2. 任务分布策略任务按功能与实时性分布到核心，高频协作任务同核减少同步开销。负载均衡避免单核过载。动态迁移由内核管理，关键任务绑定核心保障确定性。 3. 数据局部性共享数据访问频繁的任务尽量同核，减少缓存竞争。伪共享避免相邻数据被多核交替访问。分区设计降低核间通信频率，提升缓存命中率。 4. 核间通信多核任务通过队列、信号量与共享内存通信。内核同步保证一致性，性能敏感路径减少共享。核间中断用于唤醒与通知，批量传递降低开销。 5. 锁与并发多核锁竞争放大延迟，细粒度锁与无锁设计按场景选择。共享状态最小化，尽量消息传递。互斥量跨核保护范围明确，避免长时间持有。 6. 中断与核心绑定中断可绑定指定核，按负载与亲和性路由。实时中断独占核心保障响应。核间调度交互设计避免活锁与饥饿，监控各核利用率。 7. 实践要点多核系统先确定并行收益再设计任务。性能测试对比单核与多核指标。跟踪工具多核视...</div></div></div></a><a class="pagination-related" href="/posts/479641272.html" title="12-软件定时器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">12-软件定时器</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握软件定时器创建、启动与回调机制。  1. 软件定时器概述软件定时器提供基于系统节拍的时间功能，周期性或单次触发回调函数。定时器由定时器守护任务统一管理，回调在守护任务上下文中执行，避免占用调用者 CPU。 2. 定时器类型单次定时器触发一次后停止，周期定时器按周期持续触发。创建时指定周期与类型，运行中可动态修改周期。定时器状态包括休眠、运行与活动，API 控制启动停止。 3. 创建与操作xTimerCreate 创建定时器并指定回调，xTimerStart 启动，xTimerStop 停止，xTimerChangePeriod 修改周期。操作命令通过队列发送给守护任务异步执行，返回命令是否成功入队。 4. 回调执行上下文回调在守护任务中顺序执行，回调中禁止调用阻塞 API，避免长时间运行阻塞其他定时器。回调尽量短小，耗时工作派发到业务任务。守护任务优先级与栈大小按需配置。 5. 定时器与任务延时对比软件定时器适合周期性后台操作，任务延时适合任务内时间控制。定时器回调无法直接访问任务局部状态，通过队列或通知与任务交互。两者组合实现灵活的时间管理。 6....</div></div></div></a><a class="pagination-related" href="/posts/2762677009.html" title="22-常见移植实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">22-常见移植实践</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握常见平台的 FreeRTOS 移植流程。  1. 移植概述移植 FreeRTOS 到新平台包含内核代码集成、硬件配置与启动流程适配。多数主流平台已有官方或厂商移植包，移植工作主要聚焦时钟、中断与内存配置。 2. STM32 平台移植STM32 移植基于 Cortex-M 内核支持，配置 SysTick 提供 Tick、NVIC 中断优先级与 FreeRTOSConfig。使用 CMSIS 启动文件与标准外设库或 HAL，集成内核源码后配置系统时钟即可运行。 3. ESP32 平台移植ESP32 使用官方 IDF 环境，FreeRTOS 深度集成于 IDF 中，包含 SMP 支持与网络组件。应用基于 IDF 组件开发，直接使用 FreeRTOS API。移植关注分区表、内存配置与多核调度。 4. 其他常见平台GD32、GD32F、NXP LPC、瑞萨 RA 等平台均有官方示例。ARM Cortex-M 系列移植流程相似，RISC-V 平台使用对应端口支持。移植优先参考厂商 BSP 与官方示例。 5. 移植关键点时钟配置决定 Tick 精度，中断优先级映...</div></div></div></a><a class="pagination-related" href="/posts/1628705678.html" title="11-流缓冲与消息缓冲"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">11-流缓冲与消息缓冲</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握流缓冲与消息缓冲实现无拷贝数据传递。  1. 缓冲机制概述流缓冲与消息缓冲是 FreeRTOS 提供的无拷贝数据传输机制，数据在生产者与消费者间直接传递，避免中间拷贝。流缓冲传递字节流，消息缓冲传递可变长度消息，适合流式与报文场景。 2. 流缓冲特性流缓冲按字节流传递，支持任意长度写入与读取，内部管理环形缓冲区。写入与读取可跨任务或中断，提供阻塞与非阻塞接口。流缓冲适合串口、音频与传感器数据流。 3. 消息缓冲特性消息缓冲以消息为单元传递，每条消息独立定长，保持消息边界。发送方写入完整消息，接收方一次读取一条。消息缓冲适合协议报文与结构化数据传递。 4. 无拷贝实现缓冲内部通过指针与长度描述传递数据块，接收方直接读取生产者写入的数据。无拷贝提升吞吐并降低延迟，适合高频大数据场景。内存由缓冲内部管理，无需应用层额外缓冲。 5. 创建与操作xStreamBufferCreate 与 xMessageBufferCreate 创建，对应 Send 与 Receive API。支持超时、ISR 版本与触发级别设置。触发级别控制接收阻塞唤醒条件，优化唤醒频率。...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E9%98%9F%E5%88%97%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">1. 队列概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E9%98%9F%E5%88%97%E5%88%9B%E5%BB%BA"><span class="toc-number">2.</span> <span class="toc-text">2. 队列创建</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%8F%91%E9%80%81%E4%B8%8E%E6%8E%A5%E6%94%B6"><span class="toc-number">3.</span> <span class="toc-text">3. 发送与接收</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E9%98%BB%E5%A1%9E%E8%A1%8C%E4%B8%BA"><span class="toc-number">4.</span> <span class="toc-text">4. 阻塞行为</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E9%98%9F%E5%88%97%E4%B8%8E%E4%B8%AD%E6%96%AD"><span class="toc-number">5.</span> <span class="toc-text">5. 队列与中断</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E9%98%9F%E5%88%97%E7%AE%A1%E7%90%86"><span class="toc-number">6.</span> <span class="toc-text">6. 队列管理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%AE%9E%E8%B7%B5%E8%A6%81%E7%82%B9"><span class="toc-number">7.</span> <span class="toc-text">7. 实践要点</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

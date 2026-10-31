@@ -1,0 +1,720 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>08-定位模块 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="定位模块回答&quot;车在世界坐标系的哪里、朝哪、多快&quot;。本篇讲解 Apollo 定位的技术基础（GNSS&#x2F;RTK、IMU、点云、视觉）、多传感器融合架构（MSF&#x2F;NDT&#x2F;RTK 三种实现）与配置调试方法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="08-定位模块">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1640301657.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="定位模块回答&quot;车在世界坐标系的哪里、朝哪、多快&quot;。本篇讲解 Apollo 定位的技术基础（GNSS&#x2F;RTK、IMU、点云、视觉）、多传感器融合架构（MSF&#x2F;NDT&#x2F;RTK 三种实现）与配置调试方法。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "08-定位模块",
+  "url": "https://zeek-zhao.github.io/posts/1640301657.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/1640301657.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '08-定位模块',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">08-定位模块</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">08-定位模块</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>理解自动驾驶定位的精度与可靠性要求，掌握 Apollo Localization 模块的多传感器融合架构：RTK 定位、MSF 融合定位、NDT 点云定位的实现原理、配置方法与常见问题排查。</p>
+</blockquote>
+<h2 id="1-定位为什么是基石"><a href="#1-定位为什么是基石" class="headerlink" title="1. 定位为什么是基石"></a>1. 定位为什么是基石</h2><p>定位模块输出车辆在全局坐标系中的<strong>位置、姿态、速度与不确定度</strong>，是感知、规划、控制共同依赖的基础。与手机导航相比，自动驾驶定位要求苛刻得多：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>自动驾驶定位</th>
+<th>传统导航</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>精度</td>
+<td>厘米级（横向 &lt;10 cm）</td>
+<td>米级</td>
+</tr>
+<tr>
+<td>更新频率</td>
+<td>10-100 Hz</td>
+<td>1 Hz</td>
+</tr>
+<tr>
+<td>可靠性</td>
+<td>&gt;99.9%，必须有冗余</td>
+<td>可容忍短暂失效</td>
+</tr>
+<tr>
+<td>输出维度</td>
+<td>6-DOF（位置 + 姿态）</td>
+<td>平面位置</td>
+</tr>
+</tbody></table>
+<p>主要性能指标：横向误差 &lt;0.1 m、姿态误差 &lt;0.5°、端到端延迟 &lt;100 ms、可用性 &gt;99.9%。</p>
+<h2 id="2-定位技术基础"><a href="#2-定位技术基础" class="headerlink" title="2. 定位技术基础"></a>2. 定位技术基础</h2><h3 id="2-1-坐标系"><a href="#2-1-坐标系" class="headerlink" title="2.1 坐标系"></a>2.1 坐标系</h3><ul>
+<li><strong>WGS84 &#x2F; ECEF</strong>：GNSS 原始输出的大地&#x2F;地心坐标</li>
+<li><strong>UTM &#x2F; ENU</strong>：局部投影平面坐标，Apollo 地图与定位输出使用</li>
+<li><strong>车体坐标系</strong>：后轴中心，控制模块使用</li>
+<li><strong>传感器坐标系</strong>：各传感器自身坐标，靠外参标定转换到车体系</li>
+</ul>
+<h3 id="2-2-各定位源的特点"><a href="#2-2-各定位源的特点" class="headerlink" title="2.2 各定位源的特点"></a>2.2 各定位源的特点</h3><table>
+<thead>
+<tr>
+<th>定位源</th>
+<th>原理</th>
+<th>优点</th>
+<th>弱点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GNSS&#x2F;RTK</td>
+<td>载波相位差分</td>
+<td>绝对精度 1-3 cm，无累积误差</td>
+<td>城市峡谷&#x2F;隧道失锁；需基准站或网络 RTK</td>
+</tr>
+<tr>
+<td>IMU</td>
+<td>加速度&#x2F;角速度积分</td>
+<td>100-1000 Hz 高频，短时平滑</td>
+<td>误差随时间二次累积</td>
+</tr>
+<tr>
+<td>LiDAR 点云</td>
+<td>点云与先验地图配准（NDT&#x2F;ICP）</td>
+<td>局部精度稳，不依赖 GNSS</td>
+<td>特征稀疏场景退化；计算量大</td>
+</tr>
+<tr>
+<td>视觉</td>
+<td>图像特征&#x2F;车道线与地图语义匹配</td>
+<td>横向约束强、成本低</td>
+<td>光照与季节敏感</td>
+</tr>
+<tr>
+<td>轮速计</td>
+<td>车轮编码器里程</td>
+<td>纵向速度约束可靠</td>
+<td>累积漂移、打滑误差</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!tip] 学习提示<br>融合的本质是”互补”：IMU 提供高频预测骨架，RTK&#x2F;点云&#x2F;视觉提供低频但无漂移的观测修正，滤波器按各源置信度加权。理解这一点后再看代码事半功倍。</p>
+</blockquote>
+<h2 id="3-Apollo-Localization-模块架构"><a href="#3-Apollo-Localization-模块架构" class="headerlink" title="3. Apollo Localization 模块架构"></a>3. Apollo Localization 模块架构</h2><h3 id="3-1-代码结构"><a href="#3-1-代码结构" class="headerlink" title="3.1 代码结构"></a>3.1 代码结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">modules/localization/</span><br><span class="line">├── conf/                    # 配置（rtk/msf_localization.pb.txt）</span><br><span class="line">├── dag/                     # DAG 工作流（dag_streaming_msf_localization.dag 等）</span><br><span class="line">├── proto/                   # gps/imu/localization/pose 消息定义</span><br><span class="line">├── rtk/                     # RTKLocalization：GNSS+IMU 松耦合</span><br><span class="line">├── msf/                     # MSFLocalization：多传感器融合（核心）</span><br><span class="line">│   ├── local_integ/         # INS 积分与局部融合</span><br><span class="line">│   └── local_map/           # 点云匹配局部地图管理</span><br><span class="line">├── ndt/                     # NDTLocalization：纯点云配准定位</span><br><span class="line">└── localization_component.cc</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-数据流"><a href="#3-2-数据流" class="headerlink" title="3.2 数据流"></a>3.2 数据流</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">GNSS 驱动 ──GnssBestPose(1-10Hz)──┐</span><br><span class="line">IMU 驱动 ──Imu(100Hz)─────────────┤→ Localization ──LocalizationEstimate──&gt; 感知/规划/控制</span><br><span class="line">LiDAR 驱动 ──PointCloud(10Hz)─────┤</span><br><span class="line">HD Map ──局部地图──────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>输出的 <code>LocalizationEstimate</code> 消息包含：位置（position）、姿态（orientation 四元数）、线速度&#x2F;加速度&#x2F;角速度、航向角，以及各项标准差构成的不确定度（Uncertainty）与测量状态（MeasureState）。</p>
+<h2 id="4-三种定位实现"><a href="#4-三种定位实现" class="headerlink" title="4. 三种定位实现"></a>4. 三种定位实现</h2><h3 id="4-1-RTK-定位"><a href="#4-1-RTK-定位" class="headerlink" title="4.1 RTK 定位"></a>4.1 RTK 定位</h3><p>GNSS-RTK 提供厘米级绝对位置，IMU 负责姿态估计与高频平滑，经卡尔曼滤波融合输出。</p>
+<ul>
+<li>优点：实现简单、计算量小、开阔区域精度高</li>
+<li>缺点：完全依赖 GNSS 信号，城市峡谷、隧道、地库不可用</li>
+</ul>
+<h3 id="4-2-MSF-多传感器融合定位（核心）"><a href="#4-2-MSF-多传感器融合定位（核心）" class="headerlink" title="4.2 MSF 多传感器融合定位（核心）"></a>4.2 MSF 多传感器融合定位（核心）</h3><p>MSF 采用<strong>松耦合</strong>架构，分两层：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">IMU(100Hz) → INS 积分（姿态→速度→位置预测）</span><br><span class="line">                  ↓ 预测状态</span><br><span class="line">GNSS / LiDAR匹配 / 里程计 → EKF 观测更新（修正积分误差）</span><br><span class="line">                  ↓ 反馈</span><br><span class="line">修正 INS 参数，循环运行</span><br></pre></td></tr></table></figure>
+
+<p>LiDAR 部分的点云匹配流程：点云预处理（去畸变、降采样）→ 特征提取 → 按当前估计位置加载局部地图 → NDT 配准 → 位姿优化输出。MSF 水平误差可控制在 5 cm 以内，姿态误差 &lt;0.3°。</p>
+<h3 id="4-3-NDT-定位"><a href="#4-3-NDT-定位" class="headerlink" title="4.3 NDT 定位"></a>4.3 NDT 定位</h3><p>纯点云方案：将空间划分为网格，每格用正态分布建模，通过优化使当前帧点云与地图分布的匹配得分最大。不依赖 GNSS，适合隧道等全遮挡场景，但需要高精度点云地图且计算量较大。</p>
+<h3 id="4-4-位姿外推"><a href="#4-4-位姿外推" class="headerlink" title="4.4 位姿外推"></a>4.4 位姿外推</h3><p>控制环需要 100 Hz 的位姿，而融合输出频率可能不足。Localization 基于最新 IMU 数据做<strong>位姿外推</strong>：用 IMU 积分的相对运动叠加到最近一次融合结果上，输出平滑的当前时刻位姿。</p>
+<h2 id="5-配置与调试"><a href="#5-配置与调试" class="headerlink" title="5. 配置与调试"></a>5. 配置与调试</h2><p>主要配置参数（<code>conf/msf_localization.pb.txt</code>）：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">localization_mode: MSF        # 可选 RTK / MSF / NDT</span><br><span class="line">gnss_timeout_sec: 0.2</span><br><span class="line">gnss_frequency_hz: 10</span><br><span class="line">imu_rate: 100                 # IMU 类型如 ADIS16488</span><br><span class="line">lidar_type: VELODYNE64</span><br><span class="line">lidar_frequency_hz: 10</span><br><span class="line">enable_lidar_localization: true</span><br><span class="line">enable_imu_heading: true</span><br><span class="line">enable_gnss_best_pose: true</span><br></pre></td></tr></table></figure>
+
+<p>常用调试命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看定位话题输出与频率</span></span><br><span class="line">cyber_monitor -c /apollo/localization/pose</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看模块日志中的各源健康度</span></span><br><span class="line"><span class="comment"># localization_msf 日志包含 gnss/lidar 一致性检查结果</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="常见问题排查"><a href="#常见问题排查" class="headerlink" title="常见问题排查"></a>常见问题排查</h3><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>可能原因</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定位跳变</td>
+<td>RTK 失锁&#x2F;多路径</td>
+<td>检查基准站链路、遮挡与天线位置</td>
+</tr>
+<tr>
+<td>定位漂移</td>
+<td>外参标定偏差、点云退化</td>
+<td>重新标定 LiDAR-IMU 外参；检查地图版本</td>
+</tr>
+<tr>
+<td>初始化失败</td>
+<td>初始位姿偏差过大</td>
+<td>确认起始位置有 GNSS 或正确设置初始位姿</td>
+</tr>
+<tr>
+<td>融合发散</td>
+<td>观测异常、时间戳不对齐</td>
+<td>检查各传感器时间同步与置信度配置</td>
+</tr>
+<tr>
+<td>姿态抖动</td>
+<td>IMU 数据质量差</td>
+<td>检查 IMU 安装与减震</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!warning]<br>传感器外参与时间同步是定位精度的隐形前提。定位异常时，先排查标定与同步，再调算法参数。</p>
+</blockquote>
+<h2 id="6-精度评估与趋势"><a href="#6-精度评估与趋势" class="headerlink" title="6. 精度评估与趋势"></a>6. 精度评估与趋势</h2><p>评估方式：与真值系统（测量级 RTK+高精度 INS 后处理）比对，计算 RMSE；覆盖开阔道路、城市峡谷、隧道、恶劣天气等场景。常用公开数据集包括 KITTI、Oxford RobotCar、ApolloScape 等。</p>
+<blockquote>
+<p>[!note] 2026 年更新</p>
+<ul>
+<li>Apollo 10.0 定位采用”<strong>模型定位 + 传统定位</strong>“融合：利用感知输出的路沿、车道线、杆、牌等道路结构元素与地图定位元素匹配，定位可用性超 99.9%，显著增强 GNSS 拒止环境下的鲁棒性</li>
+<li>Apollo 11.0 将定位重建为 <strong>RTK + SLAM + 视觉 + 轮速计</strong>融合方案，达到厘米级精度，重点应对无图或弱 GNSS 的园区、物流场景</li>
+<li>配合 9.0 的包化模块开发，定位模块可作为独立包部署升级</li>
+</ul>
+</blockquote>
+<p>定位结果如何被规划消费，见后续规划篇；本模块与地图的匹配细节见 <a href="/posts/2291656538.html">07-高精地图HD Map</a>。</p>
+<p><em>上一篇：<a href="/posts/2291656538.html">07-高精地图HD Map</a>　下一篇：<a href="/posts/2974331331.html">09-传感器接入（相机激光雷达毫米波）</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/1640301657.html">https://zeek-zhao.github.io/posts/1640301657.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1143600279.html" title="08-插件生态总览"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">08-插件生态总览</div></div><div class="info-2"><div class="info-item-1">插件生态总览 [!abstract] 一句话Obsidian 像 Chrome 和 VS Code：本体只是底座，插件才决定上限——但装得越多越要克制，最小可用集才是可持续的生态策略。  插件的双层结构Obsidian 的功能分两层提供：  核心插件：官方内置、可逐个开关的功能模块，包括文件恢复、日记、模板、标签面板、大纲、图谱、命令面板、搜索、白板（Canvas）、幻灯片、Bases（1.9.10+）等。核心插件默认大部分关闭，在 设置 → 核心插件 中按需开启； 社区插件：第三方开发者贡献的扩展，通过官方市场分发，数量已达数千款，覆盖查询、任务、绘图、同步、发布、AI 等几乎所有想象得到的场景。  判断一件事该找哪一层：基础体验类的功能先翻核心插件列表（很多人不知道白板、幻灯片、Bases 都是自带的），确认没有再上社区插件。 安装社区插件标准流程： 12341. 设置 → 第三方插件 → 关闭&quot;受限模式&quot;（旧称安全模式）2. 点击&quot;浏览&quot;打开社区插件市场3. 搜索插件名 → 安装 → 启用4. 进入该插件的设置页按需配置  离线或内网...</div></div></div></a><a class="pagination-related" href="/posts/137803024.html" title="08-与Java互操作"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">08-与Java互操作</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Groovy 与 Java 的无缝互操作是它的核心价值，学习双向调用与类型桥接。  1. Groovy 调用 JavaGroovy 可以毫无障碍地使用所有 Java 类库，导入、实例化、调用方法与 Java 语法基本一致，无需额外配置。Java 集合、并发、IO 与网络库均可直接使用。 Groovy 的动态特性让 Java API 调用更简洁：省略类型声明、属性访问替代 getter、闭包适配函数式接口。 2. Java 调用 GroovyJava 调用 Groovy 类就像调用普通 Java 类，只要 Groovy 类在 classpath 中。编译后的 Groovy 类生成标准字节码，Java 代码可直接 new 实例并调用方法。 动态方法的调用需要通过 Groovy 的 GroovyObject 接口或 Script 引擎，Java 侧也可使用 GroovyShell 动态执行脚本。 3. 属性与 getter&#x2F;setterGroovy 属性自动生成 getter 与 setter，Java 侧可以用标准 getXxx&#x2F;setX...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/370472885.html" title="56-自动驾驶云服务与基础设施"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">56-自动驾驶云服务与基础设施</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解支撑自动驾驶研发与运营的云基础设施：平台分层架构、数据与算力底座、云端仿真、车云协同与安全合规。云平台是 55-标注工具与数据闭环 和 54-自动驾驶测试方法 的物质基础。  1. 云服务的角色自动驾驶云服务是连接车辆与后端系统的核心枢纽，覆盖全生命周期：    角色 功能 典型服务    数据中心 PB 级研发&#x2F;运行数据管理 数据湖、对象存储   计算中心 大规模分布式训练 GPU 集群、训练平台   研发中台 全流程工具链 开发环境、CI&#x2F;CD   仿真平台 虚拟测试与场景管理 云端仿真引擎   运营中心 车队监控与调度 监控系统   地图服务 高精地图分发与更新 地图云、增量更新   价值：突破本地算力限制、按需付费降低门槛、通过数据闭环加速迭代、支撑多车协同。 2. 平台分层架构1234567用户接入层（开发者门户 / 车队管理 / API 网关）    ↓应用服务层（地图 / 仿真 / 数据分析 / 训练 / OTA / 远程监控）    ↓平台中间件层（数据处理框架 / 模型管理 / 任务调度 / 认证 / 监控告警）...</div></div></div></a><a class="pagination-related" href="/posts/452198409.html" title="02-版本发展与架构演进"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">02-版本发展与架构演进</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Apollo 1.0 至 11.0 的版本里程碑与架构演进主线，学会根据自身诉求选择合适的版本。本篇承接 01-百度Apollo概述与生态，为后续动手实践提供版本坐标。  1. 版本里程碑全表   版本 时间 核心能力    1.0 2017.07 封闭场地自动驾驶，高精地图 + 定位   1.5 2017.09 固定车道巡航，简单城市道路能力   2.0 2018.01 简单城市道路自动驾驶，感知&#x2F;规划&#x2F;控制闭环   2.5 2018.04 特定区域、特定场景自动驾驶   3.0 2018.07 量产架构，复杂城市道路与高速场景   3.5 2019.01 引入 Cyber RT 框架，替代 ROS   5.0 2019.09 L4 级多场景，车路协同   5.5 2020.01 自动泊车与智能小车场景增强   6.0 2020.09 点云感知升级，深度学习模型加强   7.0 2022 模块解耦，强化学习规划探索，云服务起步   8.0 2021 场景化工具链，量产化推进   9.0 2023 支持包化模块开发，推出 Dre...</div></div></div></a><a class="pagination-related" href="/posts/2665165307.html" title="53-TensorFlow与Caffe2在自动驾驶中的应用"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">53-TensorFlow与Caffe2在自动驾驶中的应用</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标系统了解 TensorFlow 生态与 Caffe2 的技术特点，理清 Caffe2 并入 PyTorch 的历史脉络，掌握从”研究框架”到”生产部署”的转换思路。框架选型可与 52-PyTorch与自动驾驶实践 对照阅读。  1. TensorFlow 基础1.1 发展与版本分水岭TensorFlow 由 Google Brain 于 2015 年开源。1.x（静态图 + Session）与 2.x（默认即时执行 Eager Execution + Keras 高级 API）是两代完全不同的编程体验： 1234567# TF 1.x：先定义静态图，再用 Session 执行c = tf.multiply(a, b)with tf.Session() as sess:    result = sess.run(c)# TF 2.x：即时执行，代码即计算c = a * b          # 直接得到结果  TF 2.x 的 tf.function 装饰器可把 Python 函数编译为图执行，兼得开发效率与运行性能。 1.2 分层 API 体系   层级...</div></div></div></a><a class="pagination-related" href="/posts/4019786798.html" title="21-决策模块与场景决策"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">21-决策模块与场景决策</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 决策体系：场景识别（ScenarioManager）、行为决策层次、规则引擎与决策参数，以及决策可解释性调试方法。决策是连接感知与规划的桥梁——决策结果驱动 20-规划模块 的路径与速度边界生成。  1. 决策模块概述决策模块根据感知、预测与地图信息，决定车辆下一步行为：跟车、超车、让行、停车、换道等，是连接感知与规划的桥梁。在 Apollo 中，决策能力以两种形态存在：  规划内的决策任务：Scenario&#x2F;Stage&#x2F;Task 体系中的 Deciders（见 20-规划模块）； 场景决策框架：场景识别器激活对应决策器，输出行为意图。  本篇聚焦后者，并统一讲解决策的通用方法论。 2. 决策层次决策采用分层架构：    层次 内容 示例    场景级 激活场景与模式 十字路口通行   行为级 选择行为 跟车、停车、变道   规则级 遵守交规 限速、让行、停车线   1234567891011graph TD    A[场景理解] --&gt; B[地图/感知/预测输入]    B --&gt; C[场景识别器] ...</div></div></div></a><a class="pagination-related" href="/posts/2537337478.html" title="17-车载计算平台（工控机）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">17-车载计算平台（工控机）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标了解 Apollo 车载计算平台（工控机）的选型、配置与运行要求。  1. 计算平台的作用车载计算平台运行感知、预测、规划、控制等模块，需满足实时性、功耗、散热与可靠性要求。 2. 硬件选型   部件 要求 说明    CPU 多核高性能 规划控制实时任务   GPU 高性能 感知深度学习推理   内存 大容量 多模块并发   存储 大容量固态 地图与日志   网络 多网口 传感器接入   3. 系统配置Apollo 官方推荐 Ubuntu 系统与 NVIDIA 驱动，运行 Docker 容器。需配置：  实时内核或实时调度 GPU 驱动与 CUDA 时间同步（PTP&#x2F;NTP） 网络隔离与带宽预留  123# 检查运行环境nvidia-smilsmod | grep can  4. 运行注意事项 供电需稳定且支持断电保护 散热与防护满足车规要求 日志与数据落盘策略见 36-性能优化 量产部署见 39-车规级平台部署   [!note] 延伸传感器接入与计算平台配合见 18-传感器接入。  5. 平台架构示例典型车载计算平台包含：主计算单元（CP...</div></div></div></a><a class="pagination-related" href="/posts/1552856559.html" title="20-Apollo Cyber RT框架"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">20-Apollo Cyber RT框架</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo Cyber RT 框架：设计目标、核心概念与总体架构。  1. 为什么需要 Cyber RT早期 Apollo 基于 ROS，存在性能、可靠性与二次开发限制。Cyber RT 是百度自研的高性能实时通信框架，用于替代 ROS 支撑自动驾驶数据流。 2. 核心概念   概念 说明    Node 功能单元容器   Reader&#x2F;Writer 消息订阅&#x2F;发布   Component 可复用的计算组件   Scheduler 协程调度器   Shared Memory 共享内存传输   3. 架构分层Cyber RT 分为传输层、调度层与应用层：传输层负责消息传递（共享内存、DDS 等），调度层负责任务调度（协程并发），应用层提供 Node&#x2F;Component 编程模型。 1234# 常用命令行cyber_channel list          # 列出话题cyber_channel echo /topic   # 回显话题消息cyber_launch 文件.launch    # 启动组件  4. 设计优...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E5%AE%9A%E4%BD%8D%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E5%9F%BA%E7%9F%B3"><span class="toc-number">1.</span> <span class="toc-text">1. 定位为什么是基石</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%AE%9A%E4%BD%8D%E6%8A%80%E6%9C%AF%E5%9F%BA%E7%A1%80"><span class="toc-number">2.</span> <span class="toc-text">2. 定位技术基础</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%9D%90%E6%A0%87%E7%B3%BB"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 坐标系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%90%84%E5%AE%9A%E4%BD%8D%E6%BA%90%E7%9A%84%E7%89%B9%E7%82%B9"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 各定位源的特点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-Apollo-Localization-%E6%A8%A1%E5%9D%97%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">3. Apollo Localization 模块架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E4%BB%A3%E7%A0%81%E7%BB%93%E6%9E%84"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 代码结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 数据流</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E4%B8%89%E7%A7%8D%E5%AE%9A%E4%BD%8D%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.</span> <span class="toc-text">4. 三种定位实现</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-RTK-%E5%AE%9A%E4%BD%8D"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 RTK 定位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-MSF-%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D%EF%BC%88%E6%A0%B8%E5%BF%83%EF%BC%89"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 MSF 多传感器融合定位（核心）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-NDT-%E5%AE%9A%E4%BD%8D"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 NDT 定位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E4%BD%8D%E5%A7%BF%E5%A4%96%E6%8E%A8"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 位姿外推</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E9%85%8D%E7%BD%AE%E4%B8%8E%E8%B0%83%E8%AF%95"><span class="toc-number">5.</span> <span class="toc-text">5. 配置与调试</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5"><span class="toc-number">5.1.</span> <span class="toc-text">常见问题排查</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E7%B2%BE%E5%BA%A6%E8%AF%84%E4%BC%B0%E4%B8%8E%E8%B6%8B%E5%8A%BF"><span class="toc-number">6.</span> <span class="toc-text">6. 精度评估与趋势</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

@@ -1,0 +1,744 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>49-KITTI与Waymo数据集实战 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="KITTI 与 Waymo 数据集的下载、目录结构、数据格式、坐标系转换、数据加载器与评估全流程实操。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="49-KITTI与Waymo数据集实战">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1294651885.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="KITTI 与 Waymo 数据集的下载、目录结构、数据格式、坐标系转换、数据加载器与评估全流程实操。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "49-KITTI与Waymo数据集实战",
+  "url": "https://zeek-zhao.github.io/posts/1294651885.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/1294651885.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '49-KITTI与Waymo数据集实战',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">49-KITTI与Waymo数据集实战</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">49-KITTI与Waymo数据集实战</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>手把手完成 KITTI 与 Waymo 两大基准数据集的实战：下载准备、目录结构、格式解析、坐标转换、构建数据加载器、跑通评估。数据集全景见 <a href="/posts/2562893149.html">48-自动驾驶数据集总览</a>。</p>
+</blockquote>
+<h2 id="1-KITTI-实战"><a href="#1-KITTI-实战" class="headerlink" title="1. KITTI 实战"></a>1. KITTI 实战</h2><h3 id="1-1-采集平台与评测项目"><a href="#1-1-采集平台与评测项目" class="headerlink" title="1.1 采集平台与评测项目"></a>1.1 采集平台与评测项目</h3><p>KITTI 采集车配备：2 灰度 + 2 彩色 Point Grey Flea 2 相机（1382×512，10Hz）、1 台 Velodyne HDL-64E（64 线，约 130 万点&#x2F;秒，120m）、OXTS RT3003 GPS&#x2F;IMU（100Hz，厘米级）。采集于德国卡尔斯鲁厄市区、乡村与高速。</p>
+<p>评测项目：立体视觉、光流、场景流、深度、视觉里程计&#x2F;SLAM、物体检测（2D&#x2F;3D&#x2F;BEV）、目标跟踪、道路&#x2F;车道检测、语义分割。</p>
+<h3 id="1-2-下载与存储"><a href="#1-2-下载与存储" class="headerlink" title="1.2 下载与存储"></a>1.2 下载与存储</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># 下载 KITTI 目标检测数据集</span></span><br><span class="line"><span class="built_in">mkdir</span> -p kitti_data/object &amp;&amp; <span class="built_in">cd</span> kitti_data/object</span><br><span class="line">wget -c https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_image_2.zip   <span class="comment"># 图像</span></span><br><span class="line">wget -c https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_velodyne.zip  <span class="comment"># 点云</span></span><br><span class="line">wget -c https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_label_2.zip   <span class="comment"># 标注</span></span><br><span class="line">wget -c https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_calib.zip     <span class="comment"># 标定</span></span><br><span class="line">wget -c https://s3.eu-central-1.amazonaws.com/avg-kitti/devkit_object.zip         <span class="comment"># 评估工具</span></span><br><span class="line">unzip <span class="string">&quot;*.zip&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>存储规划：目标检测约 15GB、视觉里程计约 25GB、原始数据约 200GB，全量预留 250GB。</p>
+<h3 id="1-3-目录结构"><a href="#1-3-目录结构" class="headerlink" title="1.3 目录结构"></a>1.3 目录结构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">kitti</span><br><span class="line">├── object</span><br><span class="line">│   ├── training</span><br><span class="line">│   │   ├── image_2      # 左彩色相机图像</span><br><span class="line">│   │   ├── image_3      # 右彩色相机图像</span><br><span class="line">│   │   ├── label_2      # 标注文件</span><br><span class="line">│   │   ├── velodyne     # 点云 .bin</span><br><span class="line">│   │   └── calib        # 标定文件</span><br><span class="line">│   ├── testing          # 测试集（无 label）</span><br><span class="line">│   └── devkit           # 官方评估代码</span><br><span class="line">└── odometry             # 视觉里程计：sequences/00-21 + poses 真值</span><br></pre></td></tr></table></figure>
+
+<h3 id="1-4-数据格式详解"><a href="#1-4-数据格式详解" class="headerlink" title="1.4 数据格式详解"></a>1.4 数据格式详解</h3><p><strong>点云</strong>：每点 4 个 float32（x, y, z, intensity），雷达坐标系 x 向前、y 向左、z 向上。</p>
+<p><strong>标注</strong>（每行一个物体，15 个字段）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Car 0.00 0 1.85 361.84 180.21 717.85 374.42 1.63 1.48 3.64 -5.85 1.71 9.11 0.42</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>type</td>
+<td>Car&#x2F;Van&#x2F;Truck&#x2F;Pedestrian&#x2F;Cyclist&#x2F;Tram&#x2F;Misc&#x2F;DontCare</td>
+</tr>
+<tr>
+<td>truncated</td>
+<td>截断程度 0-1</td>
+</tr>
+<tr>
+<td>occluded</td>
+<td>0完全可见 &#x2F; 1部分遮挡 &#x2F; 2严重遮挡 &#x2F; 3未知</td>
+</tr>
+<tr>
+<td>alpha</td>
+<td>观测角 (-π, π)</td>
+</tr>
+<tr>
+<td>bbox</td>
+<td>2D 框 x1 y1 x2 y2</td>
+</tr>
+<tr>
+<td>dimensions</td>
+<td>3D 尺寸 h w l（米）</td>
+</tr>
+<tr>
+<td>location</td>
+<td>3D 位置 x y z（相机坐标系，米）</td>
+</tr>
+<tr>
+<td>rotation_y</td>
+<td>绕 Y 轴旋转角 (-π, π)</td>
+</tr>
+</tbody></table>
+<h3 id="1-5-坐标系转换：点云投影到图像"><a href="#1-5-坐标系转换：点云投影到图像" class="headerlink" title="1.5 坐标系转换：点云投影到图像"></a>1.5 坐标系转换：点云投影到图像</h3><p>KITTI 涉及三个坐标系：雷达系 → 相机系（<code>Tr_velo_to_cam</code>）→ 矫正相机系（<code>R0_rect</code>）→ 图像系（<code>P2</code>）。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">load_calib</span>(<span class="params">calib_file</span>):</span><br><span class="line">    calib = &#123;&#125;</span><br><span class="line">    <span class="keyword">for</span> line <span class="keyword">in</span> <span class="built_in">open</span>(calib_file):</span><br><span class="line">        key, value = line.split(<span class="string">&#x27;:&#x27;</span>, <span class="number">1</span>)</span><br><span class="line">        calib[key] = np.array([<span class="built_in">float</span>(x) <span class="keyword">for</span> x <span class="keyword">in</span> value.split()])</span><br><span class="line">    P2 = calib[<span class="string">&#x27;P2&#x27;</span>].reshape(<span class="number">3</span>, <span class="number">4</span>)</span><br><span class="line">    R0 = np.eye(<span class="number">4</span>); R0[:<span class="number">3</span>, :<span class="number">3</span>] = calib[<span class="string">&#x27;R0_rect&#x27;</span>].reshape(<span class="number">3</span>, <span class="number">3</span>)</span><br><span class="line">    Tr = np.eye(<span class="number">4</span>); Tr[:<span class="number">3</span>, :<span class="number">4</span>] = calib[<span class="string">&#x27;Tr_velo_to_cam&#x27;</span>].reshape(<span class="number">3</span>, <span class="number">4</span>)</span><br><span class="line">    <span class="keyword">return</span> P2, R0, Tr</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">project_velodyne_to_image</span>(<span class="params">points, P2, R0, Tr</span>):</span><br><span class="line">    pts_h = np.hstack((points[:, :<span class="number">3</span>], np.ones((<span class="built_in">len</span>(points), <span class="number">1</span>))))</span><br><span class="line">    pts_cam = (Tr @ pts_h.T).T          <span class="comment"># 雷达系 -&gt; 相机系</span></span><br><span class="line">    pts_rect = (R0 @ pts_cam.T).T       <span class="comment"># 矫正</span></span><br><span class="line">    mask = pts_rect[:, <span class="number">2</span>] &gt; <span class="number">0</span>           <span class="comment"># 去除相机后方</span></span><br><span class="line">    pts_img = (P2 @ pts_rect[mask].T).T</span><br><span class="line">    pts_img[:, <span class="number">0</span>] /= pts_img[:, <span class="number">2</span>]      <span class="comment"># 除以深度归一化</span></span><br><span class="line">    pts_img[:, <span class="number">1</span>] /= pts_img[:, <span class="number">2</span>]</span><br><span class="line">    <span class="keyword">return</span> pts_img[:, :<span class="number">2</span>].astype(np.int32), pts_rect[mask, <span class="number">2</span>]  <span class="comment"># 像素坐标与深度</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 易错点<br>忘记 <code>R0_rect</code> 或先除深度后变换是最常见的投影错误；<code>location</code> 在<strong>相机坐标系</strong>而非雷达坐标系，训练 3D 检测时需统一转换。</p>
+</blockquote>
+<h3 id="1-6-PyTorch-数据加载器"><a href="#1-6-PyTorch-数据加载器" class="headerlink" title="1.6 PyTorch 数据加载器"></a>1.6 PyTorch 数据加载器</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">KITTIObjectDataset</span>(torch.utils.data.Dataset):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__getitem__</span>(<span class="params">self, idx</span>):</span><br><span class="line">        sample_id = <span class="variable language_">self</span>.sample_ids[idx]</span><br><span class="line">        img = cv2.cvtColor(cv2.imread(<span class="string">f&quot;<span class="subst">&#123;self.img_dir&#125;</span>/<span class="subst">&#123;sample_id&#125;</span>.png&quot;</span>),</span><br><span class="line">                           cv2.COLOR_BGR2RGB)</span><br><span class="line">        velodyne = np.fromfile(<span class="string">f&quot;<span class="subst">&#123;self.velodyne_dir&#125;</span>/<span class="subst">&#123;sample_id&#125;</span>.bin&quot;</span>,</span><br><span class="line">                               dtype=np.float32).reshape(-<span class="number">1</span>, <span class="number">4</span>)</span><br><span class="line">        label = <span class="variable language_">self</span>.load_label(<span class="string">f&quot;<span class="subst">&#123;self.label_dir&#125;</span>/<span class="subst">&#123;sample_id&#125;</span>.txt&quot;</span>)  <span class="comment"># 解析15字段</span></span><br><span class="line">        calib = <span class="variable language_">self</span>.load_calib(<span class="string">f&quot;<span class="subst">&#123;self.calib_dir&#125;</span>/<span class="subst">&#123;sample_id&#125;</span>.txt&quot;</span>)</span><br><span class="line">        <span class="keyword">return</span> &#123;<span class="string">&#x27;image&#x27;</span>: img, <span class="string">&#x27;velodyne&#x27;</span>: velodyne, <span class="string">&#x27;label&#x27;</span>: label, <span class="string">&#x27;calib&#x27;</span>: calib&#125;</span><br></pre></td></tr></table></figure>
+
+<p>数据增强要点：随机水平翻转需同步翻转图像、点云 x 坐标、2D 框与 <code>rotation_y</code>（θ → π−θ）、<code>alpha</code>；点云随机旋转&#x2F;缩放&#x2F;抖动。</p>
+<h3 id="1-7-KITTI-评估"><a href="#1-7-KITTI-评估" class="headerlink" title="1.7 KITTI 评估"></a>1.7 KITTI 评估</h3><ul>
+<li>难度分级：Easy（高≥40px 完全可见）&#x2F; Moderate（≥25px 部分遮挡）&#x2F; Hard（≥25px 严重遮挡截断）。</li>
+<li>IoU 阈值：汽车 0.7，行人&#x2F;骑行者 0.5。</li>
+<li>指标：2D&#x2F;3D&#x2F;BEV 各自的 AP；里程计任务用平均平移误差(%)与每米旋转误差(deg&#x2F;m)。</li>
+</ul>
+<h3 id="1-8-常见问题"><a href="#1-8-常见问题" class="headerlink" title="1.8 常见问题"></a>1.8 常见问题</h3><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>对策</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>类别不平衡（Car 远多于行人）</td>
+<td>加权损失、过采样、Focal Loss&#x2F;OHEM</td>
+</tr>
+<tr>
+<td>远处小目标漏检</td>
+<td>FPN 多尺度、小目标损失加权、软 NMS</td>
+</tr>
+<tr>
+<td>测试集性能低于验证集</td>
+<td>检查数据泄露、用官方划分、增强鲁棒性</td>
+</tr>
+</tbody></table>
+<h2 id="2-Waymo-实战"><a href="#2-Waymo-实战" class="headerlink" title="2. Waymo 实战"></a>2. Waymo 实战</h2><h3 id="2-1-数据集组成"><a href="#2-1-数据集组成" class="headerlink" title="2.1 数据集组成"></a>2.1 数据集组成</h3><table>
+<thead>
+<tr>
+<th>子集</th>
+<th>内容</th>
+<th>大小</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>感知（Perception）</td>
+<td>5 相机 + 5 雷达 + 3D 框&#x2F;跟踪 ID</td>
+<td>训练集约 600GB</td>
+</tr>
+<tr>
+<td>运动（Motion）</td>
+<td>10 万+ 情景，轨迹 + 高精地图 + 交通灯</td>
+<td>约 1.5TB</td>
+</tr>
+<tr>
+<td>领域适应</td>
+<td>晴天&#x2F;雨天&#x2F;夜间域迁移数据</td>
+<td>约 120GB</td>
+</tr>
+</tbody></table>
+<p>传感器：1 顶置 64 线 + 4 环视雷达，5 个高清相机；采集于旧金山湾区、凤凰城、华盛顿等地，覆盖多种天气与时段。</p>
+<h3 id="2-2-环境配置"><a href="#2-2-环境配置" class="headerlink" title="2.2 环境配置"></a>2.2 环境配置</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">conda create -n waymo python=3.8 &amp;&amp; conda activate waymo</span><br><span class="line">pip install tensorflow==2.6.0</span><br><span class="line">pip install waymo-open-dataset-tf-2-6-0</span><br><span class="line">pip install matplotlib numpy pandas opencv-python open3d</span><br></pre></td></tr></table></figure>
+
+<p>数据需在官网申请许可后经 Google Cloud（gsutil）下载，每个段（segment）是一个 TFRecord 文件，含约 200 帧（20Hz × 10s）。</p>
+<h3 id="2-3-感知数据加载"><a href="#2-3-感知数据加载" class="headerlink" title="2.3 感知数据加载"></a>2.3 感知数据加载</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> tensorflow <span class="keyword">as</span> tf</span><br><span class="line"><span class="keyword">from</span> waymo_open_dataset <span class="keyword">import</span> dataset_pb2 <span class="keyword">as</span> open_dataset</span><br><span class="line"><span class="keyword">from</span> waymo_open_dataset.utils <span class="keyword">import</span> frame_utils</span><br><span class="line"></span><br><span class="line">dataset = tf.data.TFRecordDataset(<span class="string">&#x27;segment-xxxx.tfrecord&#x27;</span>)</span><br><span class="line">frame = open_dataset.Frame()</span><br><span class="line">frame.ParseFromString(<span class="built_in">bytearray</span>(<span class="built_in">next</span>(<span class="built_in">iter</span>(dataset)).numpy()))</span><br><span class="line"></span><br><span class="line"><span class="comment"># 图像：frame.images，JPEG 编码，tf.io.decode_jpeg 解码</span></span><br><span class="line"><span class="comment"># 标注：frame.laser_labels，box(center_xyz/lwh/heading) + type + 难度</span></span><br><span class="line"><span class="comment"># 点云：range image -&gt; 点云转换</span></span><br><span class="line">range_images, camera_projections, range_image_top_pose = \</span><br><span class="line">    frame_utils.parse_range_image_and_camera_projection(frame)</span><br><span class="line">points, cp_points = frame_utils.convert_range_image_to_point_cloud(</span><br><span class="line">    frame, range_images, camera_projections, range_image_top_pose)</span><br><span class="line">points_all = np.concatenate(points, axis=<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<p>注意：Waymo 点云基于 <strong>range image</strong> 存储，需官方工具转换；强度与伸长度（elongation）在 range image 通道 3、4。</p>
+<h3 id="2-4-Motion-数据与可视化"><a href="#2-4-Motion-数据与可视化" class="headerlink" title="2.4 Motion 数据与可视化"></a>2.4 Motion 数据与可视化</h3><p>每个 Scenario（20 秒）包含：时间戳序列、<code>tracks</code>（各交通参与者的状态序列：位置&#x2F;尺寸&#x2F;朝向&#x2F;速度）、<code>map_features</code>（车道中心线&#x2F;标线&#x2F;路缘&#x2F;停止标志&#x2F;人行横道&#x2F;减速带）、<code>dynamic_map_states</code>（交通灯）、<code>sdc_track_index</code>（自车）、<code>tracks_to_predict</code>（预测目标）。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sdc = scenario.tracks[scenario.sdc_track_index]</span><br><span class="line">x = [s.center_x <span class="keyword">for</span> s <span class="keyword">in</span> sdc.states <span class="keyword">if</span> s.valid]</span><br><span class="line">y = [s.center_y <span class="keyword">for</span> s <span class="keyword">in</span> sdc.states <span class="keyword">if</span> s.valid]</span><br><span class="line">plt.plot(x, y, <span class="string">&#x27;m-&#x27;</span>, label=<span class="string">&#x27;SDC&#x27;</span>)   <span class="comment"># 再循环绘制他车轨迹与地图特征</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-5-Waymo-评估"><a href="#2-5-Waymo-评估" class="headerlink" title="2.5 Waymo 评估"></a>2.5 Waymo 评估</h3><ul>
+<li>检测：AP 与 <strong>APH</strong>（考虑朝向精度的 AP）；难度 LEVEL_1（5 点以上雷达）&#x2F; LEVEL_2（含 1-4 点与不可见目标）。</li>
+<li>跟踪：MOTA&#x2F;MOTP&#x2F;MOTAH。</li>
+<li>预测：minADE、minFDE、重叠率 mAP。</li>
+</ul>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> waymo_open_dataset.metrics.python <span class="keyword">import</span> detection_metrics</span><br><span class="line"><span class="keyword">from</span> waymo_open_dataset.protos <span class="keyword">import</span> metrics_pb2</span><br><span class="line">config = metrics_pb2.Config()</span><br><span class="line">config.breakdown_generator_ids.append(metrics_pb2.Label.STANDARD)</span><br><span class="line">config.difficulties.append(metrics_pb2.Difficulty.LEVEL_1)</span><br><span class="line">config.difficulties.append(metrics_pb2.Difficulty.LEVEL_2)</span><br></pre></td></tr></table></figure>
+
+<h2 id="3-两数据集对比与实战建议"><a href="#3-两数据集对比与实战建议" class="headerlink" title="3. 两数据集对比与实战建议"></a>3. 两数据集对比与实战建议</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>KITTI</th>
+<th>Waymo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>上手难度</td>
+<td>低（文本标注+bin 点云）</td>
+<td>中（需 TF + 官方 devkit）</td>
+</tr>
+<tr>
+<td>数据规模</td>
+<td>约 15K 帧</td>
+<td>20 万帧级</td>
+</tr>
+<tr>
+<td>环境多样性</td>
+<td>德国晴天为主</td>
+<td>美国多城全天候</td>
+</tr>
+<tr>
+<td>地图&#x2F;轨迹</td>
+<td>无高精地图</td>
+<td>含高精地图与交互轨迹</td>
+</tr>
+<tr>
+<td>适合</td>
+<td>快速入门、算法原型</td>
+<td>时序&#x2F;预测&#x2F;大规模验证</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!tip] 实战路径建议</p>
+<ol>
+<li>先用 KITTI mini 子集跑通”加载→可视化→投影”全链路；</li>
+<li>用 OpenPCDet&#x2F;MMDetection3D 训练 PointPillars 复现基线（KITTI Car Moderate 3D AP ≈ 70）；</li>
+<li>迁移到 Waymo 用官方 metrics 对齐排行榜口径；</li>
+<li>补充 nuScenes&#x2F;Argoverse 2 做跨基准泛化验证（见 <a href="/posts/2562893149.html">48-自动驾驶数据集总览</a>）。</li>
+</ol>
+</blockquote>
+<h3 id="优化技巧速查"><a href="#优化技巧速查" class="headerlink" title="优化技巧速查"></a>优化技巧速查</h3><ul>
+<li><strong>训练</strong>：预训练权重、混合精度（FP16）、多阶段训练。</li>
+<li><strong>推理</strong>：模型剪枝、INT8 量化、TensorRT、自定义 CUDA NMS。案例：某 3D 检测系统经骨干替换（EfficientNet-B0）、动态体素化、FPN、量化后，3D AP 从 65.3% 提至 71.8%，推理 120ms → 45ms。</li>
+</ul>
+<p><em>上一篇：<a href="/posts/2562893149.html">48-自动驾驶数据集总览</a>　下一篇：<a href="/posts/2011272759.html">50-仿真平台对比与Gazebo-LGSVL实战</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/1294651885.html">https://zeek-zhao.github.io/posts/1294651885.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2011272759.html" title="50-仿真平台对比与Gazebo-LGSVL实战"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">50-仿真平台对比与Gazebo-LGSVL实战</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标一篇打通自动驾驶仿真：先理解仿真原理与类型，再用系统化方法选平台，最后落地 Gazebo 与 LGSVL 两个开源平台的实战操作（安装、传感器、场景、与 ROS&#x2F;Apollo 集成）。  1. 仿真原理与类型1.1 为什么必须仿真123456graph LR    A[仿真价值] --&gt; B[降低路测成本]    A --&gt; C[扩展测试场景]    A --&gt; D[提高测试安全性]    A --&gt; E[支持边缘场景]    A --&gt; F[生成训练数据]  自动驾驶安全验证需要数十亿公里级里程，实车测试不可行；接管场景复现、危险场景测试、大规模数据生成，都依赖仿真。 1.2 仿真系统架构闭环：物理世界模型 ← 环境条件&#x2F;交互对象&#x2F;场景管理器 → 传感器模型 → 数据处理 → 控制算法 → 执行系统 → 回到物理世界。 关键传感器模拟原理：  摄像头：图形渲染 + 视角转换 + 光学效果（畸变&#x2F;景深）+ 噪声。 激光雷达：光线追踪——发射虚拟线束 → 取碰撞点 → 加噪声&#x2F;...</div></div></div></a><a class="pagination-related" href="/posts/1848584950.html" title="47-激光雷达算法与Lidar模块详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">47-激光雷达算法与Lidar模块详解</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握激光雷达数据的完整算法处理链——点云基础处理、SLAM、目标检测与跟踪，并深入 Apollo Lidar 模块的工程实现（驱动、解析、融合、运动补偿四大子模块）。硬件原理见 46-激光雷达技术原理与发展。  1. 算法体系总览123456789flowchart TD    A[激光雷达算法体系] --&gt; B[点云基础处理]    A --&gt; C[激光SLAM]    A --&gt; D[目标检测与识别]    A --&gt; E[点云分割与聚类]    A --&gt; F[多传感器融合]    B --&gt; B1[滤波/降采样]    B --&gt; B2[特征提取]    B --&gt; B3[坐标变换与配准]  评价指标：精度（配准&#x2F;定位误差、检测 mAP）、效率（单帧耗时、内存）、鲁棒性（环境适应性、抗干扰）。 2. 点云基础处理2.1 滤波与降采样123456789101112131415// 统计离群点滤波：移除邻域稀疏的噪声点pcl::StatisticalOutlierRemoval&lt;pcl:...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/3677233744.html" title="38-端到端自动驾驶与大模型"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">38-端到端自动驾驶与大模型</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标本篇是场景实战阶段的重点篇目。系统理解端到端自动驾驶：为什么行业从模块化走向端到端、纯端到端与混合架构的技术路线差异、数据闭环与训练方法，以及 Apollo 10.0 ADFM 大模型与 2025-2026 年行业最新进展（特斯拉 FSD V12、VLM&#x2F;VLA 之争、百度的显式端到端路线）。  1. 端到端概述端到端自动驾驶（End-to-End Autonomous Driving）试图构建一个从传感器输入直接映射到驾驶输出的系统，无需显式分解为感知、预测、规划等独立模块。其核心动机是消除模块间接口带来的信息损失：模块化系统中，感知模块丢弃的细节（如微妙的行人姿态）恰恰可能是规划需要的。 1234567graph LR    subgraph 模块化架构        A[传感器] --&gt; B[感知] --&gt; C[预测] --&gt; D[规划] --&gt; E[控制]    end    subgraph 端到端架构        F[传感器] --&gt; G[单一神经网络] --&gt; H[轨迹/控制输出]    en...</div></div></div></a><a class="pagination-related" href="/posts/3133762148.html" title="23-车辆动力学基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">23-车辆动力学基础</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶规划控制所需的车辆运动学与动力学模型：模型分类与适用场景、自行车模型推导、关键参数含义、实车参数辨识与验证方法。模型是 22-控制模块 的设计基础，也是 24-仿真平台与场景数据 中仿真保真度的来源。  1. 模型的作用规划与控制依赖车辆模型来描述运动与响应：规划用模型生成动力学可行的轨迹，控制用模型设计反馈律，仿真用模型模拟真实车辆响应。模型精度影响控制效果与仿真真实性——但不同环节对精度要求不同：    环节 需求    轨迹规划 较高保真度，保证轨迹可执行   控制设计 线性化模型便于分析（LQR 等）   仿真平台 高保真车辆模型模拟真实响应   参数标定 辨识模型参数本身   2. 模型体系   模型 描述 精确度 计算效率 用途    运动学模型 位置+航向的几何关系 低-中 高 低速场景、规划参考   自行车模型 左右轮合并的简化模型 中 高 Apollo 主力模型   线性动力学模型 力与加速度的线性化 中 中-高 高速控制设计   非线性&#x2F;轮胎动力学模型 侧偏特性、非线性力 高 低 极限工况、滑移控制   选型原则...</div></div></div></a><a class="pagination-related" href="/posts/2878817428.html" title="34-红绿灯感知与通行"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">34-红绿灯感知与通行</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 红绿灯感知与通行的完整链路：感知模块如何结合高精地图定位灯位并识别状态、通行决策如何根据灯色与剩余时间做出停车&#x2F;缓行判断、识别错误的调试方法与场景验证策略。  1. 红绿灯感知概述红绿灯感知是城市道路场景（37-城市道路场景）的核心能力之一。它识别信号灯的颜色与状态，为路口通行决策提供依据。Apollo 的关键设计是感知与地图协同：不盲目在全图搜索信号灯，而是利用高精地图预先记录的灯位信息，结合自车定位确定”应该看哪里”，再交给视觉模型识别。 这一设计大幅缩小了检测区域，提升了识别准确率与速度，也使得”这个灯属于哪个车道”的关联问题变得可解。 2. 感知处理流程   步骤 说明 关键点    灯位定位 从高精地图获取前方信号灯位置与朝向 依赖定位精度与地图质量   ROI 计算 将灯位投影到相机图像，计算检测区域 需要准确的相机外参   图像识别 在 ROI 内检测灯箱并分类颜色 红&#x2F;黄&#x2F;绿&#x2F;黑（灭灯）   时间关联 与该灯的车道相位时间对齐 处理闪烁与倒计时   输出状态 输出红&#x2F;黄...</div></div></div></a><a class="pagination-related" href="/posts/3984938707.html" title="19-预测模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">19-预测模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo Prediction 模块：输入输出、场景识别、评估器（意图）与预测器（轨迹）体系、多模态概率输出，以及预测与规划的协同调试方法。预测质量直接影响 20-规划模块 的合理性与安全性。  1. 预测模块概述预测(Prediction)模块位于感知之后、规划之前，核心功能是预测道路上其他交通参与者（车辆、行人、自行车）未来几秒内的运动轨迹和行为意图。 12345graph LR    A[Perception 感知] --&gt;|障碍物信息| B[Prediction 预测]    C[Localization 定位] --&gt;|车辆定位| B    D[HD Map 高精地图] --&gt;|地图数据| B    B --&gt;|预测轨迹+概率| E[Planning 规划]  核心职责：  轨迹预测：预测交通参与者未来 5~8 秒的运动轨迹； 意图识别：识别直行、变道、转弯等行为意图； 风险评估：评估各预测轨迹的概率与风险程度； 不确定性量化：用多条轨迹+概率表达不确定性。  2. 输入输出与架构   方向 内容    输入 ...</div></div></div></a><a class="pagination-related" href="/posts/1552856559.html" title="20-Apollo Cyber RT框架"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">20-Apollo Cyber RT框架</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo Cyber RT 框架：设计目标、核心概念与总体架构。  1. 为什么需要 Cyber RT早期 Apollo 基于 ROS，存在性能、可靠性与二次开发限制。Cyber RT 是百度自研的高性能实时通信框架，用于替代 ROS 支撑自动驾驶数据流。 2. 核心概念   概念 说明    Node 功能单元容器   Reader&#x2F;Writer 消息订阅&#x2F;发布   Component 可复用的计算组件   Scheduler 协程调度器   Shared Memory 共享内存传输   3. 架构分层Cyber RT 分为传输层、调度层与应用层：传输层负责消息传递（共享内存、DDS 等），调度层负责任务调度（协程并发），应用层提供 Node&#x2F;Component 编程模型。 1234# 常用命令行cyber_channel list          # 列出话题cyber_channel echo /topic   # 回显话题消息cyber_launch 文件.launch    # 启动组件  4. 设计优...</div></div></div></a><a class="pagination-related" href="/posts/1148577190.html" title="19-CAN总线与车辆控制接口"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">19-CAN总线与车辆控制接口</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 通过 CAN 总线与车辆底盘交互的原理与配置。  1. CAN 总线概述CAN 是车载网络标准总线，Apollo 通过 CAN 卡与底盘控制器通信，下发转向、油门、刹车指令并读取车辆状态。 2. 车辆接口协议不同车型协议不同，Apollo 通过 chassis 消息统一抽象底盘接口。关键信号包括车速、转向角、挡位、油门、刹车状态。    信号 方向 用途    方向盘转角 下发 横向控制   油门&#x2F;刹车 下发 纵向控制   车速&#x2F;轮速 上报 状态反馈   挡位 下发 换挡   3. 配置与实现1234# CAN 配置示例canbus:  can_card: &quot;hercules&quot;  chassis_protocol: &quot;dmi&quot;  Apollo 的 canbus 模块负责协议解析与收发，控制模块下发指令经 canbus 转换为底盘 CAN 帧。 4. 调试注意调试时先验证 CAN 收发正常，再手动控制底盘，最后切换到自动驾驶模式。安全建议见 35-安全机制与冗余设计。  [!n...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-KITTI-%E5%AE%9E%E6%88%98"><span class="toc-number">1.</span> <span class="toc-text">1. KITTI 实战</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E9%87%87%E9%9B%86%E5%B9%B3%E5%8F%B0%E4%B8%8E%E8%AF%84%E6%B5%8B%E9%A1%B9%E7%9B%AE"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 采集平台与评测项目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E4%B8%8B%E8%BD%BD%E4%B8%8E%E5%AD%98%E5%82%A8"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 下载与存储</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E7%9B%AE%E5%BD%95%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 目录结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-%E6%95%B0%E6%8D%AE%E6%A0%BC%E5%BC%8F%E8%AF%A6%E8%A7%A3"><span class="toc-number">1.4.</span> <span class="toc-text">1.4 数据格式详解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-5-%E5%9D%90%E6%A0%87%E7%B3%BB%E8%BD%AC%E6%8D%A2%EF%BC%9A%E7%82%B9%E4%BA%91%E6%8A%95%E5%BD%B1%E5%88%B0%E5%9B%BE%E5%83%8F"><span class="toc-number">1.5.</span> <span class="toc-text">1.5 坐标系转换：点云投影到图像</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-6-PyTorch-%E6%95%B0%E6%8D%AE%E5%8A%A0%E8%BD%BD%E5%99%A8"><span class="toc-number">1.6.</span> <span class="toc-text">1.6 PyTorch 数据加载器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-7-KITTI-%E8%AF%84%E4%BC%B0"><span class="toc-number">1.7.</span> <span class="toc-text">1.7 KITTI 评估</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-8-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.8.</span> <span class="toc-text">1.8 常见问题</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-Waymo-%E5%AE%9E%E6%88%98"><span class="toc-number">2.</span> <span class="toc-text">2. Waymo 实战</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E6%95%B0%E6%8D%AE%E9%9B%86%E7%BB%84%E6%88%90"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 数据集组成</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E7%8E%AF%E5%A2%83%E9%85%8D%E7%BD%AE"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 环境配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E6%84%9F%E7%9F%A5%E6%95%B0%E6%8D%AE%E5%8A%A0%E8%BD%BD"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 感知数据加载</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-Motion-%E6%95%B0%E6%8D%AE%E4%B8%8E%E5%8F%AF%E8%A7%86%E5%8C%96"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 Motion 数据与可视化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-Waymo-%E8%AF%84%E4%BC%B0"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 Waymo 评估</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E4%B8%A4%E6%95%B0%E6%8D%AE%E9%9B%86%E5%AF%B9%E6%AF%94%E4%B8%8E%E5%AE%9E%E6%88%98%E5%BB%BA%E8%AE%AE"><span class="toc-number">3.</span> <span class="toc-text">3. 两数据集对比与实战建议</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E5%8C%96%E6%8A%80%E5%B7%A7%E9%80%9F%E6%9F%A5"><span class="toc-number">3.1.</span> <span class="toc-text">优化技巧速查</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

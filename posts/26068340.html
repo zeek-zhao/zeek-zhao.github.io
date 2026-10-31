@@ -1,0 +1,677 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>34-安全与权限 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="SROS2 基于 DDS Security：为每个节点签发证书，通过权限文件（permissions）控制话题&#x2F;服务&#x2F;动作的读写。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="34-安全与权限">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/26068340.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="SROS2 基于 DDS Security：为每个节点签发证书，通过权限文件（permissions）控制话题&#x2F;服务&#x2F;动作的读写。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros2">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "34-安全与权限",
+  "url": "https://zeek-zhao.github.io/posts/26068340.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/26068340.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '34-安全与权限',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">34-安全与权限</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">34-安全与权限</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros2/">ros2</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="安全与权限"><a href="#安全与权限" class="headerlink" title="安全与权限"></a>安全与权限</h1><blockquote>
+<p>[!info] 本节目标<br>理解 SROS2 安全模型，掌握安全策略生成、权限文件配置与 DDS 加密启用。</p>
+</blockquote>
+<h2 id="1-安全威胁"><a href="#1-安全威胁" class="headerlink" title="1. 安全威胁"></a>1. 安全威胁</h2><table>
+<thead>
+<tr>
+<th>威胁</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>未授权节点</td>
+<td>伪造节点收发话题</td>
+</tr>
+<tr>
+<td>窃听</td>
+<td>明文话题被抓包</td>
+</tr>
+<tr>
+<td>篡改</td>
+<td>修改指令&#x2F;数据</td>
+</tr>
+<tr>
+<td>拒绝服务</td>
+<td>大量消息淹没</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] ROS2 默认无安全<br>默认 DDS 不加密不鉴权；生产&#x2F;公网场景必须启用 SROS2。</p>
+</blockquote>
+<h2 id="2-SROS2-安全模型"><a href="#2-SROS2-安全模型" class="headerlink" title="2. SROS2 安全模型"></a>2. SROS2 安全模型</h2><p>SROS2 基于 DDS Security：为每个节点签发证书，通过权限文件（permissions）控制话题&#x2F;服务&#x2F;动作的读写。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">安全组件：</span><br><span class="line">- 身份证书（CA + 节点证书）</span><br><span class="line">- 权限文件（topics/services 许可）</span><br><span class="line">- 加密（AES-GCM）/签名（RSA）</span><br><span class="line">- DDS 协商（PKI）</span><br></pre></td></tr></table></figure>
+
+<h2 id="3-环境变量"><a href="#3-环境变量" class="headerlink" title="3. 环境变量"></a>3. 环境变量</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 启用安全（必须在节点启动前设置）</span></span><br><span class="line"><span class="built_in">export</span> ROS_SECURITY_KEYSTORE=~/sros2_keystore</span><br><span class="line"><span class="built_in">export</span> ROS_SECURITY_ENABLE=<span class="literal">true</span></span><br><span class="line"><span class="built_in">export</span> ROS_SECURITY_STRATEGY=Enforce  <span class="comment"># 或 Enclave_Options</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 全部节点<br>安全是全局的：所有通信节点都必须加载同一 keystore 与 enclave，否则无法互通。</p>
+</blockquote>
+<h2 id="4-创建安全-keystore"><a href="#4-创建安全-keystore" class="headerlink" title="4. 创建安全 keystore"></a>4. 创建安全 keystore</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> apt install -y ros-humble-sros2</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建 keystore 与 CA</span></span><br><span class="line">ros2 security create_keystore ~/sros2_keystore</span><br><span class="line"></span><br><span class="line"><span class="comment"># 为节点签发（enclave 名对应节点路径）</span></span><br><span class="line">ros2 security create_enclave ~/sros2_keystore /talker</span><br><span class="line">ros2 security create_enclave ~/sros2_keystore /listener</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动（launch 环境变量注入）</span></span><br></pre></td></tr></table></figure>
+
+<p>launch 中注入：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> launch.actions <span class="keyword">import</span> SetEnvironmentVariable</span><br><span class="line"></span><br><span class="line">SetEnvironmentVariable(<span class="string">&#x27;ROS_SECURITY_KEYSTORE&#x27;</span>, <span class="string">&#x27;/path/keystore&#x27;</span>),</span><br><span class="line">SetEnvironmentVariable(<span class="string">&#x27;ROS_SECURITY_ENABLE&#x27;</span>, <span class="string">&#x27;true&#x27;</span>),</span><br><span class="line">SetEnvironmentVariable(<span class="string">&#x27;ROS_SECURITY_STRATEGY&#x27;</span>, <span class="string">&#x27;Enforce&#x27;</span>),</span><br></pre></td></tr></table></figure>
+
+<h2 id="5-权限文件"><a href="#5-权限文件" class="headerlink" title="5. 权限文件"></a>5. 权限文件</h2><p><code>create_enclave</code> 生成默认 permissions.xml；按需收紧：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">statistics</span>&gt;</span>...<span class="tag">&lt;/<span class="name">statistics</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">permissions</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">grant</span> <span class="attr">name</span>=<span class="string">&quot;/talker&quot;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">subject_name</span>&gt;</span>CN=talker<span class="tag">&lt;/<span class="name">subject_name</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">allow_rule</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">publish</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">topic</span>&gt;</span>/chatter<span class="tag">&lt;/<span class="name">topic</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;/<span class="name">publish</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">subscribe</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">topic</span>&gt;</span>rosout<span class="tag">&lt;/<span class="name">topic</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;/<span class="name">subscribe</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">allow_rule</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">grant</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">grant</span> <span class="attr">name</span>=<span class="string">&quot;/listener&quot;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">subject_name</span>&gt;</span>CN=listener<span class="tag">&lt;/<span class="name">subject_name</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">allow_rule</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;<span class="name">subscribe</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">topic</span>&gt;</span>/chatter<span class="tag">&lt;/<span class="name">topic</span>&gt;</span></span><br><span class="line">      <span class="tag">&lt;/<span class="name">subscribe</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">allow_rule</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">grant</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">permissions</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>元素</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>publish&#x2F;subscribe</td>
+<td>话题读写</td>
+</tr>
+<tr>
+<td>call&#x2F;respond</td>
+<td>服务客户端&#x2F;服务端</td>
+</tr>
+<tr>
+<td>request&#x2F;response</td>
+<td>action 对应</td>
+</tr>
+<tr>
+<td>allow_rule&#x2F;deny_rule</td>
+<td>允许&#x2F;拒绝</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!tip] 最小权限<br>按需开放：talker 只 publish，listener 只 subscribe；用 deny_rule 显式禁止敏感话题。</p>
+</blockquote>
+<h2 id="6-验证安全"><a href="#6-验证安全" class="headerlink" title="6. 验证安全"></a>6. 验证安全</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 未启用安全节点访问安全节点</span></span><br><span class="line"><span class="built_in">export</span> ROS_SECURITY_ENABLE=<span class="literal">true</span></span><br><span class="line"><span class="built_in">export</span> ROS_SECURITY_KEYSTORE=~/sros2_keystore</span><br><span class="line">ros2 node list   <span class="comment"># 非安全节点将被拒绝或无法发现</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查安全日志</span></span><br><span class="line">grep -i security ~/.ros/log/latest/</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 兼容性<br>部分 DDS 实现&#x2F;驱动节点不支持安全，需评估；安全 keystore 更换需重新签发所有 enclave。</p>
+</blockquote>
+<h2 id="7-常见问题"><a href="#7-常见问题" class="headerlink" title="7. 常见问题"></a>7. 常见问题</h2><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>排查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>节点互不可见</td>
+<td>keystore&#x2F;enclave&#x2F;环境变量不一致</td>
+</tr>
+<tr>
+<td>权限拒绝</td>
+<td>permissions.xml 未授权</td>
+</tr>
+<tr>
+<td>证书过期</td>
+<td>更新 keystore</td>
+</tr>
+<tr>
+<td>性能下降</td>
+<td>加密开销，评估场景</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>网络安全与部署见 <a href="/posts/496626970.html">38-产品化与部署实践</a>；Web 接入安全见 <a href="/posts/1138612136.html">30-rosbridge与Web端</a>；实时性权衡见 <a href="/posts/514195102.html">33-实时性与QoS策略</a>。</p>
+</blockquote>
+<h2 id="8-安全落地建议"><a href="#8-安全落地建议" class="headerlink" title="8. 安全落地建议"></a>8. 安全落地建议</h2><p>安全落地遵循”最小权限、纵深防御”原则：按节点角色签发最小权限证书，话题与服务按需授权；密钥与证书集中管理并定期轮换，禁止硬编码进代码或镜像。网络层面隔离控制面与数据面，DDS 发现协议端口做好防火墙策略（见 <a href="/posts/1138612136.html">30-rosbridge与Web端</a> 的 Web 暴露面）。远程运维通道强制加密与审计。安全配置变更先小范围灰度验证再全量推广。产品上线前做安全评审与渗透测试，持续监控异常流量与权限滥用。</p>
+<blockquote>
+<p>[!note] 建议<br>SROS2 是安全基础，但整体安全还需网络、运维与管理制度配合；部署安全见 <a href="/posts/496626970.html">38-产品化与部署实践</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/514195102.html">33-实时性与QoS策略</a>　下一篇：<a href="/posts/4284941043.html">35-性能优化与Benchmark</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/26068340.html">https://zeek-zhao.github.io/posts/26068340.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros2/">ros2</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/2608411710.html" title="34-常用服务策略配置"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">34-常用服务策略配置</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握常见服务的 SELinux 策略适配与排障。  1. Web 服务适配Apache&#x2F;Nginx 策略模块提供 httpd_t 域与丰富布尔值。自定义站点目录需 fcontext 规则，虚拟主机、反向代理、动态语言模块均有对应配置项。 2. 数据库服务MySQL&#x2F;PostgreSQL 使用独立域如 mysqld_t、postgresql_t，数据目录需正确标签。备份恢复、复制、监听端口变化需同步调整标签与端口类型。 3. 文件共享服务Samba 与 NFS 提供共享访问布尔值。共享目录标签类型决定访问域，SELinux 与文件权限叠加生效，配置需同时满足两层访问控制。 4. 邮件与代理服务Postfix、Dovecot、Squid 等均有完整策略模块。邮件队列、代理缓存目录需标签匹配，端口变更需 semanage port 同步。 5. 监控与备份服务监控代理读取系统状态需放宽部分访问；备份工具访问多路径需综合标签规划。使用模板或自定义模块满足个性化需求。 6. 服务策略最佳实践优先使用发行版策略模块，自定义需求通过模块扩展；服务变...</div></div></div></a><a class="pagination-related" href="/posts/918463786.html" title="34-多核任务设计"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">34-多核任务设计</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握多核 SMP 应用任务设计方法。  1. 多核设计视角SMP 系统任务可并行执行，设计关注负载均衡、数据局部性与核间同步。多核收益来自并行任务划分，避免共享热点限制扩展性。 2. 任务分布策略任务按功能与实时性分布到核心，高频协作任务同核减少同步开销。负载均衡避免单核过载。动态迁移由内核管理，关键任务绑定核心保障确定性。 3. 数据局部性共享数据访问频繁的任务尽量同核，减少缓存竞争。伪共享避免相邻数据被多核交替访问。分区设计降低核间通信频率，提升缓存命中率。 4. 核间通信多核任务通过队列、信号量与共享内存通信。内核同步保证一致性，性能敏感路径减少共享。核间中断用于唤醒与通知，批量传递降低开销。 5. 锁与并发多核锁竞争放大延迟，细粒度锁与无锁设计按场景选择。共享状态最小化，尽量消息传递。互斥量跨核保护范围明确，避免长时间持有。 6. 中断与核心绑定中断可绑定指定核，按负载与亲和性路由。实时中断独占核心保障响应。核间调度交互设计避免活锁与饥饿，监控各核利用率。 7. 实践要点多核系统先确定并行收益再设计任务。性能测试对比单核与多核指标。跟踪工具多核视...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/3898278822.html" title="13-自定义消息接口"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">13-自定义消息接口</div></div><div class="info-2"><div class="info-item-1">自定义消息接口 [!info] 本节目标掌握 ROS2 自定义接口（msg&#x2F;srv&#x2F;action）的定义、编译生成与跨包使用。  1. 接口概念ROS2 接口分三类：    类型 后缀 用途    消息 .msg 话题数据结构   服务 .srv 请求-响应结构   动作 .action goal&#x2F;feedback&#x2F;result 三段结构   接口定义后通过 rosidl 生成各语言的代码（C++、Python 等），节点代码直接使用生成类型。 2. 创建接口包123456789ros2 pkg create my_interfaces \  --build-type ament_cmake \  --dependencies rosidl_default_generators \    builtin_interfaces geometry_msgs std_msgs# 创建目录mkdir -p my_interfaces/msgmkdir -p my_interfaces/srvmkdir -p my_interfaces/action...</div></div></div></a><a class="pagination-related" href="/posts/381645954.html" title="ros2 03-核心概念"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">ros2 03-核心概念</div></div><div class="info-2"><div class="info-item-1">核心概念 [!info] 本节目标理解 ROS2 计算图的核心构件：节点、话题、服务、动作、参数，以及它们之间的协作关系。  1. 计算图模型ROS2 应用由一组节点组成的计算图（Computation Graph）构成。节点之间通过话题（异步流）、服务（同步请求响应）、动作（长时任务）通信，并共享参数。与传统 ROS1 不同，ROS2 没有中心 Master，节点通过 DDS 自动发现彼此。 1234[talker 节点] --话题 /chatter--&gt; [listener 节点][client 节点] --服务 /add_two_ints--&gt; [server 节点][action client] --动作 /fibonacci--&gt; [action server][任意节点] &lt;--参数--&gt; 参数服务（每个节点自带）  2. 节点（Node）节点是可执行进程内实现单一功能的单元，每个节点有唯一名称，可发布&#x2F;订阅话题、提供&#x2F;调用服务、声明参数。 1234# 查看所有节点ros2 node list# 查看节点信息ros2 ...</div></div></div></a><a class="pagination-related" href="/posts/4101548266.html" title="ros2 00-索引"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">ros2 00-索引</div></div><div class="info-2"><div class="info-item-1">ROS2 从入门到精通 · 索引 [!info] 本节目标掌握本套教程的整体结构与学习路线。本套教程覆盖 ROS2（Robot Operating System 2）从入门到精通的完整路径：核心概念、通信机制、编程实践、仿真与可视化、导航与机械臂、安全与产品化、实战项目，共 40 篇主题文档，建议按序学习。  文档清单   序号 主题 核心内容    00 本索引 学习路线与导航   01 01-ROS2概述与生态 诞生背景、发行版、生态   02 02-ROS2安装与环境配置 二进制&#x2F;源码安装、环境变量   03 03-核心概念 节点&#x2F;话题&#x2F;服务&#x2F;动作&#x2F;参数   04 04-工作空间与colcon构建 colcon、依赖管理   05 05-命令行工具 ros2 node&#x2F;topic&#x2F;service&#x2F;action&#x2F;param   06 06-话题通信 话题、发布订阅、QoS   07 07-服务通信 服务、请求响应   08 08-动作通信 动作、Goal&#x2F;Feedback   ...</div></div></div></a><a class="pagination-related" href="/posts/3441056145.html" title="12-生命周期节点"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">12-生命周期节点</div></div><div class="info-2"><div class="info-item-1">生命周期节点 [!info] 本节目标理解 ROS2 生命周期（Lifecycle）节点状态机，掌握受管节点的配置、激活与状态转换管理。  1. 生命周期概念生命周期节点（Lifecycle Node）是 ROS2 提供的受管节点机制：节点在不同生命周期状态间受控切换，便于系统级配置、启动、关闭与故障恢复。典型场景：导航、传感器驱动等需要按序初始化的组件。    状态 含义    Unconfigured 未配置（初始）   Inactive 已配置但未激活（不通信）   Active 运行中（正常收发）   Finalized 已销毁   2. 状态机与转换1234567Unconfigured --configure--&gt; Inactive --activate--&gt; Active     ^                            |                  |     |                            |                  |     +--cleanup-------------------+-...</div></div></div></a><a class="pagination-related" href="/posts/1182880406.html" title="16-URDF与xacro建模"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">16-URDF与xacro建模</div></div><div class="info-2"><div class="info-item-1">URDF 与 xacro 建模 [!info] 本节目标掌握 URDF 机器人模型编写与 xacro 宏建模，能在 rviz2 中加载并检查模型。  1. URDF 基础URDF（Unified Robot Description Format）用 XML 描述机器人运动学与外观：link（刚体）通过 joint（关节）连接。    标签 说明    link 刚体（质量、惯量、视觉、碰撞）   joint 关节（固定&#x2F;转动&#x2F;滑动等）   robot name 根节点   123456789101112131415161718192021&lt;robot name=&quot;my_robot&quot;&gt;  &lt;link name=&quot;base_link&quot;&gt;    &lt;visual&gt;      &lt;geometry&gt;        &lt;box size=&quot;0.4 0.3 0.2&quot;/&gt;      &lt;/geometry&gt;    &lt;/visual&gt;  &l...</div></div></div></a><a class="pagination-related" href="/posts/1400569321.html" title="32-ROS2与嵌入式平台"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">32-ROS2与嵌入式平台</div></div><div class="info-2"><div class="info-item-1">ROS2 与嵌入式平台 [!info] 本节目标掌握 ROS2 在树莓派、Jetson、微控制器等嵌入式平台的部署方式与最佳实践。  1. 平台选型   平台 定位 说明    树莓派 低成本主控 ARM64，可跑完整 ROS2   Jetson AI 边缘计算 GPU，视觉&#x2F;深度学习   微控制器 底层执行 无完整 ROS2，用 micro-ROS   IPC&#x2F;工控机 高算力 x86，完整 ROS2    [!note] 分层常见架构：微控制器跑电机控制（micro-ROS），树莓派&#x2F;Jetson 跑感知与导航（ROS2），工控机跑调度。  2. 树莓派部署123456# 使用 Ubuntu Server 22.04（arm64）sudo apt update &amp;&amp; sudo apt install -y \  ros-humble-ros-base python3-colcon-common-extensions# 或使用官方 Docker 镜像docker pull ros:humble   [!tip] 性能树莓派 4B&#x...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%AE%89%E5%85%A8%E4%B8%8E%E6%9D%83%E9%99%90"><span class="toc-number">1.</span> <span class="toc-text">安全与权限</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E5%AE%89%E5%85%A8%E5%A8%81%E8%83%81"><span class="toc-number">1.1.</span> <span class="toc-text">1. 安全威胁</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-SROS2-%E5%AE%89%E5%85%A8%E6%A8%A1%E5%9E%8B"><span class="toc-number">1.2.</span> <span class="toc-text">2. SROS2 安全模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F"><span class="toc-number">1.3.</span> <span class="toc-text">3. 环境变量</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%88%9B%E5%BB%BA%E5%AE%89%E5%85%A8-keystore"><span class="toc-number">1.4.</span> <span class="toc-text">4. 创建安全 keystore</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E6%9D%83%E9%99%90%E6%96%87%E4%BB%B6"><span class="toc-number">1.5.</span> <span class="toc-text">5. 权限文件</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E9%AA%8C%E8%AF%81%E5%AE%89%E5%85%A8"><span class="toc-number">1.6.</span> <span class="toc-text">6. 验证安全</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.7.</span> <span class="toc-text">7. 常见问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E5%AE%89%E5%85%A8%E8%90%BD%E5%9C%B0%E5%BB%BA%E8%AE%AE"><span class="toc-number">1.8.</span> <span class="toc-text">8. 安全落地建议</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

@@ -1,0 +1,654 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>15-tf2坐标变换 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="tf2 维护机器人各坐标系（frame）之间的相对位姿关系，形成坐标树（TF Tree）。任何节点都可发布（broadcast）或查询（lookup）变换。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="15-tf2坐标变换">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/201369509.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="tf2 维护机器人各坐标系（frame）之间的相对位姿关系，形成坐标树（TF Tree）。任何节点都可发布（broadcast）或查询（lookup）变换。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros2">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "15-tf2坐标变换",
+  "url": "https://zeek-zhao.github.io/posts/201369509.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/201369509.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '15-tf2坐标变换',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">15-tf2坐标变换</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">15-tf2坐标变换</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros2/">ros2</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="tf2-坐标变换"><a href="#tf2-坐标变换" class="headerlink" title="tf2 坐标变换"></a>tf2 坐标变换</h1><blockquote>
+<p>[!info] 本节目标<br>掌握 tf2 坐标变换机制：坐标树管理、静态&#x2F;动态变换发布与监听，以及常用 API。</p>
+</blockquote>
+<h2 id="1-tf2-概念"><a href="#1-tf2-概念" class="headerlink" title="1. tf2 概念"></a>1. tf2 概念</h2><p>tf2 维护机器人各坐标系（frame）之间的相对位姿关系，形成<strong>坐标树</strong>（TF Tree）。任何节点都可发布（broadcast）或查询（lookup）变换。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">map --&gt; odom --&gt; base_link --&gt; laser</span><br><span class="line">                            --&gt; camera_link --&gt; camera_optical_frame</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>frame</td>
+<td>坐标系（如 base_link）</td>
+</tr>
+<tr>
+<td>Transform</td>
+<td>平移 + 旋转（四元数）</td>
+</tr>
+<tr>
+<td>TF Tree</td>
+<td>有向树，根通常为 map&#x2F;odom</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>变换带时间戳，可查询历史</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!warning] 树结构<br>TF 必须是树（不能成环）；父-子关系一旦冲突会报错。</p>
+</blockquote>
+<h2 id="2-静态变换发布"><a href="#2-静态变换发布" class="headerlink" title="2. 静态变换发布"></a>2. 静态变换发布</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 命令行发布静态变换</span></span><br><span class="line">ros2 run tf2_ros static_transform_publisher \</span><br><span class="line">  1.0 0.0 0.0 0.0 0.0 0.0 map odom</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 参数形式<br>静态变换也可用 launch 的 <code>static_transform_publisher</code> 节点或 yaml 配置；适合固定传感器外参、里程计原点等。</p>
+</blockquote>
+<h2 id="3-动态变换发布（Python）"><a href="#3-动态变换发布（Python）" class="headerlink" title="3. 动态变换发布（Python）"></a>3. 动态变换发布（Python）</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"><span class="keyword">import</span> math</span><br><span class="line"><span class="keyword">import</span> rclpy</span><br><span class="line"><span class="keyword">from</span> rclpy.node <span class="keyword">import</span> Node</span><br><span class="line"><span class="keyword">from</span> geometry_msgs.msg <span class="keyword">import</span> TransformStamped</span><br><span class="line"><span class="keyword">from</span> tf2_ros <span class="keyword">import</span> TransformBroadcaster</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">OdomPublisher</span>(<span class="title class_ inherited__">Node</span>):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__(<span class="string">&#x27;odom_publisher&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.broadcaster = TransformBroadcaster(<span class="variable language_">self</span>)</span><br><span class="line">        <span class="variable language_">self</span>.timer = <span class="variable language_">self</span>.create_timer(<span class="number">0.1</span>, <span class="variable language_">self</span>.publish)</span><br><span class="line">        <span class="variable language_">self</span>.x = <span class="number">0.0</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">publish</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="variable language_">self</span>.x += <span class="number">0.01</span></span><br><span class="line">        t = TransformStamped()</span><br><span class="line">        t.header.stamp = <span class="variable language_">self</span>.get_clock().now().to_msg()</span><br><span class="line">        t.header.frame_id = <span class="string">&#x27;odom&#x27;</span></span><br><span class="line">        t.child_frame_id = <span class="string">&#x27;base_link&#x27;</span></span><br><span class="line">        t.transform.translation.x = <span class="variable language_">self</span>.x</span><br><span class="line">        t.transform.rotation.w = <span class="number">1.0</span></span><br><span class="line">        <span class="variable language_">self</span>.broadcaster.sendTransform(t)</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">main</span>(<span class="params">args=<span class="literal">None</span></span>):</span><br><span class="line">    rclpy.init(args=args)</span><br><span class="line">    node = OdomPublisher()</span><br><span class="line">    rclpy.spin(node)</span><br><span class="line">    node.destroy_node()</span><br><span class="line">    rclpy.shutdown()</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">&#x27;__main__&#x27;</span>:</span><br><span class="line">    main()</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 时间戳<br>动态变换必须设置 <code>header.stamp</code>，监听端才能正确插值。</p>
+</blockquote>
+<h2 id="4-变换监听（Python）"><a href="#4-变换监听（Python）" class="headerlink" title="4. 变换监听（Python）"></a>4. 变换监听（Python）</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"><span class="keyword">import</span> rclpy</span><br><span class="line"><span class="keyword">from</span> rclpy.node <span class="keyword">import</span> Node</span><br><span class="line"><span class="keyword">from</span> tf2_ros <span class="keyword">import</span> Buffer, TransformListener</span><br><span class="line"><span class="keyword">from</span> tf2_ros <span class="keyword">import</span> LookupException, ConnectivityException, ExtrapolationException</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">TfListener</span>(<span class="title class_ inherited__">Node</span>):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__(<span class="string">&#x27;tf_listener&#x27;</span>)</span><br><span class="line">        <span class="variable language_">self</span>.buffer = Buffer()</span><br><span class="line">        <span class="variable language_">self</span>.listener = TransformListener(<span class="variable language_">self</span>.buffer, <span class="variable language_">self</span>)</span><br><span class="line">        <span class="variable language_">self</span>.timer = <span class="variable language_">self</span>.create_timer(<span class="number">0.5</span>, <span class="variable language_">self</span>.query)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">query</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            t = <span class="variable language_">self</span>.buffer.lookup_transform(</span><br><span class="line">                <span class="string">&#x27;map&#x27;</span>, <span class="string">&#x27;base_link&#x27;</span>, rclpy.time.Time())</span><br><span class="line">            <span class="variable language_">self</span>.get_logger().info(</span><br><span class="line">                <span class="string">f&#x27;translation: <span class="subst">&#123;t.transform.translation.x:<span class="number">.2</span>f&#125;</span>, &#x27;</span></span><br><span class="line">                <span class="string">f&#x27;<span class="subst">&#123;t.transform.translation.y:<span class="number">.2</span>f&#125;</span>&#x27;</span>)</span><br><span class="line">        <span class="keyword">except</span> (LookupException, ConnectivityException,</span><br><span class="line">                ExtrapolationException) <span class="keyword">as</span> e:</span><br><span class="line">            <span class="variable language_">self</span>.get_logger().warn(<span class="string">f&#x27;TF error: <span class="subst">&#123;e&#125;</span>&#x27;</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">main</span>(<span class="params">args=<span class="literal">None</span></span>):</span><br><span class="line">    rclpy.init(args=args)</span><br><span class="line">    node = TfListener()</span><br><span class="line">    rclpy.spin(node)</span><br><span class="line">    node.destroy_node()</span><br><span class="line">    rclpy.shutdown()</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">&#x27;__main__&#x27;</span>:</span><br><span class="line">    main()</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] 异常处理<br><code>lookup_transform</code> 可能抛 Lookup&#x2F;Connectivity&#x2F;Extrapolation 异常，必须捕获处理。</p>
+</blockquote>
+<h2 id="5-C-变换监听"><a href="#5-C-变换监听" class="headerlink" title="5. C++ 变换监听"></a>5. C++ 变换监听</h2><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;rclcpp/rclcpp.hpp&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;tf2_ros/buffer.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;tf2_ros/transform_listener.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">TfListener</span> : <span class="keyword">public</span> rclcpp::Node</span><br><span class="line">&#123;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">  <span class="built_in">TfListener</span>() : <span class="built_in">Node</span>(<span class="string">&quot;tf_listener&quot;</span>),</span><br><span class="line">    <span class="built_in">buffer_</span>(<span class="built_in">get_clock</span>()), <span class="built_in">listener_</span>(buffer_)</span><br><span class="line">  &#123;</span><br><span class="line">    timer_ = <span class="built_in">create_wall_timer</span>(std::chrono::<span class="built_in">milliseconds</span>(<span class="number">500</span>),</span><br><span class="line">      [<span class="keyword">this</span>]()</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          <span class="keyword">auto</span> t = buffer_.<span class="built_in">lookupTransform</span>(</span><br><span class="line">            <span class="string">&quot;map&quot;</span>, <span class="string">&quot;base_link&quot;</span>, tf2::TimePointZero);</span><br><span class="line">          <span class="built_in">RCLCPP_INFO</span>(<span class="built_in">get_logger</span>(), <span class="string">&quot;x=%f y=%f&quot;</span>,</span><br><span class="line">            t.transform.translation.x, t.transform.translation.y);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (tf2::TransformException &amp;e) &#123;</span><br><span class="line">          <span class="built_in">RCLCPP_WARN</span>(<span class="built_in">get_logger</span>(), <span class="string">&quot;TF error: %s&quot;</span>, e.<span class="built_in">what</span>());</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;);</span><br><span class="line">  &#125;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">  tf2_ros::Buffer buffer_;</span><br><span class="line">  tf2_ros::TransformListener listener_;</span><br><span class="line">  rclcpp::TimerBase::SharedPtr timer_;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h2 id="6-常用命令"><a href="#6-常用命令" class="headerlink" title="6. 常用命令"></a>6. 常用命令</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ros2 run tf2_ros tf2_echo map base_link      <span class="comment"># 打印变换</span></span><br><span class="line">ros2 run tf2_ros tf2_monitor                 <span class="comment"># 监控频率/延迟</span></span><br><span class="line">ros2 run tf2_tools view_frames               <span class="comment"># 生成 tf 树图（PDF）</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] view_frames<br><code>view_frames</code> 生成 frames.pdf，直观查看整棵 TF 树，排查断链最快。</p>
+</blockquote>
+<h2 id="7-常见问题"><a href="#7-常见问题" class="headerlink" title="7. 常见问题"></a>7. 常见问题</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>排查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>找不到坐标帧</td>
+<td>未发布&#x2F;名字拼写&#x2F;大小写</td>
+</tr>
+<tr>
+<td>变换超时</td>
+<td>未持续发布、时间戳过期</td>
+</tr>
+<tr>
+<td>Can’t connect</td>
+<td>树断裂，缺父-子边</td>
+</tr>
+<tr>
+<td>频率低</td>
+<td>发布端周期长、网络</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>导航中 map&#x2F;odom&#x2F;base_link 变换链见 <a href="/posts/2969019117.html">22-导航2框架</a>、<a href="/posts/3827643133.html">25-AMCL定位</a>；URDF 静态关节见 <a href="/posts/1182880406.html">16-URDF与xacro建模</a>。</p>
+</blockquote>
+<h2 id="8-tf2-调试与最佳实践"><a href="#8-tf2-调试与最佳实践" class="headerlink" title="8. tf2 调试与最佳实践"></a>8. tf2 调试与最佳实践</h2><p>TF 树应保持稳定简洁：传感器与关节的静态变换用 static_transform_publisher 一次性发布，动态变换（odom 到 base_link）由里程计节点持续发布。frame_id 命名全局唯一且语义化，避免使用无意义名称。调试时用 <code>tf2_echo</code> 检查任意两坐标系间的变换，用 <code>view_frames</code> 生成树图确认结构。常见错误包括 frame_id 拼写错误、时间戳不匹配、父子关系颠倒。查询变换时合理设置超时时间，避免因短暂缺失导致整帧数据丢弃。</p>
+<blockquote>
+<p>[!note] 建议<br>TF 是机器人空间感知的基石，导航与机械臂都依赖正确的坐标树；综合应用见 <a href="/posts/4258040718.html">39-实战：自动驾驶小车</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/742500733.html">14-执行器与回调组</a>　下一篇：<a href="/posts/1182880406.html">16-URDF与xacro建模</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/201369509.html">https://zeek-zhao.github.io/posts/201369509.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros2/">ros2</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/4146654009.html" title="15-临界区与线程同步"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">15-临界区与线程同步</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握临界区保护与线程同步设计方法。  1. 临界区概念临界区是访问共享资源的代码段，同一时刻仅允许一个执行流进入。并发访问导致数据竞争与状态错误，临界区保护保证操作原子性。RT-Thread 提供关中断、调度器锁与互斥量三层保护。 2. 关中断保护rt_base_t level &#x3D; rt_hw_interrupt_disable 保存中断状态并关中断，操作完成后 rt_hw_interrupt_enable(level) 恢复。适合极短临界区，如标志位修改。中断恢复需使用保存的旧状态，避免嵌套破坏。 3. 调度器锁rt_enter_critical 禁止调度，当前线程持续运行直到退出临界区，期间其他线程无法抢占。调度器锁不影响中断处理，适合较长但非阻塞操作。rt_exit_critical 恢复调度，锁需成对使用。 4. 互斥量保护互斥量保护可阻塞的共享资源访问，线程等待时让出 CPU。适合耗时临界区与复杂数据结构。互斥量阻塞调度器不阻塞，系统整体更流畅。三类保护按长度与中断关系选择。 5. 同步模式设计线程间协作通过信号量、事件集与队列同步。...</div></div></div></a><a class="pagination-related" href="/posts/651339923.html" title="15-systemd 定时器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">15-systemd 定时器</div></div><div class="info-2"><div class="info-item-1">systemd 定时器 [!abstract] 用途systemd 定时器（Timer）是 cron 的现代替代，与 systemd 深度集成：可定义依赖、持久化补偿（错过执行时间后补跑）、日志统一 journalctl 查看，适合更可靠的定时任务。  1. 概念12345一个定时器 = 两个 unit：  .timer    定义触发时间  .service  定义要执行的任务位置：/etc/systemd/system/（系统级）或 ~/.config/systemd/user/（用户级）  2. 创建定时器示例12345678910111213141516171819# /etc/systemd/system/backup.service[Unit]Description=Daily backup task[Service]Type=oneshotExecStart=/opt/scripts/backup.sh# /etc/systemd/system/backup.timer[Unit]Description=Run backup daily at 02:30[Timer...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/3927300417.html" title="09-参数机制"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">09-参数机制</div></div><div class="info-2"><div class="info-item-1">参数机制 [!info] 本节目标掌握 ROS2 参数机制：声明、读写、动态修改、回调与参数文件持久化。  1. 参数概念参数（Parameter）是节点内的键值配置项。每个节点维护自己的参数表，可被 ros2 param 命令或其他节点动态读取&#x2F;写入。    参数类型 说明    bool 布尔   int &#x2F; double 整数&#x2F;浮点   string 字符串   array 上述类型的数组    [!note] 参数 vs ROS1ROS1 有全局参数服务器，ROS2 参数归属于节点，不再有独立参数服务器。  2. Python 声明与读写12345678910111213141516171819202122232425262728293031#!/usr/bin/env python3import rclpyfrom rclpy.node import Nodefrom rcl_interfaces.msg import ParameterDescriptor, IntegerRangeclass ParamNode(Node):    de...</div></div></div></a><a class="pagination-related" href="/posts/4265837254.html" title="29-多机器人协同"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">29-多机器人协同</div></div><div class="info-2"><div class="info-item-1">多机器人协同 [!info] 本节目标掌握 ROS2 多机器人系统的命名空间隔离、ROS_DOMAIN_ID 分域与协同通信方案。  1. 多机器人挑战   挑战 方案    话题冲突 命名空间隔离   网络隔离 ROS_DOMAIN_ID &#x2F; 多域   资源共享 协商&#x2F;任务分配   时间同步 PTP&#x2F;NTP   2. 命名空间隔离1234567Node(    package=&#x27;my_pkg&#x27;,    executable=&#x27;talker&#x27;,    namespace=&#x27;robot1&#x27;,    name=&#x27;talker&#x27;,)# 话题：/robot1/chatter  12robot1: /robot1/cmd_vel /robot1/odomrobot2: /robot2/cmd_vel /robot2/odom   [!tip] 参数化命名空间用 LaunchConfiguration 传 robot_id，一个 launch 启动多机器人：  12345678910...</div></div></div></a><a class="pagination-related" href="/posts/3898278822.html" title="13-自定义消息接口"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">13-自定义消息接口</div></div><div class="info-2"><div class="info-item-1">自定义消息接口 [!info] 本节目标掌握 ROS2 自定义接口（msg&#x2F;srv&#x2F;action）的定义、编译生成与跨包使用。  1. 接口概念ROS2 接口分三类：    类型 后缀 用途    消息 .msg 话题数据结构   服务 .srv 请求-响应结构   动作 .action goal&#x2F;feedback&#x2F;result 三段结构   接口定义后通过 rosidl 生成各语言的代码（C++、Python 等），节点代码直接使用生成类型。 2. 创建接口包123456789ros2 pkg create my_interfaces \  --build-type ament_cmake \  --dependencies rosidl_default_generators \    builtin_interfaces geometry_msgs std_msgs# 创建目录mkdir -p my_interfaces/msgmkdir -p my_interfaces/srvmkdir -p my_interfaces/action...</div></div></div></a><a class="pagination-related" href="/posts/711846815.html" title="28-MoveIt2机械臂控制"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">28-MoveIt2机械臂控制</div></div><div class="info-2"><div class="info-item-1">MoveIt2 机械臂控制 [!info] 本节目标理解 MoveIt2 架构，掌握机械臂运动规划、轨迹执行与仿真控制流程。  1. MoveIt2 概述MoveIt2 是 ROS2 的机械臂运动规划框架，负责逆运动学、路径规划、碰撞检测与轨迹执行。 123456MoveIt2 模块├── move_group（核心服务器）├── Planning Scene（碰撞/环境）├── Robot Model / State（URDF + 关节状态）├── 规划器插件（OMPL 等）└── 控制器接口（FollowJointTrajectory）     能力 说明    运动规划 笛卡尔&#x2F;关节空间   IK&#x2F;FK 正逆运动学   碰撞检测 自碰撞与环境   轨迹执行 与控制器通信   抓取&#x2F;放置 场景与姿态规划   2. 安装1234567sudo apt install -y ros-humble-moveit \  ros-humble-moveit-visual-tools# 测试 Demoros2 launch moveit2_tutorials...</div></div></div></a><a class="pagination-related" href="/posts/1400569321.html" title="32-ROS2与嵌入式平台"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">32-ROS2与嵌入式平台</div></div><div class="info-2"><div class="info-item-1">ROS2 与嵌入式平台 [!info] 本节目标掌握 ROS2 在树莓派、Jetson、微控制器等嵌入式平台的部署方式与最佳实践。  1. 平台选型   平台 定位 说明    树莓派 低成本主控 ARM64，可跑完整 ROS2   Jetson AI 边缘计算 GPU，视觉&#x2F;深度学习   微控制器 底层执行 无完整 ROS2，用 micro-ROS   IPC&#x2F;工控机 高算力 x86，完整 ROS2    [!note] 分层常见架构：微控制器跑电机控制（micro-ROS），树莓派&#x2F;Jetson 跑感知与导航（ROS2），工控机跑调度。  2. 树莓派部署123456# 使用 Ubuntu Server 22.04（arm64）sudo apt update &amp;&amp; sudo apt install -y \  ros-humble-ros-base python3-colcon-common-extensions# 或使用官方 Docker 镜像docker pull ros:humble   [!tip] 性能树莓派 4B&#x...</div></div></div></a><a class="pagination-related" href="/posts/3191786011.html" title="11-rclpy编程"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">11-rclpy编程</div></div><div class="info-2"><div class="info-item-1">rclpy 编程（Python） [!info] 本节目标掌握 rclpy Python 客户端库的节点编写、发布订阅、服务、动作、参数与定时器用法。  1. rclpy 概览rclpy 是 ROS2 的 Python 客户端库，适合快速原型、逻辑型节点、胶水代码与工具脚本。 12ros2 pkg create py_demo --build-type ament_python \  --dependencies rclpy std_msgs   [!note] 包结构ament_python 包：setup.py 声明入口点，包目录放 .py 源码；详见 04-工作空间与colcon构建。  2. 入口点配置12345678910111213# setup.pyfrom setuptools import find_packages, setupsetup(    name=&#x27;py_demo&#x27;,    packages=find_packages(exclude=[&#x27;test&#x27;]),    entry_points=&#123;     ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#tf2-%E5%9D%90%E6%A0%87%E5%8F%98%E6%8D%A2"><span class="toc-number">1.</span> <span class="toc-text">tf2 坐标变换</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-tf2-%E6%A6%82%E5%BF%B5"><span class="toc-number">1.1.</span> <span class="toc-text">1. tf2 概念</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E9%9D%99%E6%80%81%E5%8F%98%E6%8D%A2%E5%8F%91%E5%B8%83"><span class="toc-number">1.2.</span> <span class="toc-text">2. 静态变换发布</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%8A%A8%E6%80%81%E5%8F%98%E6%8D%A2%E5%8F%91%E5%B8%83%EF%BC%88Python%EF%BC%89"><span class="toc-number">1.3.</span> <span class="toc-text">3. 动态变换发布（Python）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%8F%98%E6%8D%A2%E7%9B%91%E5%90%AC%EF%BC%88Python%EF%BC%89"><span class="toc-number">1.4.</span> <span class="toc-text">4. 变换监听（Python）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-C-%E5%8F%98%E6%8D%A2%E7%9B%91%E5%90%AC"><span class="toc-number">1.5.</span> <span class="toc-text">5. C++ 变换监听</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4"><span class="toc-number">1.6.</span> <span class="toc-text">6. 常用命令</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">1.7.</span> <span class="toc-text">7. 常见问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-tf2-%E8%B0%83%E8%AF%95%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="toc-number">1.8.</span> <span class="toc-text">8. tf2 调试与最佳实践</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

@@ -1,0 +1,610 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>12-规划模块（路径规划） | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="规划模块接收定位、预测、地图与决策结果，生成安全、舒适、可执行的轨迹，由控制模块执行。规划核心是路径规划与速度规划的组合。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="12-规划模块（路径规划）">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2353222172.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="规划模块接收定位、预测、地图与决策结果，生成安全、舒适、可执行的轨迹，由控制模块执行。规划核心是路径规划与速度规划的组合。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "12-规划模块（路径规划）",
+  "url": "https://zeek-zhao.github.io/posts/2353222172.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/2353222172.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '12-规划模块（路径规划）',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">12-规划模块（路径规划）</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">12-规划模块（路径规划）</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>理解 Apollo 规划模块：参考线处理、路径规划与速度规划。</p>
+</blockquote>
+<h2 id="1-规划模块概述"><a href="#1-规划模块概述" class="headerlink" title="1. 规划模块概述"></a>1. 规划模块概述</h2><p>规划模块接收定位、预测、地图与决策结果，生成安全、舒适、可执行的轨迹，由控制模块执行。规划核心是路径规划与速度规划的组合。</p>
+<h2 id="2-主要子模块"><a href="#2-主要子模块" class="headerlink" title="2. 主要子模块"></a>2. 主要子模块</h2><table>
+<thead>
+<tr>
+<th>子模块</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>参考线</td>
+<td>生成平滑车道中心线</td>
+</tr>
+<tr>
+<td>路径规划</td>
+<td>生成横向路径</td>
+</tr>
+<tr>
+<td>速度规划</td>
+<td>生成纵向速度曲线</td>
+</tr>
+<tr>
+<td>轨迹拼接</td>
+<td>合并为完整轨迹</td>
+</tr>
+</tbody></table>
+<h2 id="3-规划流程"><a href="#3-规划流程" class="headerlink" title="3. 规划流程"></a>3. 规划流程</h2><ol>
+<li>从地图与定位生成参考线</li>
+<li>结合决策与预测生成路径候选</li>
+<li>在路径上规划速度曲线</li>
+<li>输出带时间戳的轨迹点</li>
+</ol>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 规划配置示例</span></span><br><span class="line"><span class="attr">planning:</span></span><br><span class="line">  <span class="attr">trajectory_period:</span> <span class="number">8.0</span>  <span class="comment"># 规划时域</span></span><br><span class="line">  <span class="attr">trajectory_time_resolution:</span> <span class="number">0.1</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="4-优化目标"><a href="#4-优化目标" class="headerlink" title="4. 优化目标"></a>4. 优化目标</h2><p>规划需平衡安全、舒适与效率：约束包括碰撞、动力学与交通规则；代价函数考虑平顺性、效率与车道中心偏移。</p>
+<blockquote>
+<p>[!note] 延伸<br>规划依赖决策，见 <a href="/posts/2866381386.html">13-决策模块（场景决策）</a>；执行由控制完成，见 14-控制模块。</p>
+</blockquote>
+<h2 id="5-参考线系统"><a href="#5-参考线系统" class="headerlink" title="5. 参考线系统"></a>5. 参考线系统</h2><p>参考线是规划的基础几何结构，由地图车道中心线生成并经过平滑处理。Apollo 的参考线管理支持分段与拼接，保证车辆行驶过程中参考线连续平滑。规划模块在参考线坐标系下进行横向与纵向解耦优化，降低求解难度。</p>
+<h2 id="6-轨迹生成与优化"><a href="#6-轨迹生成与优化" class="headerlink" title="6. 轨迹生成与优化"></a>6. 轨迹生成与优化</h2><p>路径规划在横向维度生成候选路径，速度规划在纵向维度生成速度曲线，两者组合得到带时间戳的轨迹。优化过程考虑动力学约束、障碍物避让与舒适性代价。Apollo 支持多种规划算法组合，如 EM Planner 与 Lattice Planner，开发者可通过配置切换。轨迹输出频率直接影响控制平滑度。</p>
+<h2 id="7-规划安全校验"><a href="#7-规划安全校验" class="headerlink" title="7. 规划安全校验"></a>7. 规划安全校验</h2><p>规划轨迹输出前需经过安全校验：检查轨迹是否碰撞、是否超出边界、是否符合动力学约束。Apollo 内置轨迹校验机制，异常轨迹被拒绝并触发重新规划。安全校验参数可在配置中调整，校验过严会导致频繁重规划，过松则存在风险。安全底线设计见安全机制篇。<br><em>上一篇：<a href="/posts/3738978533.html">11-预测模块</a>　下一篇：<a href="/posts/2866381386.html">13-决策模块（场景决策）</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/2353222172.html">https://zeek-zhao.github.io/posts/2353222172.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/479641272.html" title="12-软件定时器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">12-软件定时器</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握软件定时器创建、启动与回调机制。  1. 软件定时器概述软件定时器提供基于系统节拍的时间功能，周期性或单次触发回调函数。定时器由定时器守护任务统一管理，回调在守护任务上下文中执行，避免占用调用者 CPU。 2. 定时器类型单次定时器触发一次后停止，周期定时器按周期持续触发。创建时指定周期与类型，运行中可动态修改周期。定时器状态包括休眠、运行与活动，API 控制启动停止。 3. 创建与操作xTimerCreate 创建定时器并指定回调，xTimerStart 启动，xTimerStop 停止，xTimerChangePeriod 修改周期。操作命令通过队列发送给守护任务异步执行，返回命令是否成功入队。 4. 回调执行上下文回调在守护任务中顺序执行，回调中禁止调用阻塞 API，避免长时间运行阻塞其他定时器。回调尽量短小，耗时工作派发到业务任务。守护任务优先级与栈大小按需配置。 5. 定时器与任务延时对比软件定时器适合周期性后台操作，任务延时适合任务内时间控制。定时器回调无法直接访问任务局部状态，通过队列或通知与任务交互。两者组合实现灵活的时间管理。 6....</div></div></div></a><a class="pagination-related" href="/posts/3441056145.html" title="12-生命周期节点"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">12-生命周期节点</div></div><div class="info-2"><div class="info-item-1">生命周期节点 [!info] 本节目标理解 ROS2 生命周期（Lifecycle）节点状态机，掌握受管节点的配置、激活与状态转换管理。  1. 生命周期概念生命周期节点（Lifecycle Node）是 ROS2 提供的受管节点机制：节点在不同生命周期状态间受控切换，便于系统级配置、启动、关闭与故障恢复。典型场景：导航、传感器驱动等需要按序初始化的组件。    状态 含义    Unconfigured 未配置（初始）   Inactive 已配置但未激活（不通信）   Active 运行中（正常收发）   Finalized 已销毁   2. 状态机与转换1234567Unconfigured --configure--&gt; Inactive --activate--&gt; Active     ^                            |                  |     |                            |                  |     +--cleanup-------------------+-...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/140110120.html" title="57-自动驾驶操作系统"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">57-自动驾驶操作系统</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶操作系统的独特需求（硬实时、功能安全、异构算力）、分层架构与调度&#x2F;优化技术，并对比主流方案。OS 之上的中间件层（运行时框架）见 58-自动驾驶运行时框架对比。  1. 为什么自动驾驶需要专门的 OS自动驾驶系统每秒处理 GB 级传感器数据、要求毫秒级响应、失效可能危及生命。这决定了车载 OS 必须同时具备性能、可靠性与安全性，远超一般嵌入式系统的要求。 1.1 实时性分层   层级 定义 例子    硬实时 必须在截止时间前完成 紧急制动控制   软实时 偶尔超时可接受 感知、规划   近实时 容忍度较高 HMI   各模块的实时性要求：    模块 典型周期 最大容忍延迟    控制模块 10ms &lt;5ms   定位模块 20-50ms &lt;20ms   规划模块 50-100ms &lt;20ms   感知模块 50-200ms &lt;50ms   HMI 100-500ms &lt;200ms   1.2 其他核心需求 可靠性：故障隔离（单模块失效不拖垮系统）、健康监控、快速恢复 资源管理：CPU 调度与核心隔离...</div></div></div></a><a class="pagination-related" href="/posts/3991985180.html" title="06-高精地图HD Map"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">06-高精地图HD Map</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解高精地图在 Apollo 中的作用、数据组织与使用流程。  1. 什么是高精地图高精地图（HD Map）提供厘米级车道几何、拓扑关系与道路语义，是自动驾驶的先验信息源。与导航地图相比，高精地图包含车道中心线、边界、坡度曲率、信号灯位置、限速等要素。 2. 地图要素   要素 内容 用途    车道 中心线、宽度、连接关系 规划与定位   信号灯 位置、相位关系 感知关联   停止线 位置、方向 决策与停车   参考线 道路几何 轨迹生成   交叉口 拓扑 通行决策   3. 数据格式Apollo 地图基于 OpenDRIVE 与 protobuf 定义，核心消息为 Map 与 MapMsg。地图数据以二进制或文本形式加载，供定位与规划使用。 12# 地图文件示例路径/apollo/modules/map/data/&#123;map_name&#125;/  4. 使用流程 获取或制作地图数据 放置到 modules&#x2F;map&#x2F;data 目录 配置地图名与坐标系 启动定位与规划时加载  地图质量直接影响定位与规划，制作与验证是重点。...</div></div></div></a><a class="pagination-related" href="/posts/143389874.html" title="41-性能优化与车规级部署"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">41-性能优化与车规级部署</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标本篇融合性能优化与车规级部署两大主题：掌握 Apollo 系统的性能指标体系与瓶颈定位方法、算法&#x2F;通信&#x2F;调度三层优化手段与实测案例，理解从工控机研发环境到国产芯片域控制器量产部署的完整路径。  1. 性能指标体系自动驾驶系统在严格实时约束下处理海量传感器数据，性能直接影响行车安全。核心指标：    指标 含义 目标    端到端延迟 感知到控制的全程耗时 百毫秒级   模块频率 各模块消息更新率 达标且稳定   CPU&#x2F;GPU 占用 计算资源使用 留有冗余   内存 占用与稳定性 无泄漏   抖动 延迟的波动幅度 越小越好   1.1 定位瓶颈优化以数据为依据，先建立基线再动手： 123456# 检查各话题频率是否达标cyber_monitorcyber_monitor -c /apollo/sensor/Livox/lidar64# 模块日志统计处理耗时tail -f /apollo/data/log/planning.INFO  使用 profiler 定位耗时函数（火焰图），关注端到端链路中耗时最长与波动最大的环节，优...</div></div></div></a><a class="pagination-related" href="/posts/1294651885.html" title="49-KITTI与Waymo数据集实战"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">49-KITTI与Waymo数据集实战</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标手把手完成 KITTI 与 Waymo 两大基准数据集的实战：下载准备、目录结构、格式解析、坐标转换、构建数据加载器、跑通评估。数据集全景见 48-自动驾驶数据集总览。  1. KITTI 实战1.1 采集平台与评测项目KITTI 采集车配备：2 灰度 + 2 彩色 Point Grey Flea 2 相机（1382×512，10Hz）、1 台 Velodyne HDL-64E（64 线，约 130 万点&#x2F;秒，120m）、OXTS RT3003 GPS&#x2F;IMU（100Hz，厘米级）。采集于德国卡尔斯鲁厄市区、乡村与高速。 评测项目：立体视觉、光流、场景流、深度、视觉里程计&#x2F;SLAM、物体检测（2D&#x2F;3D&#x2F;BEV）、目标跟踪、道路&#x2F;车道检测、语义分割。 1.2 下载与存储123456789#!/bin/bash# 下载 KITTI 目标检测数据集mkdir -p kitti_data/object &amp;&amp; cd kitti_data/objectwget -c https://s3....</div></div></div></a><a class="pagination-related" href="/posts/2511406057.html" title="54-自动驾驶测试方法"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">54-自动驾驶测试方法</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标建立自动驾驶测试的完整方法论：测试分层体系、三类测试环境（仿真&#x2F;封闭场地&#x2F;公开道路）、场景库与测试用例设计、先进测试技术与标准合规。仿真平台实操见 50-仿真平台对比与Gazebo-LGSVL实战；测试数据的来源见 55-标注工具与数据闭环。  1. 自动驾驶测试的特殊性与传统软件测试相比，自动驾驶测试有根本区别：    特性 自动驾驶测试 传统软件测试    安全关键性 失效可能危及生命 通常不直接威胁生命   输入空间 连续、无限，难以穷举 相对有限，可边界划分   判断基准 多指标平衡，无唯一”正确答案” 有明确对错   场景覆盖 需海量场景与长期里程累积 用例可控   核心挑战：场景爆炸（无法穷举真实交通）、稀有事件（关键安全场景极难收集）、AI 组件不确定性（深度学习行为难精确预测）、**”足够安全”缺乏统一定义**。 2. 测试分层体系1单元测试 → 模块测试 → 集成测试 → 系统测试 → 场景测试 → 实车测试 → 运营监控     层级 目标 工具&#x2F;环境 方法    单元测试 函数&#x2F;类正确性 GT...</div></div></div></a><a class="pagination-related" href="/posts/1297150334.html" title="12-Cyber消息通信与组件开发"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">12-Cyber消息通信与组件开发</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Cyber RT 的消息通信模型（发布订阅、服务调用、参数服务）与组件开发完整流程：从 protobuf 消息定义、Component 代码编写，到 DAG&#x2F;launch 配置与编译调试，能独立开发一个可运行的 Cyber 组件。  1. 发布订阅模型Cyber RT 采用发布订阅（Pub&#x2F;Sub）话题模型：Writer 发布消息，Reader 订阅消息，模块间通过通道解耦，支持一对多、多对多广播。发布者与订阅者无直接依赖，异步通信、互不阻塞。 1234567891011121314// 发布者：Node 创建 Writerauto node = apollo::cyber::CreateNode(&quot;publisher&quot;);auto writer = node-&gt;CreateWriter&lt;SensorData&gt;(&quot;/apollo/sensor/data&quot;);auto data = std::make_shared&lt;SensorData&gt;();data-&gt;...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E8%A7%84%E5%88%92%E6%A8%A1%E5%9D%97%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">1. 规划模块概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E4%B8%BB%E8%A6%81%E5%AD%90%E6%A8%A1%E5%9D%97"><span class="toc-number">2.</span> <span class="toc-text">2. 主要子模块</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E8%A7%84%E5%88%92%E6%B5%81%E7%A8%8B"><span class="toc-number">3.</span> <span class="toc-text">3. 规划流程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E4%BC%98%E5%8C%96%E7%9B%AE%E6%A0%87"><span class="toc-number">4.</span> <span class="toc-text">4. 优化目标</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%8F%82%E8%80%83%E7%BA%BF%E7%B3%BB%E7%BB%9F"><span class="toc-number">5.</span> <span class="toc-text">5. 参考线系统</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E8%BD%A8%E8%BF%B9%E7%94%9F%E6%88%90%E4%B8%8E%E4%BC%98%E5%8C%96"><span class="toc-number">6.</span> <span class="toc-text">6. 轨迹生成与优化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E8%A7%84%E5%88%92%E5%AE%89%E5%85%A8%E6%A0%A1%E9%AA%8C"><span class="toc-number">7.</span> <span class="toc-text">7. 规划安全校验</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

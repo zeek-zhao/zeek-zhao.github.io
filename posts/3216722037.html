@@ -1,0 +1,589 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>34-构建工具与依赖管理 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Groovy 项目主流使用 Gradle 构建，支持 Groovy 与 Java 联合编译、依赖解析、测试执行与打包发布。Maven 也可通过 gmavenplus 插件构建。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="34-构建工具与依赖管理">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3216722037.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="Groovy 项目主流使用 Gradle 构建，支持 Groovy 与 Java 联合编译、依赖解析、测试执行与打包发布。Maven 也可通过 gmavenplus 插件构建。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="groovy">
+<meta property="article:tag" content="语言">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "34-构建工具与依赖管理",
+  "url": "https://zeek-zhao.github.io/posts/3216722037.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3216722037.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '34-构建工具与依赖管理',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">34-构建工具与依赖管理</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">34-构建工具与依赖管理</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/groovy/">groovy</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>工程化 Groovy 项目需要规范的构建与依赖管理，学习 Gradle 全流程。</p>
+</blockquote>
+<h2 id="1-构建体系"><a href="#1-构建体系" class="headerlink" title="1. 构建体系"></a>1. 构建体系</h2><p>Groovy 项目主流使用 Gradle 构建，支持 Groovy 与 Java 联合编译、依赖解析、测试执行与打包发布。Maven 也可通过 gmavenplus 插件构建。</p>
+<p>构建脚本即代码，可版本化、可复用、可扩展。</p>
+<h2 id="2-依赖坐标与仓库"><a href="#2-依赖坐标与仓库" class="headerlink" title="2. 依赖坐标与仓库"></a>2. 依赖坐标与仓库</h2><p>依赖用 group:name:version 坐标声明，repositories 配置仓库源：Maven Central、Gradle Plugin Portal、私有仓库。</p>
+<p>Groovy 生态依赖：groovy-all、spock-core、groovy-json、groovy-xml 等。</p>
+<h2 id="3-依赖版本管理"><a href="#3-依赖版本管理" class="headerlink" title="3. 依赖版本管理"></a>3. 依赖版本管理</h2><p>平台 BOM 统一版本，constraints 约束传递依赖，lock 文件锁定版本实现可复现构建。</p>
+<p>版本冲突用 dependencyInsight 分析，升级前评估兼容性。</p>
+<h2 id="4-多模块项目"><a href="#4-多模块项目" class="headerlink" title="4. 多模块项目"></a>4. 多模块项目</h2><p>settings.gradle 声明子项目，跨模块依赖通过 project 依赖引用。公共配置抽到父构建脚本或 convention 插件。</p>
+<p>多模块拆分遵循业务与技术边界，控制构建依赖方向。</p>
+<h2 id="5-发布与私有仓库"><a href="#5-发布与私有仓库" class="headerlink" title="5. 发布与私有仓库"></a>5. 发布与私有仓库</h2><p>maven-publish 插件发布构件到仓库，支持源码与文档构件。内部组件发布到私有 Nexus 或 Artifactory。</p>
+<p>发布前执行完整测试与版本号校验，构件签名增强供应链安全。</p>
+<h2 id="6-依赖安全"><a href="#6-依赖安全" class="headerlink" title="6. 依赖安全"></a>6. 依赖安全</h2><p>定期检查依赖漏洞（OWASP Dependency-Check、Gradle 插件）；最小权限使用依赖；审计许可证合规。</p>
+<p>依赖管理是工程化底线，自动化扫描纳入 CI。</p>
+<h2 id="7-依赖管理实战"><a href="#7-依赖管理实战" class="headerlink" title="7. 依赖管理实战"></a>7. 依赖管理实战</h2><p>统一版本目录管理依赖版本，升级集中评估；传递依赖冲突用 dependencyInsight 与 constraints 收敛。</p>
+<p>依赖锁定文件保证团队构建一致，CI 中校验锁定文件变更并审查依赖升级。</p>
+<p>第三方依赖定期安全扫描，高危漏洞及时升级或替换，供应链风险持续管理。</p>
+<h2 id="延伸阅读与实践"><a href="#延伸阅读与实践" class="headerlink" title="延伸阅读与实践"></a>延伸阅读与实践</h2><p>构建脚本纳入代码评审，依赖升级改动单独审查，降低供应链风险。</p>
+<p>发布构件附带构建元数据与来源信息，便于合规审计与问题追溯。</p>
+<h2 id="延伸阅读与实践-1"><a href="#延伸阅读与实践-1" class="headerlink" title="延伸阅读与实践"></a>延伸阅读与实践</h2><p>持续学习依赖生态演进，版本策略与工程规范同步更新。</p>
+<p><em>上一篇：<a href="/posts/2195762983.html">33-Groovy服务与微服务</a>　下一篇：<a href="/posts/1687475308.html">35-单元测试与Mock</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3216722037.html">https://zeek-zhao.github.io/posts/3216722037.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/groovy/">groovy</a><a class="post-meta__tags" href="/tags/%E8%AF%AD%E8%A8%80/">语言</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/4180254357.html" title="apollo 00-索引"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">apollo 00-索引</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标本文是全套件的导航页，规划六阶段学习路线并列出全部篇目的导航表，帮助读者按序或按需查阅。  1. 学习路线总览本套件将 Apollo 学习分为六个阶段，覆盖从环境搭建到场景实战、再到外围专题的完整链路：    阶段 篇目范围 学习目标    一 · 入门 01-06 建立 Apollo 与自动驾驶整体认知，搭建 Docker 开发环境，完成源码编译   二 · 平台与框架 07-14 掌握地图、定位、传感器接入、CAN 总线、Cyber RT 框架与调试工具链   三 · 核心模块 15-24 深入感知、标定、预测、规划、决策、控制六大模块与仿真数据   四 · Cyber RT 深度 25-31 源码级剖析启动、调度、时间、异步、数据、网络 IO 与坐标变换   五 · 场景实战 32-43 版本演进、车道级导航、泊车&#x2F;高速&#x2F;城市场景、端到端、安全与车规部署   六 · 专题扩展 44-60 SLAM、激光雷达、数据集、仿真平台、深度学习框架、数据闭环等外围专题   2. 全篇导航表   编号 主题 编号 主题    01 百度Ap...</div></div></div></a><a class="pagination-related" href="/posts/460001587.html" title="33-车道级导航与决策"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">33-车道级导航与决策</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 车道级导航与决策的完整链路：宏观路径如何转化为车道级行驶方案、车道选择与变道决策的评估逻辑、变道执行与监控机制，以及车道级导航对高精地图与导航地图数据的依赖。  1. 车道级导航概述车道级导航在普通导航基础上增加车道级意图。普通导航只回答”走哪条路”，车道级导航回答”走哪条路的哪条车道、何时变道”。Apollo 利用高精地图将宏观路由结果转化为具体的车道行驶方案，供规划模块生成可执行轨迹。 在模块化架构中，这条链路是： 12graph LR    A[Routing 宏观路径] --&gt; B[车道级序列生成] --&gt; C[参考线生成 ReferenceLine] --&gt; D[变道决策] --&gt; E[轨迹规划] --&gt; F[控制执行]  车道级导航是连接路由与规划的关键桥梁：没有它，规划模块只能处理”沿当前车道走”的最简单场景。 2. 车道级路径生成车道级导航的第一步是从宏观路径生成车道级序列：  确定必经路口：根据目的地与路网拓扑，识别必须经过的路口、匝道与转弯点 逐段选择车道：结合交通规则（导向车道、禁行...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1773101978.html" title="13-闭包进阶"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">13-闭包进阶</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标闭包进阶特性让函数式编程能力更完整，学习委托、柯里化与组合。  1. 委托机制每个闭包有 owner、delegate 与 this 三个作用域对象。方法调用先在 this 上解析，再尝试 delegate，通过 delegate 可以改变闭包内的解析上下文。 delegate 是 DSL 的核心机制：闭包内调用 DSL 方法时，解析到 delegate 对象，实现领域语言的表达。 2. 委托策略resolveStrategy 控制方法解析顺序：OWNER_FIRST、DELEGATE_FIRST 等策略决定先找 owner 还是 delegate。DSL 场景常用 DELEGATE_FIRST。 理解解析策略才能在复杂嵌套闭包中准确预判方法归属，避免意外调用。 3. 柯里化curry 方法固定部分参数生成新闭包，实现参数预绑定。柯里化让通用函数转化为专用函数，提高复用性。 如加法闭包 curry 固定一个加数，生成加固定值的专用闭包；ncurry 固定后部参数。 4. 组合与管道闭包组合用右移操作符连接两个闭包形成新函数，前一个输出作为后一个输入。组合...</div></div></div></a><a class="pagination-related" href="/posts/2263298668.html" title="05-闭包基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">05-闭包基础</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标闭包是 Groovy 的核心特性，理解闭包才能用好 Groovy 的函数式能力。  1. 闭包定义闭包用花括号定义，可以赋值给变量、作为参数传递、作为返回值返回。最简单的闭包打印文本，无参数，调用时用 call 方法或直接加括号。 闭包是 Groovy 的一等公民，贯穿集合操作、DSL、回调与并发编程，是整个语言的使用基础。 2. 参数与返回值闭包参数在箭头前声明，如 { x -&gt; x * 2 }。未声明参数时隐式变量 it 代表第一个参数。闭包总有返回值，最后一条表达式的值即返回值。 闭包支持默认参数、变长参数与多参数列表，与方法的参数规则一致。 3. 闭包与集合闭包最典型的应用是集合操作：each 遍历、collect 映射、findAll 过滤、find 查找、inject 归约。这些方法让数据处理声明式化，替代传统 for 循环。 例如列表 collect 生成新列表，findAll 过滤元素，链式组合表达力极强。 4. 闭包与作用域闭包可以访问定义处的外层变量，形成闭包环境。闭包内可以修改外层变量，与 Java lambda 的 effe...</div></div></div></a><a class="pagination-related" href="/posts/2038790379.html" title="14-元编程MOP"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">14-元编程MOP</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标MOP 是 Groovy 动态能力的核心，学习元类与动态方法的运行机制。  1. 元对象协议Groovy 的对象模型基于 MetaClass 扩展：每个对象关联元类，方法调用先经过元类解析。MOP 是运行时元编程的基础设施。 元类可以动态添加方法、拦截调用、修改属性行为，实现运行时能力扩展。 2. metaClass 与 ExpandoMetaClass对象的 metaClass 属性可以添加方法、属性与静态方法。ExpandoMetaClass 提供最常用的动态扩展 API，直接在元类上定义闭包方法。 例如为第三方类添加领域方法，不改动原始类即可扩展行为。 3. 方法解析链Groovy 方法调用解析顺序：具体方法、属性访问、methodMissing、GroovyObject 钩子、异常。理解解析链能定位动态调用问题。 propertyMissing 处理不存在的属性访问，methodMissing 处理不存在的方法调用，是动态拦截的两大入口。 4. 动态代理与拦截Groovy 可以通过元编程实现 AOP 风格拦截：方法调用前后注入日志、权限、缓存等横...</div></div></div></a><a class="pagination-related" href="/posts/3169274589.html" title="25-Groovy与Jenkins Pipeline"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">25-Groovy与Jenkins Pipeline</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Jenkins Pipeline 用 Groovy 编写持续交付流水线，学习基础语法与结构。  1. Pipeline 概述Jenkins Pipeline 将持续交付流程定义为代码，Jenkinsfile 放在仓库中版本管理。Pipeline 脚本基于 Groovy，利用其动态与 DSL 能力表达构建、测试、部署流程。 Pipeline 作为代码带来可版本化、可审计、可复用的持续交付实践。 2. Jenkinsfile 基础Jenkinsfile 定义 pipeline 对象，包含 agent、stages、steps 等核心块。agent 指定执行环境，stages 组织阶段，steps 执行具体步骤。 声明式语法结构清晰，适合标准 CI&#x2F;CD 场景；脚本式语法更灵活，适合复杂编排。 3. 步骤与构建集成Pipeline 步骤涵盖源码拉取、构建、测试、制品归档、部署通知等。与 Gradle、Maven 集成通过 sh 或工具步骤执行构建命令。 Groovy 生态项目用 gradle build 步骤执行测试与打包，测试报告与制品自动收集。 ...</div></div></div></a><a class="pagination-related" href="/posts/3109056171.html" title="09-面向对象"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">09-面向对象</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Groovy 面向对象在 Java 基础上增强，学习类定义、属性、继承与多态。  1. 类与对象Groovy 类定义与 Java 类似，但更简洁：属性声明无需显式 getter&#x2F;setter，构造器可以省略，默认无参构造器自动提供。类默认 public，字段默认 private 并自动生成访问器。 new 关键字创建实例，也可以省略括号调用构造器。Groovy 支持命名参数构造，让对象初始化更可读。 2. 属性机制Groovy 属性用字段声明自动生成 getter 与 setter，点号访问属性实际调用访问器。这种机制让封装与访问的代码都更简洁。 只读属性用 final 或仅定义 getter；属性注解如 @PackageScope 可以控制字段可见性。 3. 继承与接口Groovy 继承语法与 Java 一致，extends 继承类、implements 实现接口。动态语言的多态行为更灵活，方法重写基于运行时类型分发。 接口可以有默认方法，Groovy 3+ 支持 Java 8 风格接口默认方法，也支持 trait 提供更丰富的混入能力。 4...</div></div></div></a><a class="pagination-related" href="/posts/3404541891.html" title="groovy 资料索引指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">groovy 资料索引指南</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标本文汇总 Groovy 语言及生态的权威学习资料，含官方文档、框架文档、书籍与社区资源，建议收藏按需查阅。  1. 官方语言文档 Apache Groovy 官网：语言特性、下载与生态概览。  Groovy 文档总入口：单页文档、PDF 与分章浏览，覆盖 1.7 到 6.0 全版本。  最新语言文档：语法、闭包、trait、GDK、模块指南（JSON&#x2F;XML&#x2F;YAML&#x2F;TOML&#x2F;SQL 等）。  GroovyDoc API：GDK 与标准库 API 参考。  下载与版本：当前稳定版与历史版本，含 JDK 兼容要求。  源码与贡献 与 Apache 项目页：参与贡献、邮件列表与 Bug 跟踪。   2. 中文资源 中文文档站点：语言文档中文翻译。  groovy-lang.cn 学习页：推荐书籍与学习路径清单。  中文书籍：包括 Groovy 实战（Dierk Koenig 等核心成员著）、让 Java 更 Groovy（Ken Kousen）、Groovy 2 编程（Venkat Subramaniam）等。   ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E6%9E%84%E5%BB%BA%E4%BD%93%E7%B3%BB"><span class="toc-number">1.</span> <span class="toc-text">1. 构建体系</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E4%BE%9D%E8%B5%96%E5%9D%90%E6%A0%87%E4%B8%8E%E4%BB%93%E5%BA%93"><span class="toc-number">2.</span> <span class="toc-text">2. 依赖坐标与仓库</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E4%BE%9D%E8%B5%96%E7%89%88%E6%9C%AC%E7%AE%A1%E7%90%86"><span class="toc-number">3.</span> <span class="toc-text">3. 依赖版本管理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%A4%9A%E6%A8%A1%E5%9D%97%E9%A1%B9%E7%9B%AE"><span class="toc-number">4.</span> <span class="toc-text">4. 多模块项目</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%8F%91%E5%B8%83%E4%B8%8E%E7%A7%81%E6%9C%89%E4%BB%93%E5%BA%93"><span class="toc-number">5.</span> <span class="toc-text">5. 发布与私有仓库</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E4%BE%9D%E8%B5%96%E5%AE%89%E5%85%A8"><span class="toc-number">6.</span> <span class="toc-text">6. 依赖安全</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E4%BE%9D%E8%B5%96%E7%AE%A1%E7%90%86%E5%AE%9E%E6%88%98"><span class="toc-number">7.</span> <span class="toc-text">7. 依赖管理实战</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BB%B6%E4%BC%B8%E9%98%85%E8%AF%BB%E4%B8%8E%E5%AE%9E%E8%B7%B5"><span class="toc-number">8.</span> <span class="toc-text">延伸阅读与实践</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BB%B6%E4%BC%B8%E9%98%85%E8%AF%BB%E4%B8%8E%E5%AE%9E%E8%B7%B5-1"><span class="toc-number">9.</span> <span class="toc-text">延伸阅读与实践</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

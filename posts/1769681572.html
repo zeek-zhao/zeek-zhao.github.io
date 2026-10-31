@@ -1,0 +1,629 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>10-Templater自动化 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="用 Templater 把 JavaScript 带入模板系统，实现动态日期、条件逻辑、用户交互与外部系统调用，打造全自动笔记生成流水线。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="10-Templater自动化">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1769681572.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="用 Templater 把 JavaScript 带入模板系统，实现动态日期、条件逻辑、用户交互与外部系统调用，打造全自动笔记生成流水线。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="工具">
+<meta property="article:tag" content="obsidian">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "10-Templater自动化",
+  "url": "https://zeek-zhao.github.io/posts/1769681572.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/1769681572.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '10-Templater自动化',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">10-Templater自动化</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">10-Templater自动化</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/obsidian/">obsidian</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Templater自动化"><a href="#Templater自动化" class="headerlink" title="Templater自动化"></a>Templater自动化</h1><blockquote>
+<p>[!abstract] 一句话<br>Templater 是 Obsidian 的自动化模板引擎：在 <code>&lt;% %&gt;</code> 标记中运行 JavaScript，让每次新建笔记都能自动填日期、弹对话框、跑脚本、执行命令，把重复劳动压缩成一次按键。</p>
+</blockquote>
+<h2 id="从内置模板到-Templater"><a href="#从内置模板到-Templater" class="headerlink" title="从内置模板到 Templater"></a>从内置模板到 Templater</h2><p>Obsidian 自带的模板插件只能插入静态文本和少量日期变量。Templater 则把整个 JavaScript 运行时开放给模板：变量替换无限制、支持条件与循环、能弹出输入框和选择器、能调用 Obsidian 命令甚至执行系统脚本。它和 <a href="/posts/256372853.html">09-Dataview数据查询</a>、QuickAdd 一起构成 Obsidian 自动化的三驾马车——Dataview 负责查询数据，Templater 负责生成内容，QuickAdd 负责把动作串成流程。</p>
+<h2 id="安装与初始设置"><a href="#安装与初始设置" class="headerlink" title="安装与初始设置"></a>安装与初始设置</h2><ol>
+<li>设置 →「第三方插件」→「社区插件市场」→ 搜索 “Templater” → 安装并启用</li>
+<li>进入设置 → Templater，完成三项关键配置：<ul>
+<li><strong>模板文件夹位置</strong>：指定存放模板的目录（建议专门建一个 <code>Templates/</code> 文件夹，并将其从 Dataview 索引中排除）</li>
+<li><strong>触发词（Trigger）</strong>：设置输入前缀后按 Tab 自动插入模板</li>
+<li><strong>新建笔记时自动应用</strong>：可指定某些文件夹的新笔记自动套用某模板（Folder Templates），这是日记自动化的基础</li>
+</ul>
+</li>
+</ol>
+<h2 id="三种核心语法"><a href="#三种核心语法" class="headerlink" title="三种核心语法"></a>三种核心语法</h2><p>Templater 的所有功能围绕三种标记展开：</p>
+<ul>
+<li><code>&lt;% %&gt;</code>：执行 JavaScript 代码，不输出结果</li>
+<li><code>&lt;%= %&gt;</code>：执行并输出结果</li>
+<li><code>&lt;%* %&gt;</code>：多行脚本块，适合写逻辑后再统一输出</li>
+</ul>
+<p>一个最简单的日记模板：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&lt;%* let date = tp.date.now(&quot;YYYY-MM-DD&quot;); %&gt;</span><br><span class="line"># 今日计划 - &lt;%= date %&gt;</span><br><span class="line">- [ ] 完成报告</span><br><span class="line">- [ ] 回复邮件</span><br></pre></td></tr></table></figure>
+
+<p>条件逻辑与循环同样直接可用：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&lt;%* if (tp.date.now(&quot;HH&quot;) &lt; 12) &#123; %&gt;早上好！&lt;%* &#125; else &#123; %&gt;下午好！&lt;%* &#125; %&gt;</span><br></pre></td></tr></table></figure>
+
+<h2 id="tp-对象：内置函数全家桶"><a href="#tp-对象：内置函数全家桶" class="headerlink" title="tp 对象：内置函数全家桶"></a>tp 对象：内置函数全家桶</h2><p>Templater 的内置函数都挂在 <code>tp</code> 对象下，常用的包括：</p>
+<ul>
+<li><strong>tp.date</strong>：<code>tp.date.now(&quot;YYYY-MM-DD&quot;)</code> 取当前日期，<code>tp.date.yesterday()</code>、<code>tp.date.lastweek()</code> 取相对日期，是日记与周报模板的主角</li>
+<li><strong>tp.system</strong>：<code>tp.system.prompt(&quot;项目名称&quot;)</code> 弹出输入框，<code>tp.system.suggester()</code> 弹出选择菜单，<code>tp.system.run(&quot;脚本路径&quot;)</code> 执行外部脚本</li>
+<li><strong>tp.file</strong>：<code>tp.file.title</code> 取文件名，<code>tp.file.include(&quot;模板&quot;)</code> 嵌入其他模板，<code>tp.file.cursor(1)</code> 控制插入后光标停留位置</li>
+<li><strong>tp.frontmatter</strong>：读取笔记的 frontmatter 属性，实现”模板读元数据”的联动</li>
+<li><strong>tp.obsidian</strong>：<code>tp.obsidian.executeCommandById(&quot;editor:toggle-preview&quot;)</code> 直接执行任意 Obsidian 命令</li>
+</ul>
+<p>一个交互式项目模板的例子——运行时询问项目名称和截止日期，自动生成带元数据的笔记：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">&lt;%*</span><br><span class="line">let projectName = await tp.system.prompt(&quot;项目名称&quot;);</span><br><span class="line">let due = await tp.system.prompt(&quot;截止日期&quot;, tp.date.now(&quot;YYYY-MM-DD&quot;, 14));</span><br><span class="line">tR += &quot;---\n&quot;;</span><br><span class="line">tR += `title: $&#123;projectName&#125;\nstatus: 进行中\ndue: $&#123;due&#125;\n`;</span><br><span class="line">tR += &quot;---\n\n&quot;;</span><br><span class="line">tR += `# $&#123;projectName&#125;\n\n## 目标\n\n## 任务\n- [ ] \n`;</span><br><span class="line">%&gt;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip]<br><code>tR</code> 是 Templater 的输出缓冲区，<code>tR +=</code> 适合在脚本中拼装大段内容。把常用逻辑抽成用户脚本（放在脚本文件夹里的 JS 文件，通过 <code>tp.user.函数名()</code> 调用），可以让多个模板共享同一套函数。</p>
+</blockquote>
+<h2 id="典型应用场景"><a href="#典型应用场景" class="headerlink" title="典型应用场景"></a>典型应用场景</h2><ul>
+<li><strong>日记模板</strong>：自动填日期、星期，配合 14-日记与周期笔记 的 Periodic Notes 使用</li>
+<li><strong>会议记录</strong>：<code>tp.system.prompt</code> 询问参会人，自动生成议程与行动项清单</li>
+<li><strong>文献&#x2F;书籍笔记</strong>：询问书名作者，生成带 <code>rating</code>、<code>progress</code> 字段的读书卡片，供 Dataview 查询</li>
+<li><strong>与 Advanced URI 联动</strong>：在模板中拼 <code>obsidian://advanced-uri?...</code> 链接，生成可点击的快捷入口</li>
+<li><strong>与 QuickAdd 配合</strong>：QuickAdd 宏中调用 Templater 模板，实现”一条命令&#x3D;建文件+填模板+移动位置”的完整流程</li>
+</ul>
+<h2 id="与-Dataview-的双向配合"><a href="#与-Dataview-的双向配合" class="headerlink" title="与 Dataview 的双向配合"></a>与 Dataview 的双向配合</h2><p>Templater 既能生成 Dataview 查询块，也能在模板里直接调用 Dataview API 拉取数据。例如新建周记时自动列出本周活跃项目：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">&lt;%*</span><br><span class="line">const dv = app.plugins.plugins.dataview.api;</span><br><span class="line">const projects = dv.pages(&quot;#project&quot;).where(p =&gt; p.status === &quot;进行中&quot;);</span><br><span class="line">tR += &quot;## 进行中的项目\n&quot; + projects.map(p =&gt; `- $&#123;p.file.name&#125;`).join(&quot;\n&quot;);</span><br><span class="line">%&gt;</span><br></pre></td></tr></table></figure>
+
+<p>反过来，Dataview 也可以查询由 Templater 写入的属性，两者形成”模板生产数据 → 查询消费数据”的闭环。</p>
+<h2 id="故障排除与最佳实践"><a href="#故障排除与最佳实践" class="headerlink" title="故障排除与最佳实践"></a>故障排除与最佳实践</h2><ul>
+<li><strong>模板无法插入</strong>：检查模板文件夹路径是否正确、插件是否启用、触发词是否冲突</li>
+<li><strong>变量不生效</strong>：核对函数名拼写（<code>tp.date.now</code> 不是 <code>tp.date.today</code>），多行脚本注意 <code>await</code></li>
+<li><strong>想输出 <code>&lt;% %&gt;</code> 字面量</strong>：写作教程时会遇到，可拆成 <code>&lt;</code> + <code>%</code> 字符串拼接</li>
+<li><strong>管理建议</strong>：模板按用途分子文件夹、命名带前缀（如 <code>daily-</code>、<code>meeting-</code>）、为复杂模板加注释；重大修改前先在副本上测试</li>
+</ul>
+<blockquote>
+<p>[!note] 2026 更新<br>Obsidian 1.9+ 的官方属性（Properties）面板让 frontmatter 编辑体验大幅提升，但动态生成能力仍属 Templater 独有。官方 Bases 与 Templater 结合的新玩法是：用 Templater 批量写入规范属性，再用 Bases 视图展示，几乎可以复刻 Notion 数据库的工作流。</p>
+</blockquote>
+<p>Templater 的真正价值不在于省几次输入，而在于鼓励结构化思考：当你为每类笔记设计模板时，其实是在设计自己的知识生产流程。从简单日期插入起步，逐步引入交互、脚本与插件联动，最终你会得到一套完全贴合个人工作流的自动生成系统。</p>
+<hr>
+<p><em><a href="/posts/2588243057.html">返回索引</a> · 下一篇：<a href="/posts/2435891588.html">11-任务与看板管理</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/1769681572.html">https://zeek-zhao.github.io/posts/1769681572.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%B7%A5%E5%85%B7/">工具</a><a class="post-meta__tags" href="/tags/obsidian/">obsidian</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/264025632.html" title="10-trait与特性"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">10-trait与特性</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标trait 是 Groovy 提供的行为复用机制，学习定义、混入与状态管理。  1. trait 基本概念trait 是 Groovy 的行为复用单元，类似接口但可以包含方法实现与字段。类通过 implements 混入 trait，获得其全部行为，避免多重继承的菱形问题。 trait 编译为接口加默认方法，与 Java 8 接口默认方法机制兼容，Java 类也可以实现 Groovy trait。 2. 定义与混入trait 用关键字定义，内部可以有抽象方法、实现方法与属性。多个 trait 可以同时混入，冲突方法按声明顺序或显式 override 解决。 混入后类自动获得 trait 的方法与状态，可以重写 trait 方法实现定制行为。 3. 状态与字段trait 可以声明字段，混入类自动获得对应状态。字段访问遵循属性机制，生成 getter 与 setter。 注意 trait 字段的初始化时机与混入类的构造顺序，避免依赖未初始化的状态。 4. trait 与接口对比接口只能声明抽象方法，trait 可以提供实现与状态。需要纯契约时用接口，需要共享...</div></div></div></a><a class="pagination-related" href="/posts/1455150168.html" title="10-CAN总线与车辆控制接口"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">10-CAN总线与车辆控制接口</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 CAN 总线与线控底盘的工作原理，掌握 Apollo Canbus 模块的架构设计（CanbusComponent&#x2F;VehicleController&#x2F;CanClient&#x2F;MessageManager）、新车型适配流程与安全联调方法。  1. CAN 总线与线控底盘基础1.1 CAN 总线CAN（Controller Area Network）是车用总线标准，允许各 ECU 在无主机的情况下广播通信，以标识符定义消息内容与优先级，扩展性好、抗干扰强、实时性满足控制需求。 1CAN 报文结构：报文ID（11/29位）+ 数据长度（0-8字节）+ 数据字段 + CRC 校验  1.2 线控底盘（Drive-by-Wire）线控系统将传统机械控制替换为电信号控制，是无人驾驶的执行前提，分四部分：线控油门、线控刹车、线控转向、线控档位。 关键性能参考值：  驱动响应延迟 50-100 ms，最大超调 &lt;10% 数据帧不可丢失或出错，需提供错误码便于诊断 人工接管优先：安全员操纵方向盘&#x2F;油门&#x2F;刹车时，系...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1143600279.html" title="08-插件生态总览"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">08-插件生态总览</div></div><div class="info-2"><div class="info-item-1">插件生态总览 [!abstract] 一句话Obsidian 像 Chrome 和 VS Code：本体只是底座，插件才决定上限——但装得越多越要克制，最小可用集才是可持续的生态策略。  插件的双层结构Obsidian 的功能分两层提供：  核心插件：官方内置、可逐个开关的功能模块，包括文件恢复、日记、模板、标签面板、大纲、图谱、命令面板、搜索、白板（Canvas）、幻灯片、Bases（1.9.10+）等。核心插件默认大部分关闭，在 设置 → 核心插件 中按需开启； 社区插件：第三方开发者贡献的扩展，通过官方市场分发，数量已达数千款，覆盖查询、任务、绘图、同步、发布、AI 等几乎所有想象得到的场景。  判断一件事该找哪一层：基础体验类的功能先翻核心插件列表（很多人不知道白板、幻灯片、Bases 都是自带的），确认没有再上社区插件。 安装社区插件标准流程： 12341. 设置 → 第三方插件 → 关闭&quot;受限模式&quot;（旧称安全模式）2. 点击&quot;浏览&quot;打开社区插件市场3. 搜索插件名 → 安装 → 启用4. 进入该插件的设置页按需配置  离线或内网...</div></div></div></a><a class="pagination-related" href="/posts/256372853.html" title="09-Dataview数据查询"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">09-Dataview数据查询</div></div><div class="info-2"><div class="info-item-1">Dataview数据查询 [!abstract] 一句话Dataview 让你像查询数据库一样查询笔记：一条查询语句，就能把散落在全库的元数据、任务、标签聚合动态表格与列表，是 Obsidian 数据化的基石插件。  为什么需要 DataviewObsidian 的笔记本身是纯文本，但当你在 frontmatter 中写下 status、due、rating 这些属性，在正文中用 字段:: 值 定义内联字段之后，笔记就天然带有结构化数据。Dataview 做的事情，就是把这些分散在成百上千篇笔记里的数据视为一张大表，用类似 SQL 的语言随时检索、过滤、排序和展示。项目仪表板、阅读追踪、任务汇总、最近修改索引……都不再需要手动维护，查询结果会随笔记内容自动更新。 安装与基础配置 打开设置 →「第三方插件」→「社区插件市场」 搜索 “Dataview”，安装并启用 进入设置 → Dataview，重点检查： 启用 JavaScript 查询：开启后才能使用 DataviewJS 查询刷新间隔：多久更新一次查询结果 默认日期格式 &#x2F; 日期时间格式：输出日期的标准样式 排除文...</div></div></div></a><a class="pagination-related" href="/posts/2899142556.html" title="18-界面美化与主题"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">18-界面美化与主题</div></div><div class="info-2"><div class="info-item-1">界面美化与主题 [!abstract] 一句话从 Minimal 主题到中文排版补丁，七个插件分层组合：主题定基调、Style Settings 出细节、Hider 做减法、图标与背景做加法，最终拼出一个既好看又好用的 Obsidian。  主题基调：Minimal 全家桶Minimal 是 Obsidian 社区最受欢迎的主题之一，以简约排版和高可定制性著称。安装路径：设置 →「外观」→「主题」→「管理」→ 搜索”Minimal”→「使用」。要解锁全部能力，务必同时安装社区插件 Minimal Theme Settings。 主题内置十余套配色方案（Atom、Ayu、Catppuccin、Everforest、Gruvbox、Nord、Solarized 等），可为浅色&#x2F;深色模式分别指定；布局方面可调内容宽度、行线长度、导航栏宽度；排版方面可分设界面字体、正文、标题、代码四类字体。特色功能包括：  焦点模式：编辑时自动淡化非活动段落（快捷键 Cmd&#x2F;Ctrl+Alt+F） 无边框模式：现代极简观感 预设风格：Default、Minimal、Notion、Th...</div></div></div></a><a class="pagination-related" href="/posts/418772866.html" title="05-属性元数据与标签"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">05-属性元数据与标签</div></div><div class="info-2"><div class="info-item-1">属性元数据与标签 [!abstract] 一句话标签是贴在笔记上的便利贴，属性（Properties）是写进笔记档案卡的字段——两者共同构成知识库的”数据层”。  标签基础标签是跨目录的横向组织维度，在正文或 Frontmatter 中以 # 开头： 12#标签          行内标签#项目/阶段     嵌套标签（用 / 表示层级）  它与文件夹的本质区别：一篇笔记只能在一个文件夹里，却可以同时拥有多个标签。因此标签适合表达可叠加的维度——状态（#待办 #进行中 #完成）、类型（#笔记 #教程 #会议）、主题（#编程 #读书）。 嵌套标签支持父级聚合：#项目/设计 会归入 #项目 之下，右侧标签面板中可以逐层展开。搜索时用 tag:#编程 精确匹配标签，tag:#项目/阶段 匹配嵌套路径，多个条件可用 AND&#x2F;OR 组合，例如 tag:#待办 AND tag:#重要。 标签体系设计标签最容易失控的地方是”越长越多”。几百个无体系的标签等于没有标签。推荐先定一份小型标签字典再开始使用： 1234状态：#待办  #进行中  #完成  #归档类型：#笔记  #教程  #...</div></div></div></a><a class="pagination-related" href="/posts/254939683.html" title="obsidian 90-资料索引指南"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">obsidian 90-资料索引指南</div></div><div class="info-2"><div class="info-item-1">Obsidian 资料索引指南 [!abstract] 一句话从本套件继续深入时最值得收藏的一手资料入口，按官方资源、插件生态、学习社区与路线图分类。  官方一手资料   资源 地址 说明    官网 obsidian.md 下载、定价、Sync&#x2F;Publish   帮助文档 help.obsidian.md 官方手册（含中文）   官方论坛 forum.obsidian.md 插件与使用讨论主阵地   Changelog obsidian.md&#x2F;changelog 版本更新明细   路线图 obsidian.md&#x2F;roadmap 已发布&#x2F;进行中&#x2F;规划功能   GitHub github.com&#x2F;obsidianmd 官方插件（Importer、Maps 等）与 Releases   插件生态 社区插件市场：Obsidian 内「第三方插件」直接安装（见 08-插件生态总览） 官方社区目录（2026-03 上线）：自动审查的插件&#x2F;主题目录 重点插件文档入口：Dataview、Templater、Excalidr...</div></div></div></a><a class="pagination-related" href="/posts/3659188267.html" title="19-搜索与效率工具"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">19-搜索与效率工具</div></div><div class="info-2"><div class="info-item-1">搜索与效率工具 [!abstract] 一句话搜索决定知识库的”可取出性”：Omnisearch 管全文、Another Quick Switcher 管跳转、命令面板增强管操作、补全管输入、Quiet Outline 管结构——十件套让任何笔记都在三秒内触达。  全文检索：OmnisearchOmnisearch 大幅强化默认搜索：智能相关度排序、内容上下文预览、模糊匹配、搜索历史与收藏。启动方式为快捷键 Ctrl/Cmd+O 或命令面板。 核心搜索语法： 1project tag:#工作 -meeting path:&quot;客户/项目A&quot; modified:&gt;2023-01-01   AND/OR、-排除词、&quot;精确短语&quot;、通配符* 过滤器：tag:、path:、file:、created:、modified:（支持区间 2025-01-01..2025-03-31） 任务检索：task:&quot;待办内容&quot;、task-todo:、task-done:  结果交互很高效：Tab 预览不离开搜索、Shift+Enter 新标签打...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Templater%E8%87%AA%E5%8A%A8%E5%8C%96"><span class="toc-number">1.</span> <span class="toc-text">Templater自动化</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%8E%E5%86%85%E7%BD%AE%E6%A8%A1%E6%9D%BF%E5%88%B0-Templater"><span class="toc-number">1.1.</span> <span class="toc-text">从内置模板到 Templater</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%89%E8%A3%85%E4%B8%8E%E5%88%9D%E5%A7%8B%E8%AE%BE%E7%BD%AE"><span class="toc-number">1.2.</span> <span class="toc-text">安装与初始设置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E7%A7%8D%E6%A0%B8%E5%BF%83%E8%AF%AD%E6%B3%95"><span class="toc-number">1.3.</span> <span class="toc-text">三种核心语法</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#tp-%E5%AF%B9%E8%B1%A1%EF%BC%9A%E5%86%85%E7%BD%AE%E5%87%BD%E6%95%B0%E5%85%A8%E5%AE%B6%E6%A1%B6"><span class="toc-number">1.4.</span> <span class="toc-text">tp 对象：内置函数全家桶</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B8%E5%9E%8B%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.5.</span> <span class="toc-text">典型应用场景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%8E-Dataview-%E7%9A%84%E5%8F%8C%E5%90%91%E9%85%8D%E5%90%88"><span class="toc-number">1.6.</span> <span class="toc-text">与 Dataview 的双向配合</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%85%E9%9A%9C%E6%8E%92%E9%99%A4%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="toc-number">1.7.</span> <span class="toc-text">故障排除与最佳实践</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

@@ -1,0 +1,682 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>09-参数服务器 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="参数服务器（Parameter Server）由 roscore 的 Master 维护，是全局的键值存储，供所有节点读写共享配置。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="09-参数服务器">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3193113578.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="参数服务器（Parameter Server）由 roscore 的 Master 维护，是全局的键值存储，供所有节点读写共享配置。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="ros1">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "09-参数服务器",
+  "url": "https://zeek-zhao.github.io/posts/3193113578.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-23T16:00:00.000Z",
+  "dateModified": "2026-10-23T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/3193113578.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '09-参数服务器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">09-参数服务器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">09-参数服务器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ros1/">ros1</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="参数服务器"><a href="#参数服务器" class="headerlink" title="参数服务器"></a>参数服务器</h1><blockquote>
+<p>[!info] 本节目标<br>理解 ROS1 参数服务器的原理，掌握 rosparam 命令、rospy&#x2F;roscpp 参数读写与 launch 中参数注入。</p>
+</blockquote>
+<h2 id="1-什么是参数服务器"><a href="#1-什么是参数服务器" class="headerlink" title="1. 什么是参数服务器"></a>1. 什么是参数服务器</h2><p>参数服务器（Parameter Server）由 <strong>roscore 的 Master</strong> 维护，是全局的<strong>键值存储</strong>，供所有节点读写共享配置。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Master（参数服务器）</span><br><span class="line">   ├── /turtlesim/background_r = 150</span><br><span class="line">   ├── /use_sim_time = false</span><br><span class="line">   ├── /robot_name = &quot;turtle1&quot;</span><br><span class="line">   └── /gains = [1.0, 2.0, 3.0]</span><br></pre></td></tr></table></figure>
+
+<p>特点：</p>
+<ul>
+<li>全局可见：任何节点都可读写（带权限约束）。</li>
+<li>类型丰富：支持数字、字符串、布尔、数组、字典。</li>
+<li>非持久：重启 Master 后丢失，除非 dump&#x2F;load 或 launch 注入。</li>
+</ul>
+<h2 id="2-参数类型与格式"><a href="#2-参数类型与格式" class="headerlink" title="2. 参数类型与格式"></a>2. 参数类型与格式</h2><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>YAML 示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>整数</td>
+<td><code>port: 11311</code></td>
+</tr>
+<tr>
+<td>浮点</td>
+<td><code>gain: 0.5</code></td>
+</tr>
+<tr>
+<td>字符串</td>
+<td><code>name: &quot;robot&quot;</code></td>
+</tr>
+<tr>
+<td>布尔</td>
+<td><code>use_sim_time: true</code></td>
+</tr>
+<tr>
+<td>数组</td>
+<td><code>ids: [1,2,3]</code></td>
+</tr>
+<tr>
+<td>字典</td>
+<td><code>gains: &#123;x: 1.0, y: 2.0&#125;</code></td>
+</tr>
+</tbody></table>
+<h2 id="3-rosparam-命令"><a href="#3-rosparam-命令" class="headerlink" title="3. rosparam 命令"></a>3. rosparam 命令</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">rosparam list                        <span class="comment"># 列出所有参数</span></span><br><span class="line">rosparam get /turtlesim/background_r <span class="comment"># 获取</span></span><br><span class="line">rosparam <span class="built_in">set</span> /turtlesim/background_r 150  <span class="comment"># 设置</span></span><br><span class="line">rosparam <span class="built_in">set</span> /my_param <span class="string">&quot;hello&quot;</span>       <span class="comment"># 字符串</span></span><br><span class="line">rosparam <span class="built_in">set</span> /my_list <span class="string">&quot;[1,2,3]&quot;</span>      <span class="comment"># 数组</span></span><br><span class="line">rosparam delete /my_param            <span class="comment"># 删除</span></span><br><span class="line">rosparam dump params.yaml            <span class="comment"># 导出全部</span></span><br><span class="line">rosparam load params.yaml            <span class="comment"># 加载</span></span><br><span class="line">rosparam get /                       <span class="comment"># 获取根下全部</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 路径规则<br>参数名以 <code>/</code> 开头是绝对路径；不带 <code>/</code> 是相对当前命名空间。launch 中常用相对路径配合节点命名空间。</p>
+</blockquote>
+<h2 id="4-rospy-参数读写"><a href="#4-rospy-参数读写" class="headerlink" title="4. rospy 参数读写"></a>4. rospy 参数读写</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> rospy</span><br><span class="line"></span><br><span class="line"><span class="comment"># 读取（带默认值）</span></span><br><span class="line">bg = rospy.get_param(<span class="string">&#x27;/turtlesim/background_r&#x27;</span>, <span class="number">0</span>)</span><br><span class="line">name = rospy.get_param(<span class="string">&#x27;~private_param&#x27;</span>, <span class="string">&#x27;default&#x27;</span>)  <span class="comment"># 私有参数</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置</span></span><br><span class="line">rospy.set_param(<span class="string">&#x27;/my_param&#x27;</span>, <span class="number">42</span>)</span><br><span class="line">rospy.set_param(<span class="string">&#x27;/my_list&#x27;</span>, [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>])</span><br><span class="line"></span><br><span class="line"><span class="comment"># 判断/删除</span></span><br><span class="line"><span class="keyword">if</span> rospy.has_param(<span class="string">&#x27;/my_param&#x27;</span>):</span><br><span class="line">    rospy.delete_param(<span class="string">&#x27;/my_param&#x27;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 搜索参数（在命名空间链中查找）</span></span><br><span class="line">val = rospy.search_param(<span class="string">&#x27;background_r&#x27;</span>)</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 私有参数<br><code>~</code> 前缀表示节点私有参数，存在 <code>/节点名/参数</code> 下，launch 里用 <code>&lt;param name=&quot;~xxx&quot;&gt;</code> 注入。</p>
+</blockquote>
+<h2 id="5-roscpp-参数读写"><a href="#5-roscpp-参数读写" class="headerlink" title="5. roscpp 参数读写"></a>5. roscpp 参数读写</h2><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;ros/ros.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span>** argv)</span> </span>&#123;</span><br><span class="line">  ros::<span class="built_in">init</span>(argc, argv, <span class="string">&quot;param_node&quot;</span>);</span><br><span class="line">  ros::NodeHandle nh;</span><br><span class="line">  <span class="function">ros::NodeHandle <span class="title">pnh</span><span class="params">(<span class="string">&quot;~&quot;</span>)</span></span>;   <span class="comment">// 私有句柄</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 读取（带默认值）</span></span><br><span class="line">  <span class="type">int</span> bg;</span><br><span class="line">  nh.<span class="built_in">getParam</span>(<span class="string">&quot;/turtlesim/background_r&quot;</span>, bg);</span><br><span class="line">  std::string name;</span><br><span class="line">  nh.<span class="built_in">param</span>&lt;std::string&gt;(<span class="string">&quot;name&quot;</span>, name, <span class="string">&quot;default&quot;</span>);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 私有参数</span></span><br><span class="line">  <span class="type">double</span> gain;</span><br><span class="line">  pnh.<span class="built_in">param</span>&lt;<span class="type">double</span>&gt;(<span class="string">&quot;gain&quot;</span>, gain, <span class="number">1.0</span>);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 设置</span></span><br><span class="line">  nh.<span class="built_in">setParam</span>(<span class="string">&quot;/my_param&quot;</span>, <span class="number">42</span>);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 删除</span></span><br><span class="line">  nh.deleteParam(<span class="string">&quot;/my_param&quot;</span>);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!warning] getParam 与 param<br><code>getParam</code> 失败只返回 false 不设默认值；<code>param&lt;T&gt;(key, default)</code> 失败时自动使用默认值，更常用。</p>
+</blockquote>
+<h2 id="6-launch-中注入参数"><a href="#6-launch-中注入参数" class="headerlink" title="6. launch 中注入参数"></a>6. launch 中注入参数</h2><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">launch</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">node</span> <span class="attr">name</span>=<span class="string">&quot;turtle1&quot;</span> <span class="attr">pkg</span>=<span class="string">&quot;turtlesim&quot;</span> <span class="attr">type</span>=<span class="string">&quot;turtlesim_node&quot;</span>&gt;</span></span><br><span class="line">    <span class="comment">&lt;!-- 私有参数 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;background_r&quot;</span> <span class="attr">value</span>=<span class="string">&quot;150&quot;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">node</span>&gt;</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">&lt;!-- 全局参数 --&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">param</span> <span class="attr">name</span>=<span class="string">&quot;use_sim_time&quot;</span> <span class="attr">value</span>=<span class="string">&quot;true&quot;</span>/&gt;</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">&lt;!-- 从文件加载 --&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">rosparam</span> <span class="attr">file</span>=<span class="string">&quot;$(find my_pkg)/config/params.yaml&quot;</span>/&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">launch</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!tip] 动态参数<br>运行中 <code>rosparam set</code> 修改后，节点若实时读取会立即生效；但多数节点只在启动时读取一次，需重启节点。</p>
+</blockquote>
+<h2 id="7-动态参数配置（dynamic-reconfigure）"><a href="#7-动态参数配置（dynamic-reconfigure）" class="headerlink" title="7. 动态参数配置（dynamic_reconfigure）"></a>7. 动态参数配置（dynamic_reconfigure）</h2><p>ROS1 提供 <code>dynamic_reconfigure</code> 支持<strong>运行时动态调整参数</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 以 rqt_reconfigure 图形化调整</span></span><br><span class="line">rqt_reconfigure</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">参数定义 .cfg 文件 → 生成配置消息 → 服务端回调实时生效</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!note] 典型应用<br>导航代价地图、相机曝光等参数动态调整，不需要重启节点。</p>
+</blockquote>
+<h2 id="8-参数持久化"><a href="#8-参数持久化" class="headerlink" title="8. 参数持久化"></a>8. 参数持久化</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 运行中导出</span></span><br><span class="line">rosparam dump /path/params.yaml</span><br><span class="line"><span class="comment"># 下次启动加载</span></span><br><span class="line">rosparam load /path/params.yaml</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[!danger] 丢失陷阱<br>直接 <code>rosparam set</code> 的参数在 roscore 重启后丢失。生产系统应在 launch 中通过 <code>&lt;rosparam&gt;</code> 声明，保证每次启动一致。</p>
+</blockquote>
+<h2 id="9-参数-vs-配置文件"><a href="#9-参数-vs-配置文件" class="headerlink" title="9. 参数 vs 配置文件"></a>9. 参数 vs 配置文件</h2><table>
+<thead>
+<tr>
+<th>方式</th>
+<th>特点</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>launch <code>&lt;param&gt;</code></td>
+<td>启动时声明、易读</td>
+<td>固定配置</td>
+</tr>
+<tr>
+<td>rosparam 文件</td>
+<td>批量、结构化</td>
+<td>复杂配置</td>
+</tr>
+<tr>
+<td>运行时 set</td>
+<td>即时生效</td>
+<td>调试&#x2F;动态调参</td>
+</tr>
+<tr>
+<td>dynamic_reconfigure</td>
+<td>运行时动态 GUI</td>
+<td>在线调优</td>
+</tr>
+<tr>
+<td>代码读配置文件</td>
+<td>灵活但需自行解析</td>
+<td>特殊场景</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>[!note] 延伸<br>launch 文件的参数注入细节见 <a href="/posts/1047193066.html">16-launch启动文件</a>；多机器人场景命名空间与参数隔离见 <a href="/posts/2602875264.html">28-多机器人协同</a>。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/1658567558.html">08-动作通信actionlib</a>　下一篇：<a href="/posts/951743246.html">10-roscpp编程</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/3193113578.html">https://zeek-zhao.github.io/posts/3193113578.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/ros1/">ros1</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/3927300417.html" title="09-参数机制"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">09-参数机制</div></div><div class="info-2"><div class="info-item-1">参数机制 [!info] 本节目标掌握 ROS2 参数机制：声明、读写、动态修改、回调与参数文件持久化。  1. 参数概念参数（Parameter）是节点内的键值配置项。每个节点维护自己的参数表，可被 ros2 param 命令或其他节点动态读取&#x2F;写入。    参数类型 说明    bool 布尔   int &#x2F; double 整数&#x2F;浮点   string 字符串   array 上述类型的数组    [!note] 参数 vs ROS1ROS1 有全局参数服务器，ROS2 参数归属于节点，不再有独立参数服务器。  2. Python 声明与读写12345678910111213141516171819202122232425262728293031#!/usr/bin/env python3import rclpyfrom rclpy.node import Nodefrom rcl_interfaces.msg import ParameterDescriptor, IntegerRangeclass ParamNode(Node):    de...</div></div></div></a><a class="pagination-related" href="/posts/65787625.html" title="会员体系与付费内容"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">会员体系与付费内容</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标会员是 Keep 核心商业模式之一，清楚权益边界才能做出合理的消费决策。  1. 会员体系概述Keep 会员订阅模式 2018 年 9 月上线，2019 年 7 月订阅会员破百万，2022 年平均月度订阅会员 362 万，会员渗透率持续提升至 2025 上半年约 12.4%。 会员订阅及线上付费内容是 Keep 毛利率最高的业务，2023 年收入占比首次超过消费品成为第一大收入来源。 2. 会员核心权益会员权益包括身体评估体系、AI 定制训练计划、专属与精讲课程、直播课程、饮食分析与数据深度解析等数十项特权。 会员课程锻炼次数 2023 年较 2022 年增长超 200%，会员内容的深度与更新速度是付费价值所在。 3. 付费课程体系Keep 部分精品课程与系列课仅对会员开放，直播课优先会员参与，AI 教练卡卡的核心能力（定制计划、动作纠正）为会员功能。 2026 年上线的超级 AI 会员整合训练建议与数据洞察，形成完整 AI 运动服务，是会员体系的升级方向。 4. 免费与付费边界Keep 保留了大量免费课程供基础使用，近年付费边界持续扩展，部分跑步功能（...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1658567558.html" title="08-动作通信actionlib"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">08-动作通信actionlib</div></div><div class="info-2"><div class="info-item-1">动作通信 actionlib [!info] 本节目标理解 actionlib 的动作通信模型（goal&#x2F;feedback&#x2F;result&#x2F;cancel），掌握 .action 定义与 rospy 编程。  1. 为什么需要动作话题适合持续数据流，服务适合一次性请求。但长时间任务（如导航到某点、机械臂移动到某位置）需要：  发起目标（goal）后可继续执行 中途反馈进度（feedback） 任务完成返回结果（result） 可随时取消（cancel）  actionlib 正是为此设计，本质是”话题+服务”的组合。 2. 动作模型12345客户端(Client)                     服务端(ActionServer)   │--- goal（目标）----------&gt;│   │&lt;-- feedback（反馈）-------│  持续期间   │&lt;-- result（结果）---------│  完成时   │--- cancel（取消）--------&gt;│  关键通信接口：    接口 消息 用途    g...</div></div></div></a><a class="pagination-related" href="/posts/1451115071.html" title="35-性能优化"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">35-性能优化</div></div><div class="info-2"><div class="info-item-1">性能优化 [!info] 本节目标掌握 ROS1 系统性能分析工具与优化手段：消息调度、降频压缩、计算负载与多机部署优化。  1. 性能瓶颈定位123456# CPU 占用top / htop# 话题频率与延迟rostopic hz /scan# 节点间延迟（录制后回放分析）rosbag record /topic1 /topic2  12345常见瓶颈：  高频大消息（图像、点云）  过多节点/重复计算  回调阻塞（重计算在回调内）  带宽不足（Wi-Fi 传输图像）   [!tip] 先测后优优化前先记录基线（hz、CPU、内存），每步优化后对比，避免无效改动。  2. 消息调度优化   手段 说明    queue_size 调小 丢弃旧消息，避免积压   降频发布 传感器数据降频   异步回调 重计算放线程&#x2F;池   合并话题 数据打包减少消息数   减少拷贝 用指针&#x2F;const ref   12345# rospy 降频发布示例rate = rospy.Rate(5)   # 原 20Hz → 5Hzwhile not rospy.is_shutdow...</div></div></div></a><a class="pagination-related" href="/posts/1845556343.html" title="01-ROS1概述与生态"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">01-ROS1概述与生态</div></div><div class="info-2"><div class="info-item-1">ROS1 概述与生态 [!info] 本节目标理解 ROS1 是什么、为什么出现、有哪些发行版与生态组件，为后续学习建立全局认知。  1. 什么是 ROSROS（Robot Operating System，机器人操作系统）并非真正的操作系统，而是一套分布式机器人软件框架：它提供进程间通信、硬件抽象、工具链与生态包，让开发者可以像搭积木一样组合机器人功能。 ROS 的核心设计理念：  点对点通信：进程间通过话题&#x2F;服务&#x2F;动作通信，节点可以分布在不同主机。 工具丰富：rqt、rviz、Gazebo 等可视化与仿真工具开箱即用。 生态庞大：数万个功能包覆盖导航、感知、机械臂、SLAM 等领域。 语言无关：官方支持 C++（roscpp）与 Python（rospy），可跨语言通信。  2. ROS1 发展历史   时间 里程碑    2007 Willow Garage 启动 ROS 项目   2010 ROS 1.0 发布（Box Turtle）   2012 Fuerte 引入 catkin 雏形   2014 Indigo（长期支持 Ubuntu 14.04）...</div></div></div></a><a class="pagination-related" href="/posts/1488454277.html" title="39-实战：小车自主导航"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">39-实战：小车自主导航</div></div><div class="info-2"><div class="info-item-1">实战：小车自主导航 [!info] 本节目标通过一个完整项目串联小车自主导航全流程：建图、定位、导航、任务点控制与排错。  1. 项目概览123目标：搭建差速小车，实现&quot;建图 → 定位 → 自主导航到指定点&quot;硬件：差速底盘 + 激光雷达 + 主控（树莓派/工控机）软件：ROS Noetic + gmapping + move_base + AMCL     模块 对应章节    底盘运动学 20-机器人运动学基础   URDF 建模 13-URDF机器人建模   传感器驱动 19-常用传感器驱动   建图 22-建图   定位 24-AMCL定位   导航 21-导航框架move_base   2. 项目结构12345678910111213141516171819my_robot/├── config/│   ├── costmap_common_params.yaml│   ├── global_costmap_params.yaml│   ├── local_costmap_params.yaml│   └── base_local_planner_pa...</div></div></div></a><a class="pagination-related" href="/posts/1504338169.html" title="40-实战：机械臂抓取"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">40-实战：机械臂抓取</div></div><div class="info-2"><div class="info-item-1">实战：机械臂抓取 [!info] 本节目标通过一个完整项目串联机械臂视觉抓取全流程：模型配置、视觉识别、位姿估计、运动规划与抓取执行。  1. 项目概览123目标：机械臂识别目标物体并完成抓取硬件：机械臂（6 轴）+ 深度/彩色相机 + 主控软件：MoveIt + 视觉检测 + 抓取规划     模块 对应章节    URDF&#x2F;工作空间 13-URDF机器人建模   MoveIt 配置 27-MoveIt机械臂控制   视觉处理 25-视觉处理   仿真验证 15-Gazebo仿真、33-仿真场景搭建   2. 系统架构1234567相机(/image_raw,/camera_info)  → 目标检测节点（YOLO/颜色分割）  → 目标像素坐标  → 深度/标定 → 3D 位姿（相机系）  → TF 变换 → base 系抓取位姿  → MoveIt 规划抓取轨迹  → 控制器 → 机械臂执行 + 夹爪闭合  3. 相机外参标定123# 用 aruco/棋盘格标定相机到机械臂基座的外参roslaunch easy_handeye demo.launch# 标定得到 ...</div></div></div></a><a class="pagination-related" href="/posts/2474828684.html" title="12-tf坐标变换"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">12-tf坐标变换</div></div><div class="info-2"><div class="info-item-1">tf 坐标变换 [!info] 本节目标理解 tf&#x2F;tf2 坐标树模型，掌握静态与动态坐标变换的发布、监听与常见 API。  1. 什么是 tf机器人各部件（底盘、激光、相机、机械臂末端）都有独立坐标系。tf（transform library）负责维护这些坐标系之间的变换关系，让任何坐标可以在任意坐标系间转换。 123map --&gt; odom --&gt; base_link --&gt; laser_frame                         |--&gt; camera_link                         |--&gt; arm_base --&gt; arm_tool   [!note] tf 与 tf2tf 是 ROS1 早期实现，tf2 是新一代（Noetic 默认 tf2）。API 基本兼容，新代码一律用 tf2。  2. 坐标树概念 frame：坐标系，如 base_link、laser。 transform：两坐标系间的平移+旋转（TFMessage）。 树结构：每个 frame 有唯一父 frame，形成无...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%8F%82%E6%95%B0%E6%9C%8D%E5%8A%A1%E5%99%A8"><span class="toc-number">1.</span> <span class="toc-text">参数服务器</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E4%BB%80%E4%B9%88%E6%98%AF%E5%8F%82%E6%95%B0%E6%9C%8D%E5%8A%A1%E5%99%A8"><span class="toc-number">1.1.</span> <span class="toc-text">1. 什么是参数服务器</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%8F%82%E6%95%B0%E7%B1%BB%E5%9E%8B%E4%B8%8E%E6%A0%BC%E5%BC%8F"><span class="toc-number">1.2.</span> <span class="toc-text">2. 参数类型与格式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-rosparam-%E5%91%BD%E4%BB%A4"><span class="toc-number">1.3.</span> <span class="toc-text">3. rosparam 命令</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-rospy-%E5%8F%82%E6%95%B0%E8%AF%BB%E5%86%99"><span class="toc-number">1.4.</span> <span class="toc-text">4. rospy 参数读写</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-roscpp-%E5%8F%82%E6%95%B0%E8%AF%BB%E5%86%99"><span class="toc-number">1.5.</span> <span class="toc-text">5. roscpp 参数读写</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-launch-%E4%B8%AD%E6%B3%A8%E5%85%A5%E5%8F%82%E6%95%B0"><span class="toc-number">1.6.</span> <span class="toc-text">6. launch 中注入参数</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%8A%A8%E6%80%81%E5%8F%82%E6%95%B0%E9%85%8D%E7%BD%AE%EF%BC%88dynamic-reconfigure%EF%BC%89"><span class="toc-number">1.7.</span> <span class="toc-text">7. 动态参数配置（dynamic_reconfigure）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E5%8F%82%E6%95%B0%E6%8C%81%E4%B9%85%E5%8C%96"><span class="toc-number">1.8.</span> <span class="toc-text">8. 参数持久化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#9-%E5%8F%82%E6%95%B0-vs-%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="toc-number">1.9.</span> <span class="toc-text">9. 参数 vs 配置文件</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

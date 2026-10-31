@@ -1,0 +1,761 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>18-传感器标定与坐标转换 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="标定与坐标转换是感知定位精度的基础。本篇融合 Apollo 标定体系、手眼标定理论与传感器坐标转换实践：内参外参标定方法、AX&#x3D;XB 数学模型、齐次变换链与工程调试技巧。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="18-传感器标定与坐标转换">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2013834045.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="标定与坐标转换是感知定位精度的基础。本篇融合 Apollo 标定体系、手眼标定理论与传感器坐标转换实践：内参外参标定方法、AX&#x3D;XB 数学模型、齐次变换链与工程调试技巧。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "18-传感器标定与坐标转换",
+  "url": "https://zeek-zhao.github.io/posts/2013834045.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/2013834045.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '18-传感器标定与坐标转换',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">18-传感器标定与坐标转换</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">18-传感器标定与坐标转换</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>建立标定与坐标转换的完整知识框架：理解坐标系体系与齐次变换数学；掌握相机内参、激光雷达内参外参、手眼标定（AX&#x3D;XB）的原理与流程；掌握 Apollo 标定工具链的使用与质量验证方法。标定不当会导致感知定位严重偏差，是 <a href="/posts/1298984781.html">15-感知模块总览与点云感知</a>、<a href="/posts/2907166516.html">16-感知模块-视觉感知</a> 精度的基础。</p>
+</blockquote>
+<h2 id="1-为什么标定与坐标转换是地基"><a href="#1-为什么标定与坐标转换是地基" class="headerlink" title="1. 为什么标定与坐标转换是地基"></a>1. 为什么标定与坐标转换是地基</h2><p>多传感器系统的数据来自各自坐标系，只有精确标定外参才能在统一坐标系下融合；只有精确内参，单传感器的测量才可信。标定精度不足的典型症状：感知框偏移、点云与图像不对齐、定位漂移、融合目标抖动。</p>
+<p>标定分两大类：</p>
+<ul>
+<li><strong>内参标定</strong>：矫正传感器内部测量参数（相机焦距&#x2F;畸变、激光雷达角度&#x2F;测距偏差、IMU 偏差&#x2F;尺度）；</li>
+<li><strong>外参标定</strong>：确定传感器之间、传感器与车体之间的刚体变换（旋转 R + 平移 t，共 6 自由度）。</li>
+</ul>
+<h2 id="2-坐标系基础"><a href="#2-坐标系基础" class="headerlink" title="2. 坐标系基础"></a>2. 坐标系基础</h2><p>常见坐标系定义：</p>
+<table>
+<thead>
+<tr>
+<th>坐标系</th>
+<th>定义</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>世界坐标系(ENU)</td>
+<td>东-北-天，固定于环境</td>
+<td>全局定位与导航</td>
+</tr>
+<tr>
+<td>车体坐标系</td>
+<td>X前 Y左 Z上（ISO 8855，原点常取后轴中心）</td>
+<td>车辆状态与控制</td>
+</tr>
+<tr>
+<td>相机坐标系</td>
+<td>Z前 X右 Y下（OpenCV 约定）</td>
+<td>图像数据原始表示</td>
+</tr>
+<tr>
+<td>激光雷达坐标系</td>
+<td>X前 Y左 Z上（Velodyne 约定）</td>
+<td>点云原始表示</td>
+</tr>
+<tr>
+<td>IMU&#x2F;GPS</td>
+<td>LLA→ECEF→ENU 链式转换</td>
+<td>全球定位</td>
+</tr>
+</tbody></table>
+<p>像素坐标与相机坐标的转换（内参矩阵 K）：</p>
+<p>$$s \begin{bmatrix} u \ v \ 1 \end{bmatrix} &#x3D; \begin{bmatrix} f_x &amp; 0 &amp; c_x \ 0 &amp; f_y &amp; c_y \ 0 &amp; 0 &amp; 1 \end{bmatrix} \begin{bmatrix} x \ y \ z \end{bmatrix}$$</p>
+<p>激光雷达球坐标 $(r, \theta, \phi)$ 与直角坐标的转换：$x &#x3D; r\cos\phi\cos\theta$，$y &#x3D; r\cos\phi\sin\theta$，$z &#x3D; r\sin\phi$。</p>
+<blockquote>
+<p>[!warning] 常见坑<br>左右手系混用、旋转顺序（ZYX&#x2F;XYZ）混淆、单位不统一（角度&#x2F;弧度、毫米&#x2F;米）是坐标转换的三大高频错误源。工程上应建立统一的坐标系定义文档，系统内部统一使用 SI 单位。</p>
+</blockquote>
+<h2 id="3-变换的数学基础"><a href="#3-变换的数学基础" class="headerlink" title="3. 变换的数学基础"></a>3. 变换的数学基础</h2><h3 id="3-1-旋转的四种表示"><a href="#3-1-旋转的四种表示" class="headerlink" title="3.1 旋转的四种表示"></a>3.1 旋转的四种表示</h3><table>
+<thead>
+<tr>
+<th>表示方法</th>
+<th>参数数量</th>
+<th>奇异性</th>
+<th>插值性</th>
+<th>直观性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>旋转矩阵</td>
+<td>9</td>
+<td>无</td>
+<td>差</td>
+<td>高</td>
+</tr>
+<tr>
+<td>欧拉角</td>
+<td>3</td>
+<td>万向节锁</td>
+<td>差</td>
+<td>高</td>
+</tr>
+<tr>
+<td>四元数</td>
+<td>4</td>
+<td>无</td>
+<td>优</td>
+<td>低</td>
+</tr>
+<tr>
+<td>旋转向量</td>
+<td>3</td>
+<td>无</td>
+<td>中</td>
+<td>中</td>
+</tr>
+</tbody></table>
+<p>自动驾驶系统中定位&#x2F;标定数据普遍采用<strong>四元数</strong>（无奇异性、数值稳定、插值方便），展示时转欧拉角更直观。</p>
+<h3 id="3-2-齐次变换与变换链"><a href="#3-2-齐次变换与变换链" class="headerlink" title="3.2 齐次变换与变换链"></a>3.2 齐次变换与变换链</h3><p>平移与旋转组合为 4×4 齐次矩阵：</p>
+<p>$$T &#x3D; \begin{bmatrix} R &amp; t \ 0 &amp; 1 \end{bmatrix}$$</p>
+<p>多级变换按右到左顺序级联：</p>
+<p>$$T_{total} &#x3D; T_n \cdots T_2 \cdot T_1$$</p>
+<p>典型转换链：传感器坐标系 → 车体坐标系 → 世界坐标系：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Eigen::Matrix4d T_sensor2body = <span class="built_in">getTransformSensorToBody</span>();  <span class="comment">// 标定外参</span></span><br><span class="line">Eigen::Matrix4d T_body2world = <span class="built_in">getTransformBodyToWorld</span>();    <span class="comment">// 定位信息</span></span><br><span class="line">Eigen::Matrix4d T_sensor2world = T_body2world * T_sensor2body;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-工程实现要点"><a href="#3-3-工程实现要点" class="headerlink" title="3.3 工程实现要点"></a>3.3 工程实现要点</h3><ul>
+<li>四元数迭代计算后需归一化：<code>q.normalize()</code>；</li>
+<li>旋转矩阵长期迭代后用 SVD 正交化修正；</li>
+<li>静态外参预计算缓存，大规模点云变换用 OpenMP&#x2F;SIMD 并行；</li>
+<li>命名约定统一：<code>T_source2target</code> 表示从 source 到 target 的变换。</li>
+</ul>
+<h2 id="4-内参标定"><a href="#4-内参标定" class="headerlink" title="4. 内参标定"></a>4. 内参标定</h2><h3 id="4-1-相机内参"><a href="#4-1-相机内参" class="headerlink" title="4.1 相机内参"></a>4.1 相机内参</h3><p>使用棋盘格&#x2F;AprilTag 标定板，采集多角度图像，用 OpenCV <code>calibrateCamera</code> 求解焦距、主点、畸变系数。</p>
+<h3 id="4-2-激光雷达内参"><a href="#4-2-激光雷达内参" class="headerlink" title="4.2 激光雷达内参"></a>4.2 激光雷达内参</h3><p>主要参数：每条激光束的垂直&#x2F;水平角度偏差、距离测量偏差、强度校正。典型方法为<strong>平面法标定</strong>：雷达正对平面墙壁采集多帧点云，对每条激光束拟合点到平面距离，用 Ceres 优化角度与距离参数使误差最小化。多数商用雷达出厂已完成内参标定。</p>
+<h3 id="4-3-IMU-标定"><a href="#4-3-IMU-标定" class="headerlink" title="4.3 IMU 标定"></a>4.3 IMU 标定</h3><p>静止采集数据估计零偏（bias）与尺度因子，通常由厂商或定位模块初始化流程完成。</p>
+<h2 id="5-外参标定与手眼标定理论"><a href="#5-外参标定与手眼标定理论" class="headerlink" title="5. 外参标定与手眼标定理论"></a>5. 外参标定与手眼标定理论</h2><h3 id="5-1-AX-XB-问题"><a href="#5-1-AX-XB-问题" class="headerlink" title="5.1 AX&#x3D;XB 问题"></a>5.1 AX&#x3D;XB 问题</h3><p>激光雷达-IMU、雷达-相机等外参标定本质是经典手眼标定：A 为一个传感器观测的相对运动，B 为另一传感器观测的对应运动，X 为待求变换：</p>
+<p>$$AX &#x3D; XB$$</p>
+<p>常用<strong>分离法（两步法）</strong>：先解旋转部分 $R_A R_X &#x3D; R_X R_B$，再解平移 $(R_A - I)t_X &#x3D; R_X t_B - t_A$。也可用 SVD、双四元数、LM 非线性优化一步求解：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># OpenCV 手眼标定</span></span><br><span class="line">R_cam2gripper, t_cam2gripper = cv2.calibrateHandEye(</span><br><span class="line">    R_gripper2base, t_gripper2base,</span><br><span class="line">    R_target2cam, t_target2cam,</span><br><span class="line">    method=cv2.CALIB_HAND_EYE_TSAI)</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-激光雷达-IMU-标定流程"><a href="#5-2-激光雷达-IMU-标定流程" class="headerlink" title="5.2 激光雷达-IMU 标定流程"></a>5.2 激光雷达-IMU 标定流程</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">flowchart TD</span><br><span class="line">    A[准备特征丰富环境] --&gt; B[采集运动数据&lt;br&gt;平移+绕各轴旋转]</span><br><span class="line">    B --&gt; C[ICP点云配准提取激光运动]</span><br><span class="line">    B --&gt; D[IMU 积分提取惯性运动]</span><br><span class="line">    C --&gt; E[构建 AX=XB 求初值]</span><br><span class="line">    D --&gt; E</span><br><span class="line">    E --&gt; F[点云拼接质量优化外参]</span><br><span class="line">    F --&gt; G&#123;精度达标?&#125;</span><br><span class="line">    G --&gt;|否| F</span><br><span class="line">    G --&gt;|是| H[保存标定结果]</span><br></pre></td></tr></table></figure>
+
+<p>数据采集要点：运动缓慢平稳、覆盖全部自由度、时间戳准确同步。</p>
+<h3 id="5-3-激光雷达-相机标定"><a href="#5-3-激光雷达-相机标定" class="headerlink" title="5.3 激光雷达-相机标定"></a>5.3 激光雷达-相机标定</h3><p>目标是求解 $T_{lidar}^{camera}$ 使点云可投影到图像。方法：</p>
+<ol>
+<li><strong>棋盘格法</strong>：图像提取角点 + 点云拟合标定板平面，建立 2D-3D 对应求解外参；</li>
+<li><strong>靶标法</strong>：使用球体&#x2F;立方体等特殊靶标，双方都可稳定检测特征中心；</li>
+<li><strong>无标定物方法</strong>：利用环境边缘、路面等自然特征在线标定。</li>
+</ol>
+<p>标定目标：$P_{Camera} &#x3D; T_{LiDAR}^{Camera} \cdot P_{LiDAR}$，投影后用重投影误差评估质量。</p>
+<h3 id="5-4-多激光雷达标定"><a href="#5-4-多激光雷达标定" class="headerlink" title="5.4 多激光雷达标定"></a>5.4 多激光雷达标定</h3><p>以主雷达为参考，标定辅助雷达的相对变换：</p>
+<ul>
+<li><strong>基于特征</strong>：重叠区域特征提取与匹配，NDT&#x2F;ICP 点云配准求变换；</li>
+<li><strong>基于靶标</strong>：各雷达同时观测独特标定物，最小化对应特征距离；</li>
+<li><strong>重叠区域优化</strong>：直接优化点云拼接效果，用最近邻平均距离评估对齐度。</li>
+</ul>
+<h2 id="6-Apollo-标定工具链与联合标定流程"><a href="#6-Apollo-标定工具链与联合标定流程" class="headerlink" title="6. Apollo 标定工具链与联合标定流程"></a>6. Apollo 标定工具链与联合标定流程</h2><p>Apollo 标定体系覆盖全系统传感器：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>内容</th>
+<th>方法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>相机内参</td>
+<td>焦距、畸变</td>
+<td>棋盘格</td>
+</tr>
+<tr>
+<td>激光雷达</td>
+<td>旋转轴、内参</td>
+<td>出厂&#x2F;自标定</td>
+</tr>
+<tr>
+<td>IMU</td>
+<td>偏差、尺度</td>
+<td>静止标定</td>
+</tr>
+<tr>
+<td>外参</td>
+<td>传感器间位姿</td>
+<td>目标物联合标定</td>
+</tr>
+</tbody></table>
+<p>系统级联合标定流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">flowchart TD</span><br><span class="line">    A[传感器安装] --&gt; B[车体坐标系定义]</span><br><span class="line">    B --&gt; C[IMU-车体标定]</span><br><span class="line">    C --&gt; D[激光雷达-IMU标定]</span><br><span class="line">    D --&gt; E[相机内参标定]</span><br><span class="line">    E --&gt; F[激光雷达-相机标定]</span><br><span class="line">    F --&gt; G[多激光雷达标定]</span><br><span class="line">    G --&gt; H[全系统联合优化]</span><br><span class="line">    H --&gt; I[标定验证与测试]</span><br></pre></td></tr></table></figure>
+
+<p>标定结果以文件形式保存在车辆配置目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/apollo/modules/calibration/data/&#123;vehicle&#125;/</span><br></pre></td></tr></table></figure>
+
+<p>标定分<strong>离线标定</strong>（场地内用标定板&#x2F;标定杆采集数据，工具自动求解）与<strong>在线标定</strong>（利用行驶数据持续优化外参，适应车辆震动与温度漂移）。数据经 Apollo 数据管理脚本组织，工具自动完成时间同步检查与求解。</p>
+<blockquote>
+<p>[!tip] 离线 vs 在线<br>离线标定精度高、流程标准化，适合产线与安装后执行；在线标定适应长期使用中的漂移，两者结合是量产方案的主流实践。</p>
+</blockquote>
+<h2 id="7-标定质量验证"><a href="#7-标定质量验证" class="headerlink" title="7. 标定质量验证"></a>7. 标定质量验证</h2><p>标定完成必须验证，常用方法：</p>
+<ol>
+<li><strong>投影一致性</strong>：将激光点云投影到图像，检查边缘对齐程度；</li>
+<li><strong>可视叠加</strong>：在 DreamView 中观察各传感器视野叠加是否一致；</li>
+<li><strong>定位收敛</strong>：空旷场地验证激光定位收敛精度；</li>
+<li><strong>空间一致性</strong>：检查相机检测框与点云目标的空间一致性；</li>
+<li><strong>重投影误差</strong>：数值化评估点云-图像对齐精度；</li>
+<li><strong>成对检查</strong>：验证 $T_{A2B} \cdot T_{B2A} \approx I$。</li>
+</ol>
+<p>标定参数异常的典型现象：感知框偏移、定位漂移、融合目标抖动——应重新执行标定流程。</p>
+<h2 id="8-标定数据管理"><a href="#8-标定数据管理" class="headerlink" title="8. 标定数据管理"></a>8. 标定数据管理</h2><ul>
+<li>标定文件与车型配置关联，纳入版本管理；</li>
+<li>升级车型或更换传感器后<strong>必须重新标定</strong>；</li>
+<li>多车部署时每辆车独立标定，不可复制通用；</li>
+<li>建立标定记录台账（时间、场地、方法、执行人）与备份校验机制。</li>
+</ul>
+<blockquote>
+<p>[!note] 2026 年更新<br>标定技术向<strong>自动化与在线化</strong>快速演进：无需特殊标定物的自然场景自动标定、运行时自适应校正（振动&#x2F;温度漂移补偿）逐步落地；ADFM（自动驾驶大模型）体系中，多传感器时空配准也被纳入联合建模，进一步降低人工标定依赖。BEV 感知架构（见 <a href="/posts/1298984781.html">15-感知模块总览与点云感知</a>）对多相机外参一致性提出了更高要求。</p>
+</blockquote>
+<h2 id="9-动手实践清单"><a href="#9-动手实践清单" class="headerlink" title="9. 动手实践清单"></a>9. 动手实践清单</h2><ol>
+<li>检查 Apollo 车辆配置目录下的标定文件，理解各外参文件的含义；</li>
+<li>运行标定工具完成一次相机-激光雷达联合标定，用投影一致性验证；</li>
+<li>在 DreamView 中叠加图像与点云，观察外参正确&#x2F;故意加偏两种状态；</li>
+<li>编写小脚本验证 $T_{A2B} \cdot T_{B2A} \approx I$ 的变换一致性；</li>
+<li>结合 <a href="/posts/122258190.html">22-控制模块</a> 与 <a href="/posts/3133762148.html">23-车辆动力学基础</a>，理解坐标系转换在整个链路中无处不在。</li>
+</ol>
+<p><em>上一篇：<a href="/posts/4078895387.html">17-感知模块-雷达感知</a>　下一篇：<a href="/posts/3984938707.html">19-预测模块</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/2013834045.html">https://zeek-zhao.github.io/posts/2013834045.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1372015587.html" title="18-文件IO"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">18-文件IO</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Groovy 的 IO 封装简洁强大，学习文件操作与进程交互。  1. 文件读取File 的 text 属性一行读取全部内容，eachLine 逐行处理大文件，readLines 返回行列表。文本编码通过参数指定。 读取二进制用 bytes 属性与 InputStream，GDK 的 withStream 模式自动管理资源。 2. 文件写入write 覆盖写入、append 追加、withWriter 带编码写入。新文件自动创建，目录不存在时需手动创建。 临时文件用 createTempFile，输出流用 withOutputStream 确保关闭。 3. 目录操作listFiles 列出目录内容，eachFile 与 eachFileRecurse 遍历文件，mkdirs 创建多级目录。文件名过滤用正则或扩展名判断。 目录遍历常用于批量处理：重命名、统计、清理、归档等场景。 4. 资源管理GDK 的 with 系列方法（withReader、withWriter、withInputStream）自动关闭资源，无需显式 try-finally。 这种资源...</div></div></div></a><a class="pagination-related" href="/posts/87229897.html" title="18-PWA与进阶功能"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">18-PWA与进阶功能</div></div><div class="info-2"><div class="info-item-1">PWA与进阶功能 [!abstract] 一句话：PWA 让博客可以”安装到桌面、断网也能看”，配合 RSS、搜索、看板娘等进阶功能，把静态站点打磨成完整产品。  PWA 是什么，值得上吗PWA（Progressive Web App）通过 Service Worker 缓存站点资源，带来三个能力：离线访问（断网时已缓存页面照常打开）、添加到主屏幕（移动端像原生 App 一样有图标）、消息推送（需要服务端配合，博客场景少用）。对内容站点来说，价值主要在前两条：读者在地铁里、飞机上也能翻阅你的文章。成本是一次性配置 Service Worker 与 manifest 文件，之后全自动。 Butterfly 的内置 PWA 支持Butterfly 主题已经内置 PWA 开关，底层支持 hexo-offline 与 workbox 两套方案，无需手写 Service Worker。步骤如下。 第一步，安装缓存方案插件： 12345# 方案一：hexo-offline，配置简单npm install hexo-offline --save# 方案二：workbox-build，控制粒度更...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/3892420017.html" title="05-源码编译与部署"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">05-源码编译与部署</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标在 04-开发环境搭建（Docker） 搭好的环境中完成源码编译，理解 Bazel 构建体系、构建目标与产物组织，掌握编译问题的排查方法与部署流程。  1. Bazel 构建基础Apollo 使用 Bazel 作为构建系统，关键概念：  WORKSPACE：定义外部依赖 BUILD 文件：声明构建目标（cc_library、cc_binary、cc_test 等）与依赖关系 bazel-bin：构建产物目录，可安全删除重建  常用命令：bazel build 编译、bazel test 运行测试、bazel clean 清理。增量编译时 Bazel 只重编变更部分，可显著节省时间。 2. 编译准备 确认源码版本与 Docker 镜像版本匹配（10.0&#x2F;11.0 建议 pin commit） 检查磁盘空间（Bazel 缓存与产物占用大）与内存 查看构建帮助：  1bash scripts/apollo_build.sh -h  3. 构建目标与命令   目标 命令 说明    全量编译 ./apollo.sh build 编译全部模块，首次 30...</div></div></div></a><a class="pagination-related" href="/posts/3012449597.html" title="39-车路协同与V2X"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">39-车路协同与V2X</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 V2X 车路协同的技术体系：两大通信技术路线、端-边-云三层系统架构、标准消息集与协议栈、V2X 与单车智能的融合策略，以及路侧数据接入 Apollo 的工程实践。  1. 车路协同概述车路协同通过 V2X（Vehicle to Everything）让车辆与路侧设施、云端通信，扩展单车感知边界，提升安全与效率。V2X 的价值在于突破车载传感器的物理极限：    维度 车载传感器 V2X 增强    范围 ~250m 视距 ~1000m 通信   视野 视线阻挡受限 非视距通信   天气 雨雾雪影响 全天候信息   先验 无 信号灯相位、路况等基础设施信息   V2X 包含四类通信：车到车（V2V）、车到基础设施（V2I）、车到行人（V2P）、车到网络（V2N）。 2. 通信技术路线V2X 存在两大技术路线：    特性 DSRC&#x2F;WAVE（IEEE 802.11p） C-V2X（3GPP，LTE&#x2F;5G）    通信范围 ~300m 300-1000m   时延 ~10-20ms 20-30ms（5G &lt;10ms）   非...</div></div></div></a><a class="pagination-related" href="/posts/2866381386.html" title="13-决策模块（场景决策）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">13-决策模块（场景决策）</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 决策模块：场景识别、行为决策与规则系统。  1. 决策模块概述决策模块根据感知、预测与地图信息，决定车辆下一步行为（跟车、超车、让行、停车、换道等），是连接感知与规划的桥梁。 2. 场景识别Apollo 将驾驶环境划分为多个场景：十字路口、环岛、学校区域、泊车、高速入口等。场景识别器输出当前场景集合，激活对应决策器。 3. 决策层次   层次 内容 示例    场景级 激活场景与模式 十字路口通行   行为级 选择行为 跟车、停车   规则级 遵守交规 限速、让行   4. 规则与参数规则决策由规则引擎驱动，可在配置中启用或禁用规则、调整阈值。 1234# 决策配置示例rule_based_stop:  enabled: true  stop_distance: 5.0   [!note] 延伸场景专项见 30-泊车场景、31-高速场景、32-城市道路场景；决策结果驱动规划见 12-规划模块（路径规划）。  5. 决策器工作机制场景决策采用分层架构：场景识别层根据地图与感知状态匹配场景，行为层根据场景决策器生成行为意图，规则层校验交通...</div></div></div></a><a class="pagination-related" href="/posts/2818472804.html" title="01-百度Apollo概述与生态"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">01-百度Apollo概述与生态</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标了解 Apollo 是什么、能做什么、由哪些层次组成，建立对整个平台的”地图式”认知。本篇是六阶段学习路线（概述→版本演进→技术基础→环境搭建→源码编译→核心模块）的第一站。  1. Apollo 是什么Apollo 是百度于 2017 年 7 月发布的开源自动驾驶平台，也是全球首个开源自动驾驶全栈方案。它以”开放能力、共享资源、加速创新、持续共赢”为理念，为汽车行业和自动驾驶领域提供了完整的软硬件解决方案，覆盖：  车载端：高精地图、定位、感知、预测、规划、控制等核心模块 云端：数据服务、高精地图服务、仿真平台、OTA 升级 工具链：Dreamview 可视化、仿真系统、标定与调试工具  12# 官方开源仓库git clone https://github.com/ApolloAuto/apollo.git   [!note] 2026 年更新截至 2025 年 5 月，Apollo 已在全球部署超 1000 辆无人车，累计提供超 1100 万次出行服务，安全行驶里程超 1.7 亿公里；第六代无人车整车成本较上一代下降 60%。旗下萝卜快跑（Apoll...</div></div></div></a><a class="pagination-related" href="/posts/2511406057.html" title="54-自动驾驶测试方法"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">54-自动驾驶测试方法</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标建立自动驾驶测试的完整方法论：测试分层体系、三类测试环境（仿真&#x2F;封闭场地&#x2F;公开道路）、场景库与测试用例设计、先进测试技术与标准合规。仿真平台实操见 50-仿真平台对比与Gazebo-LGSVL实战；测试数据的来源见 55-标注工具与数据闭环。  1. 自动驾驶测试的特殊性与传统软件测试相比，自动驾驶测试有根本区别：    特性 自动驾驶测试 传统软件测试    安全关键性 失效可能危及生命 通常不直接威胁生命   输入空间 连续、无限，难以穷举 相对有限，可边界划分   判断基准 多指标平衡，无唯一”正确答案” 有明确对错   场景覆盖 需海量场景与长期里程累积 用例可控   核心挑战：场景爆炸（无法穷举真实交通）、稀有事件（关键安全场景极难收集）、AI 组件不确定性（深度学习行为难精确预测）、**”足够安全”缺乏统一定义**。 2. 测试分层体系1单元测试 → 模块测试 → 集成测试 → 系统测试 → 场景测试 → 实车测试 → 运营监控     层级 目标 工具&#x2F;环境 方法    单元测试 函数&#x2F;类正确性 GT...</div></div></div></a><a class="pagination-related" href="/posts/3738978533.html" title="11-预测模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">11-预测模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 预测模块：输入输出、预测方法与模型体系。  1. 预测模块概述预测模块基于感知输出的障碍物历史轨迹与环境信息，估计障碍物未来运动状态，为规划提供依据。预测质量直接影响规划的合理性与安全性。 2. 输入输出   方向 内容    输入 障碍物列表、地图、历史轨迹   输出 多条候选轨迹与概率   下游 规划模块场景决策   3. 预测方法   方法 说明    规则预测 基于运动学模型外推   意图预测 语义场景意图分类   交互预测 考虑多目标博弈   学习预测 神经网络轨迹生成   Apollo 的预测器支持多种模型组合，通过场景匹配选择最合适的预测器。 4. 配置与调试预测配置位于 modules&#x2F;prediction&#x2F;conf，可配置预测器类型与障碍物历史帧数。使用 DreamView 可直观对比预测轨迹与真实轨迹，见 24-调试与可视化工具。  [!note] 延伸预测结果供规划使用，见 12-规划模块（路径规划） 与 13-决策模块（场景决策）。  5. 预测器体系详解Apollo 预测模块包含多种预测器...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E6%A0%87%E5%AE%9A%E4%B8%8E%E5%9D%90%E6%A0%87%E8%BD%AC%E6%8D%A2%E6%98%AF%E5%9C%B0%E5%9F%BA"><span class="toc-number">1.</span> <span class="toc-text">1. 为什么标定与坐标转换是地基</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E5%9D%90%E6%A0%87%E7%B3%BB%E5%9F%BA%E7%A1%80"><span class="toc-number">2.</span> <span class="toc-text">2. 坐标系基础</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%8F%98%E6%8D%A2%E7%9A%84%E6%95%B0%E5%AD%A6%E5%9F%BA%E7%A1%80"><span class="toc-number">3.</span> <span class="toc-text">3. 变换的数学基础</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%97%8B%E8%BD%AC%E7%9A%84%E5%9B%9B%E7%A7%8D%E8%A1%A8%E7%A4%BA"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 旋转的四种表示</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E9%BD%90%E6%AC%A1%E5%8F%98%E6%8D%A2%E4%B8%8E%E5%8F%98%E6%8D%A2%E9%93%BE"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 齐次变换与变换链</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%B7%A5%E7%A8%8B%E5%AE%9E%E7%8E%B0%E8%A6%81%E7%82%B9"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 工程实现要点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%86%85%E5%8F%82%E6%A0%87%E5%AE%9A"><span class="toc-number">4.</span> <span class="toc-text">4. 内参标定</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E7%9B%B8%E6%9C%BA%E5%86%85%E5%8F%82"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 相机内参</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%BF%80%E5%85%89%E9%9B%B7%E8%BE%BE%E5%86%85%E5%8F%82"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 激光雷达内参</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-IMU-%E6%A0%87%E5%AE%9A"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 IMU 标定</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%A4%96%E5%8F%82%E6%A0%87%E5%AE%9A%E4%B8%8E%E6%89%8B%E7%9C%BC%E6%A0%87%E5%AE%9A%E7%90%86%E8%AE%BA"><span class="toc-number">5.</span> <span class="toc-text">5. 外参标定与手眼标定理论</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-AX-XB-%E9%97%AE%E9%A2%98"><span class="toc-number">5.1.</span> <span class="toc-text">5.1 AX&#x3D;XB 问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E6%BF%80%E5%85%89%E9%9B%B7%E8%BE%BE-IMU-%E6%A0%87%E5%AE%9A%E6%B5%81%E7%A8%8B"><span class="toc-number">5.2.</span> <span class="toc-text">5.2 激光雷达-IMU 标定流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-%E6%BF%80%E5%85%89%E9%9B%B7%E8%BE%BE-%E7%9B%B8%E6%9C%BA%E6%A0%87%E5%AE%9A"><span class="toc-number">5.3.</span> <span class="toc-text">5.3 激光雷达-相机标定</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-4-%E5%A4%9A%E6%BF%80%E5%85%89%E9%9B%B7%E8%BE%BE%E6%A0%87%E5%AE%9A"><span class="toc-number">5.4.</span> <span class="toc-text">5.4 多激光雷达标定</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-Apollo-%E6%A0%87%E5%AE%9A%E5%B7%A5%E5%85%B7%E9%93%BE%E4%B8%8E%E8%81%94%E5%90%88%E6%A0%87%E5%AE%9A%E6%B5%81%E7%A8%8B"><span class="toc-number">6.</span> <span class="toc-text">6. Apollo 标定工具链与联合标定流程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E6%A0%87%E5%AE%9A%E8%B4%A8%E9%87%8F%E9%AA%8C%E8%AF%81"><span class="toc-number">7.</span> <span class="toc-text">7. 标定质量验证</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E6%A0%87%E5%AE%9A%E6%95%B0%E6%8D%AE%E7%AE%A1%E7%90%86"><span class="toc-number">8.</span> <span class="toc-text">8. 标定数据管理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#9-%E5%8A%A8%E6%89%8B%E5%AE%9E%E8%B7%B5%E6%B8%85%E5%8D%95"><span class="toc-number">9.</span> <span class="toc-text">9. 动手实践清单</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

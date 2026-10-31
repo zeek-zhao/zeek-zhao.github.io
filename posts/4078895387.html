@@ -1,0 +1,681 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>17-感知模块-雷达感知 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="毫米波雷达全天候测量目标距离、速度与方位角，在雨雾夜间表现稳定。本篇讲解 Apollo 雷达驱动架构、运动补偿、消息解析与雷达在多传感器融合中的测速补盲角色。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="17-感知模块-雷达感知">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/4078895387.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="毫米波雷达全天候测量目标距离、速度与方位角，在雨雾夜间表现稳定。本篇讲解 Apollo 雷达驱动架构、运动补偿、消息解析与雷达在多传感器融合中的测速补盲角色。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="系统">
+<meta property="article:tag" content="apollo">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "17-感知模块-雷达感知",
+  "url": "https://zeek-zhao.github.io/posts/4078895387.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/4078895387.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '17-感知模块-雷达感知',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">17-感知模块-雷达感知</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">17-感知模块-雷达感知</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/apollo/">apollo</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握 Apollo 雷达感知的完整链路：毫米波雷达与超声波雷达驱动架构、CAN 消息解析、运动补偿、目标跟踪，以及雷达在多传感器融合中的测速与补盲角色。与 <a href="/posts/1298984781.html">15-感知模块总览与点云感知</a>、<a href="/posts/2907166516.html">16-感知模块-视觉感知</a> 共同构成感知三源。</p>
+</blockquote>
+<h2 id="1-雷达感知概述"><a href="#1-雷达感知概述" class="headerlink" title="1. 雷达感知概述"></a>1. 雷达感知概述</h2><p>毫米波雷达通过发射毫米波电磁信号并接收反射来探测障碍物，在雨雾、夜间等恶劣条件下表现稳定，是感知系统的重要补充。核心优势：</p>
+<ul>
+<li>全天候工作，不受光照、雨雪、雾霾影响；</li>
+<li>直接测量目标距离与相对速度（多普勒效应）；</li>
+<li>探测距离远（200m 以上），穿透能力强。</li>
+</ul>
+<p>局限同样明显：角度分辨率低、难以判断目标形状尺寸、对行人等非金属目标检测较弱、易受多径效应干扰。因此雷达在系统中主要承担<strong>测速与补盲</strong>职责，而非目标识别主力。</p>
+<h2 id="2-雷达输出特性"><a href="#2-雷达输出特性" class="headerlink" title="2. 雷达输出特性"></a>2. 雷达输出特性</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>测距</td>
+<td>数十至数百米</td>
+</tr>
+<tr>
+<td>测速</td>
+<td>径向速度直接测量</td>
+</tr>
+<tr>
+<td>角度</td>
+<td>方位角分辨率较低</td>
+</tr>
+<tr>
+<td>点云</td>
+<td>稀疏、无高度信息</td>
+</tr>
+</tbody></table>
+<p>Apollo 雷达驱动分三类：</p>
+<ul>
+<li><code>modules/drivers/radar/conti_radar</code>：大陆(Continental)毫米波雷达；</li>
+<li><code>modules/drivers/radar/racobit_radar</code>：理工雷科(Racobit)毫米波雷达；</li>
+<li><code>modules/drivers/radar/ultrasonic_radar</code>：超声波雷达（短距 0.3~5m，用于泊车场景）。</li>
+</ul>
+<p>毫米波雷达输出的数据有两种模式：<strong>目标列表模式</strong>由雷达芯片内部完成检测与跟踪，直接输出距离、速度与角度；<strong>点云模式</strong>输出原始反射点，需自研聚类与跟踪。Apollo 雷达驱动负责解析厂商协议，统一转换为标准雷达消息发布。</p>
+<h2 id="3-驱动架构与数据流"><a href="#3-驱动架构与数据流" class="headerlink" title="3. 驱动架构与数据流"></a>3. 驱动架构与数据流</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">graph TD</span><br><span class="line">    A[雷达硬件 CAN 总线] --&gt; B[ContiRadarCanbusComponent]</span><br><span class="line">    B --&gt; C[ContiRadarMessageManager 消息解析]</span><br><span class="line">    C --&gt; D[标准 ContiRadar 消息]</span><br><span class="line">    D --&gt; E[感知融合模块]</span><br><span class="line">    L[定位模块] --&gt;|车速/航向角| B</span><br><span class="line">    B --&gt;|运动补偿参数| A</span><br></pre></td></tr></table></figure>
+
+<p>核心组件：</p>
+<ul>
+<li><strong>ContiRadarCanbusComponent</strong>：模块入口，初始化 CAN 客户端与消息管理器，订阅定位做运动补偿；</li>
+<li><strong>ContiRadarMessageManager</strong>：按 CAN ID 解析消息并填充 <code>ContiRadar</code> 协议数据；</li>
+<li><strong>CanReceiver</strong>：独立线程接收 CAN 帧，传递给消息管理器。</li>
+</ul>
+<h2 id="4-运动补偿"><a href="#4-运动补偿" class="headerlink" title="4. 运动补偿"></a>4. 运动补偿</h2><p>雷达感知的关键环节：雷达探测的相对位置受自车运动影响，须将车辆速度与航向角速度通过 CAN 消息发给雷达，由雷达内部完成补偿。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">ContiRadarCanbusComponent::PoseCallback</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> std::shared_ptr&lt;LocalizationEstimate&gt;&amp; pose_msg)</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 世界系速度旋转到车体系</span></span><br><span class="line">  <span class="function">Eigen::Quaterniond <span class="title">orientation_vehicle_world</span><span class="params">(...)</span></span>;</span><br><span class="line">  Eigen::Matrix3d rotation_matrix =</span><br><span class="line">      orientation_vehicle_world.<span class="built_in">toRotationMatrix</span>().<span class="built_in">inverse</span>();</span><br><span class="line">  <span class="function">Eigen::Vector3d <span class="title">speed_v</span><span class="params">(pose_msg-&gt;pose().linear_velocity().x(), ...)</span></span>;</span><br><span class="line">  <span class="type">float</span> speed = <span class="keyword">static_cast</span>&lt;<span class="type">float</span>&gt;((rotation_matrix * speed_v).<span class="built_in">y</span>());</span><br><span class="line">  <span class="type">float</span> yaw_rate = <span class="keyword">static_cast</span>&lt;<span class="type">float</span>&gt;(</span><br><span class="line">      pose_msg-&gt;<span class="built_in">pose</span>().<span class="built_in">angular_velocity</span>().<span class="built_in">z</span>() * <span class="number">180.0f</span> / M_PI);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 发送车速(MotionInputSpeed300)与航向角速度(MotionInputYawRate301)</span></span><br><span class="line">  ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>补偿流程：定位模块提供车速与航向角 → 转换到雷达坐标系 → 经 <code>MotionInputSpeed300</code>&#x2F;<code>MotionInputYawRate301</code> 消息发给雷达 → 雷达输出补偿后的障碍物绝对位置与速度。</p>
+<h2 id="5-消息解析"><a href="#5-消息解析" class="headerlink" title="5. 消息解析"></a>5. 消息解析</h2><p>大陆雷达通过 CAN 总线发送多种消息，各含不同信息：</p>
+<table>
+<thead>
+<tr>
+<th>消息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>RadarState201</td>
+<td>雷达工作状态与配置</td>
+</tr>
+<tr>
+<td>ClusterListStatus600 &#x2F; ClusterGeneralInfo701 &#x2F; ClusterQualityInfo702</td>
+<td>聚类障碍物数量、位置速度、质量(RCS)</td>
+</tr>
+<tr>
+<td>ObjectListStatus60A &#x2F; ObjectGeneralInfo60B &#x2F; ObjectQualityInfo60C &#x2F; ObjectExtendedInfo60D</td>
+<td>目标障碍物数量、位置速度、质量、扩展信息(加速度)</td>
+</tr>
+</tbody></table>
+<p>解析器在收到列表状态消息（如 <code>ObjectListStatus60A</code>）时发布完整一帧数据：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">ContiRadarMessageManager::Parse</span><span class="params">(<span class="type">const</span> <span class="type">uint32_t</span> message_id,</span></span></span><br><span class="line"><span class="params"><span class="function">                                     <span class="type">const</span> <span class="type">uint8_t</span> *data, <span class="type">int32_t</span> length)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (message_id == ClusterListStatus600::ID ||</span><br><span class="line">      message_id == ObjectListStatus60A::ID) &#123;</span><br><span class="line">    conti_radar_writer_-&gt;<span class="built_in">Write</span>(sensor_data_);   <span class="comment">// 发布完整帧</span></span><br><span class="line">    sensor_data_.<span class="built_in">Clear</span>();</span><br><span class="line">    common::util::<span class="built_in">FillHeader</span>(<span class="string">&quot;conti_radar&quot;</span>, &amp;sensor_data_);</span><br><span class="line">  &#125;</span><br><span class="line">  sensor_protocol_data-&gt;<span class="built_in">Parse</span>(data, length, &amp;sensor_data_);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (message_id == RadarState201::ID) &#123;</span><br><span class="line">    <span class="comment">// 配置不匹配时重发 RadarConfig200</span></span><br><span class="line">    ...</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="6-雷达配置详解"><a href="#6-雷达配置详解" class="headerlink" title="6. 雷达配置详解"></a>6. 雷达配置详解</h2><p>CAN 配置：</p>
+<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">can_conf &#123;</span><br><span class="line">  can_card_parameter &#123;</span><br><span class="line">    brand: HERMES_CAN</span><br><span class="line">    type: PCI_CARD</span><br><span class="line">    channel_id: CHANNEL_ID_ONE</span><br><span class="line">  &#125;</span><br><span class="line">  enable_debug_mode: <span class="literal">false</span></span><br><span class="line">  enable_receiver_log: <span class="literal">false</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>雷达参数配置：</p>
+<figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">radar_conf &#123;</span><br><span class="line">  max_distance: <span class="number">250</span>                     # 最大探测距离(米)</span><br><span class="line">  output_type: OUTPUT_TYPE_OBJECTS      # 输出目标列表</span><br><span class="line">  send_ext_info: <span class="literal">true</span></span><br><span class="line">  send_quality: <span class="literal">true</span></span><br><span class="line">  rcs_threshold: RCS_THRESHOLD_STANDARD # 雷达截面阈值</span><br><span class="line">  input_send_interval: <span class="number">20000000</span>         # <span class="number">20</span>ms，对应 <span class="number">50</span>Hz</span><br><span class="line">&#125;</span><br><span class="line">radar_channel: <span class="string">&quot;/apollo/sensor/radar/front&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>多雷达（前向+后向）通过不同配置文件与通道区分，在 launch 中启动两个组件实例，分别加载 <code>radar_front_conf.pb.txt</code> 与 <code>radar_rear_conf.pb.txt</code>。</p>
+<h2 id="7-雷达感知处理与跟踪"><a href="#7-雷达感知处理与跟踪" class="headerlink" title="7. 雷达感知处理与跟踪"></a>7. 雷达感知处理与跟踪</h2><p>驱动输出的雷达目标进入感知层后：</p>
+<ol>
+<li><strong>预处理</strong>：噪声过滤（静态杂波、地面反射）；</li>
+<li><strong>检测&#x2F;聚类</strong>：反射强度阈值过滤、聚类、基于运动特征的检测；</li>
+<li><strong>跟踪</strong>：卡尔曼滤波跟踪 + 基于速度&#x2F;加速度的状态预测，多假设跟踪(MHT)处理目标交互；</li>
+<li><strong>输出</strong>：障碍物候选供融合使用。</li>
+</ol>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 雷达感知配置示例</span></span><br><span class="line"><span class="attr">radar:</span></span><br><span class="line">  <span class="attr">topic:</span> <span class="string">&quot;/apollo/sensor/radar&quot;</span></span><br><span class="line">  <span class="attr">output:</span> <span class="string">&quot;/apollo/perception/obstacles&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="8-融合中的角色与调试"><a href="#8-融合中的角色与调试" class="headerlink" title="8. 融合中的角色与调试"></a>8. 融合中的角色与调试</h2><p>雷达在融合框架中的独特价值：</p>
+<ul>
+<li><strong>测速</strong>：直接测量径向速度，修正相机&#x2F;激光估计的目标速度；</li>
+<li><strong>补盲</strong>：远距离与恶劣天气下维持目标观测，弥补视觉与激光不足；</li>
+<li><strong>互补分类</strong>：对金属车辆目标检测效果好，与视觉类别信息互补。</li>
+</ul>
+<p>融合通过时间对齐与空间对齐将雷达目标与相机&#x2F;激光目标关联（关联与坐标系统一见 <a href="/posts/1298984781.html">15-感知模块总览与点云感知</a> 与 <a href="/posts/2013834045.html">18-传感器标定与坐标转换</a>），输出统一的速度与类别。</p>
+<blockquote>
+<p>[!tip] 接入调试清单</p>
+<ol>
+<li>确认驱动正常解析数据、话题频率达标（50Hz 级）；</li>
+<li>常见问题：网络丢包导致数据断续、协议不匹配导致乱码、安装位置导致盲区；</li>
+<li>参数调优：调整 RCS 阈值影响检测灵敏度，选择输出类型（目标&#x2F;聚类）；</li>
+<li>结合原始数据与 DreamView 可视化对比，先排除硬件与驱动，再查算法配置。</li>
+</ol>
+</blockquote>
+<h2 id="9-实际挑战与优化方向"><a href="#9-实际挑战与优化方向" class="headerlink" title="9. 实际挑战与优化方向"></a>9. 实际挑战与优化方向</h2><p>实际应用挑战：护栏&#x2F;路牌等静态物体误报、行人等低反射目标漏检、多目标靠近时难以区分。优化方法：多传感器融合互补、卡尔曼&#x2F;粒子滤波改善跟踪、RCS 阈值与输出类型调优、CFAR 恒虚警检测与 DOA 到达方向估计、深度学习改善分类与跟踪。</p>
+<blockquote>
+<p>[!note] 2026 年更新<br>雷达技术向 <strong>4D 成像雷达</strong>演进：MIMO 虚拟阵列提供高角度分辨率与点云级输出，可在恶劣天气下识别目标轮廓。Apollo 10.0 的多传感器持续融合框架进一步增强了雷达与相机&#x2F;激光的特征级融合能力；”大感知”体系下，雷达数据参与联合训练的多任务网络，整体减少模型个数与计算量（见 <a href="/posts/1298984781.html">15-感知模块总览与点云感知</a>）。超声波雷达则继续承担泊车等低速近距场景（结合 <a href="/posts/1453710074.html">24-仿真平台与场景数据</a> 中的泊车场景验证）。</p>
+</blockquote>
+<p><em>上一篇：<a href="/posts/2907166516.html">16-感知模块-视觉感知</a>　下一篇：<a href="/posts/2013834045.html">18-传感器标定与坐标转换</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/4078895387.html">https://zeek-zhao.github.io/posts/4078895387.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%B3%BB%E7%BB%9F/">系统</a><a class="post-meta__tags" href="/tags/apollo/">apollo</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/128124392.html" title="17-数学公式与图表渲染"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">17-数学公式与图表渲染</div></div><div class="info-2"><div class="info-item-1">数学公式与图表渲染 [!abstract] 一句话：公式选 MathJax 还是 KaTeX，图表用 Mermaid，关键都在于”主题配置打开 + Markdown 引擎不越权转义”。  数学公式：两个引擎怎么选Hexo 站点渲染 LaTeX 公式主要靠两个引擎：MathJax 功能最全（支持宏、化学方程式、自动编号），但体积大、渲染稍慢；KaTeX 轻量极速，覆盖常用语法，缺点是部分高级环境不支持。博客场景 KaTeX 通常足够，学术论文摘录多则选 MathJax。 Butterfly 主题开启方式（在主题配置文件中）： 12345math:  enable: true  mathjax:    enable: true    per_page: true   # 仅在含公式页面加载，节省资源  per_page: true 时需在用公式的文章 frontmatter 加一行 mathjax: true，避免全站加载公式脚本。 公式书写规范行内公式用单个 $ 包裹，独立公式用 $$： 12345678910行内公式：质能方程 $E=mc^2$ 是物理学的基石。独立公式：$$\b...</div></div></div></a><a class="pagination-related" href="/posts/2022487872.html" title="17-字符串与正则"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">17-字符串与正则</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Groovy 正则语法简洁，学习模式定义、匹配与捕获组使用。  1. 正则表达式定义Groovy 用斜杠字符串定义正则：&#x2F;\d+&#x2F; 免去双重转义。find 方法判断是否匹配，matches 要求完全匹配，等号操作符简化调用。 正则表达式字面量编译为 Pattern 对象，可以结合 Matcher 使用全部 Java 正则 API。 2. 匹配操作&#x3D;&#x3D;~ 完全匹配、&#x3D;~ 部分匹配（返回 Matcher）、Matcher 的 find 与 group 提取匹配片段。循环 find 遍历所有匹配。 匹配结果可以直接用于条件判断与数据提取，如校验手机号、邮箱、提取日志时间戳。 3. 捕获组括号定义捕获组，group(1)、group(2) 按索引取内容，命名组可用名称访问。捕获组用于结构化提取文本片段。 例如解析键值对、提取 URL 各部分、解析 CSV 字段时，捕获组是主力工具。 4. 替换与分割replaceFirst 与 replaceAll 支持正则替换，回调形式可以基于捕获内容动态生成替换文本。spli...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1294651885.html" title="49-KITTI与Waymo数据集实战"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">49-KITTI与Waymo数据集实战</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标手把手完成 KITTI 与 Waymo 两大基准数据集的实战：下载准备、目录结构、格式解析、坐标转换、构建数据加载器、跑通评估。数据集全景见 48-自动驾驶数据集总览。  1. KITTI 实战1.1 采集平台与评测项目KITTI 采集车配备：2 灰度 + 2 彩色 Point Grey Flea 2 相机（1382×512，10Hz）、1 台 Velodyne HDL-64E（64 线，约 130 万点&#x2F;秒，120m）、OXTS RT3003 GPS&#x2F;IMU（100Hz，厘米级）。采集于德国卡尔斯鲁厄市区、乡村与高速。 评测项目：立体视觉、光流、场景流、深度、视觉里程计&#x2F;SLAM、物体检测（2D&#x2F;3D&#x2F;BEV）、目标跟踪、道路&#x2F;车道检测、语义分割。 1.2 下载与存储123456789#!/bin/bash# 下载 KITTI 目标检测数据集mkdir -p kitti_data/object &amp;&amp; cd kitti_data/objectwget -c https://s3....</div></div></div></a><a class="pagination-related" href="/posts/2878817428.html" title="34-红绿灯感知与通行"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">34-红绿灯感知与通行</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 红绿灯感知与通行的完整链路：感知模块如何结合高精地图定位灯位并识别状态、通行决策如何根据灯色与剩余时间做出停车&#x2F;缓行判断、识别错误的调试方法与场景验证策略。  1. 红绿灯感知概述红绿灯感知是城市道路场景（37-城市道路场景）的核心能力之一。它识别信号灯的颜色与状态，为路口通行决策提供依据。Apollo 的关键设计是感知与地图协同：不盲目在全图搜索信号灯，而是利用高精地图预先记录的灯位信息，结合自车定位确定”应该看哪里”，再交给视觉模型识别。 这一设计大幅缩小了检测区域，提升了识别准确率与速度，也使得”这个灯属于哪个车道”的关联问题变得可解。 2. 感知处理流程   步骤 说明 关键点    灯位定位 从高精地图获取前方信号灯位置与朝向 依赖定位精度与地图质量   ROI 计算 将灯位投影到相机图像，计算检测区域 需要准确的相机外参   图像识别 在 ROI 内检测灯箱并分类颜色 红&#x2F;黄&#x2F;绿&#x2F;黑（灭灯）   时间关联 与该灯的车道相位时间对齐 处理闪烁与倒计时   输出状态 输出红&#x2F;黄...</div></div></div></a><a class="pagination-related" href="/posts/3264947560.html" title="35-泊车场景"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">35-泊车场景</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 泊车场景的完整链路：环视相机与超声波雷达的车位感知、考虑运动学约束的泊车轨迹规划、低速精细控制，以及泊车特有的安全策略与失败退出机制。  1. 泊车场景概述泊车是典型的低速精细操作场景：车速低（通常 &lt; 5 km&#x2F;h）、空间狭小、障碍近身、控制精度要求高。它与道路行驶场景的本质区别在于：  感知重点不同：不追求远距离感知，而要求近距离高精度（厘米级车位边界） 控制重点不同：不追求动态稳定性，而要求静态精确性（最终泊入偏差） 轨迹形态不同：需要倒车、原地小半径转向，超出常规路径规划的假设范围  Apollo 提供独立的泊车场景（Valet Parking）模块，与车道行驶规划体系并行，由场景决策器按工况切换。 2. 泊车流程   阶段 内容 关键技术    车位检测 识别空车位与类型（平行&#x2F;垂直&#x2F;斜向） 环视相机 + 超声波雷达融合   路径规划 生成入库轨迹 多段轨迹生成（圆弧+直线&#x2F;样条）   轨迹优化 满足运动学与碰撞约束 平滑衔接 + 碰撞检测校验   低速控制 精确跟踪泊车轨迹 低...</div></div></div></a><a class="pagination-related" href="/posts/928100527.html" title="07-定位模块"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">07-定位模块</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 定位模块的整体架构：RTK 定位、激光点云定位、视觉定位及多传感器融合策略。  1. 定位模块概述定位是自动驾驶的核心能力之一，决定了车辆在高精地图中的精确位置与姿态。Apollo 定位模块采用多传感器融合方案，结合 RTK（载波相位差分）、激光雷达点云配准、视觉特征匹配与 IMU 惯性导航数据，输出厘米级定位结果。 123456定位输入源：- GNSS/RTK：全球导航卫星系统 + 差分基准站- IMU：三轴加速度计 + 陀螺仪- 激光雷达：点云配准（NDT/Monte Carlo）- 相机：视觉特征匹配与车道线约束- 轮速计：车辆里程计约束  2. RTK 定位原理RTK 通过基准站与移动站的载波相位差分消除卫星误差：  基准站播发改正数（RTCM 协议） 移动站解算模糊度获得厘米级定位 更新频率 10-20 Hz，适合开阔场景  12345# 定位配置要点rtk:  base_station: 192.168.1.100  protocol: rtcm3  survey_in: false  RTK 的局限：高楼峡谷、隧道等遮挡...</div></div></div></a><a class="pagination-related" href="/posts/241582848.html" title="22-Cyber组件开发"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">22-Cyber组件开发</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标掌握 Apollo Cyber 组件开发：Component 模型、工程结构与示例。  1. Component 模型Component 是 Cyber RT 的核心编程单元，封装订阅、计算与发布逻辑，通过配置文件声明消息依赖，框架自动调度执行。 2. 组件结构1234567// 组件示例（简化）class MyComponent : public cyber::Component&lt;MyMessage&gt; &#123; public:  bool Init() override;  bool Proc(const std::shared_ptr&lt;MyMessage&gt;&amp; msg) override;&#125;;CYBER_REGISTER_COMPONENT(MyComponent)  Init 负责初始化，Proc 在收到消息时被调用。 3. 组件配置123456# 组件配置文件示例modules:  - name: my_component    type: MyComponent    reader:      cha...</div></div></div></a><a class="pagination-related" href="/posts/2091754220.html" title="37-城市道路场景"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">37-城市道路场景</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Apollo 城市道路场景的挑战全景：各类交通参与者的处理策略、路口多方向博弈、场景化决策的工作机制，以及城市场景”规则兜底 + 数据驱动”的验证与迭代方法。  1. 城市场景特点城市道路包含行人、非机动车、密集车流、路口与多变交通规则，是自动驾驶最具挑战的场景。与高速场景（36-高速场景）对比：    维度 高速 城市    道路结构 简单封闭 复杂开放   交通参与者 车辆为主 人车混行   交互复杂度 低频高动态 高频多方向博弈   规则确定性 高 信号灯、标志、交警手势并存   长尾场景 少而极端 多而日常   城市道路因此被称为自动驾驶的”珠穆朗玛”：技术上最难、验证上最繁、也是 Robotaxi 商业化的必经之路。 2. 场景要素与挑战   要素 挑战    行人 意图多样，可突然折返   非机动车 轨迹随机，常穿插变线   路口 多方向博弈，通行权不明确   标志标线 规则多样，临时管制频繁   遮挡 公交车、绿化带遮挡视野受限   2.1 典型工况处理策略Apollo 城市场景采用场景化决策：识别场景类型后激活对应策略（Scenar...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E9%9B%B7%E8%BE%BE%E6%84%9F%E7%9F%A5%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">1. 雷达感知概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E9%9B%B7%E8%BE%BE%E8%BE%93%E5%87%BA%E7%89%B9%E6%80%A7"><span class="toc-number">2.</span> <span class="toc-text">2. 雷达输出特性</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E9%A9%B1%E5%8A%A8%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.</span> <span class="toc-text">3. 驱动架构与数据流</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E8%BF%90%E5%8A%A8%E8%A1%A5%E5%81%BF"><span class="toc-number">4.</span> <span class="toc-text">4. 运动补偿</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E6%B6%88%E6%81%AF%E8%A7%A3%E6%9E%90"><span class="toc-number">5.</span> <span class="toc-text">5. 消息解析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E9%9B%B7%E8%BE%BE%E9%85%8D%E7%BD%AE%E8%AF%A6%E8%A7%A3"><span class="toc-number">6.</span> <span class="toc-text">6. 雷达配置详解</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E9%9B%B7%E8%BE%BE%E6%84%9F%E7%9F%A5%E5%A4%84%E7%90%86%E4%B8%8E%E8%B7%9F%E8%B8%AA"><span class="toc-number">7.</span> <span class="toc-text">7. 雷达感知处理与跟踪</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#8-%E8%9E%8D%E5%90%88%E4%B8%AD%E7%9A%84%E8%A7%92%E8%89%B2%E4%B8%8E%E8%B0%83%E8%AF%95"><span class="toc-number">8.</span> <span class="toc-text">8. 融合中的角色与调试</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#9-%E5%AE%9E%E9%99%85%E6%8C%91%E6%88%98%E4%B8%8E%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">9.</span> <span class="toc-text">9. 实际挑战与优化方向</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

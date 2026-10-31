@@ -1,0 +1,631 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>23-性能优化与版本管理 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="启动速度优化、FastStart 延迟加载、3-2-1 备份策略、Git 版本控制与 Version History Diff">
+<meta property="og:type" content="article">
+<meta property="og:title" content="23-性能优化与版本管理">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2315711624.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="启动速度优化、FastStart 延迟加载、3-2-1 备份策略、Git 版本控制与 Version History Diff">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="工具">
+<meta property="article:tag" content="obsidian">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "23-性能优化与版本管理",
+  "url": "https://zeek-zhao.github.io/posts/2315711624.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/2315711624.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '23-性能优化与版本管理',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">23-性能优化与版本管理</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">23-性能优化与版本管理</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/obsidian/">obsidian</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="性能优化与版本管理"><a href="#性能优化与版本管理" class="headerlink" title="性能优化与版本管理"></a>性能优化与版本管理</h1><blockquote>
+<p>[!abstract] 一句话<br>快是 Obsidian 的生命线，安全是它的底线：启动优化解决”打得开”，备份与版本管理保证”找得回”。</p>
+</blockquote>
+<h2 id="为什么启动会变慢"><a href="#为什么启动会变慢" class="headerlink" title="为什么启动会变慢"></a>为什么启动会变慢</h2><p>常见原因包括：库过大（笔记与附件过多）、插件太多（尤其启动即运行的）、复杂图谱关系、设备性能限制、缓存过大或损坏、同步冲突文件堆积。移动端尤其明显——几秒钟的延迟会造成使用摩擦，让人下意识减少记录频率。</p>
+<h2 id="基础优化策略"><a href="#基础优化策略" class="headerlink" title="基础优化策略"></a>基础优化策略</h2><p><strong>库与结构</strong>：单个库超过 5000 篇笔记或 1GB 时考虑拆分为主库 + 项目库 + 归档库；用”清理未使用附件”类插件定期删除无引用文件；避免单文件夹塞入过多文件，按 PARA 层级分类。</p>
+<p><strong>插件精简</strong>：</p>
+<ol>
+<li>只保留每天真正在用的插件，移除功能重叠者，优先轻量级插件</li>
+<li>禁用不需要的核心插件（文件恢复、星标、斜杠命令等）</li>
+<li>定期更新插件——过时插件常是性能问题源头</li>
+</ol>
+<p><strong>问题插件定位</strong>：按住 Ctrl 安全模式启动，若明显变快则逐个启用测试。常见高消耗插件：大型库中的 Dataview、主题增强类、自动索引与实时预览类、含大量 JS 的插件。</p>
+<p><strong>设置与缓存</strong>：设置 → 关于 → 重新生成缓存；用 <code>.obsidian/exclude.json</code> 排除大附件文件夹；减少不必要的实时渲染。</p>
+<h2 id="FastStart-脚本：分阶段延迟加载"><a href="#FastStart-脚本：分阶段延迟加载" class="headerlink" title="FastStart 脚本：分阶段延迟加载"></a>FastStart 脚本：分阶段延迟加载</h2><p>FastStart 通过 Templater 启动模板把插件加载分为三阶段：<strong>立即加载</strong>（仅 Templater 等核心）→ <strong>短延迟</strong>（2 秒后加载第一批）→ <strong>长延迟</strong>（30 秒后加载其余）。</p>
+<p>实施要点：</p>
+<ol>
+<li>模板文件夹创建 <code>FastStart-StartupScript</code>（含 <code>setTimeout</code> + <code>loadPlugins</code> 函数，从 <code>FastStart-Plugins-ShortDelay</code> &#x2F; <code>FastStart-Plugins-LongDelay</code> 两个列表文件读取插件 ID 并逐个启用）</li>
+<li>创建 <code>FastStart-GenerateListOfInstalledPlugins</code> 模板，运行后自动生成全部插件 ID 表格</li>
+<li>将 StartupScript 加入 Templater 的 Startup Templates</li>
+<li>在社区插件设置中仅保留 Templater 与核心插件启用，其余按优先级分配到两个延迟列表</li>
+</ol>
+<blockquote>
+<p>[!tip]<br>实施前先记录基准启动时间；某些插件（如 Custom Page Title、Spaced Repetition）不适合延迟加载，发现异常就移回启动组。延迟时间（2s&#x2F;30s）可按设备性能调整。</p>
+</blockquote>
+<p>替代&#x2F;补充方案：Plugin Groups 的”启动组”按场景控制插件集合（见 <a href="/posts/3659188267.html">19-搜索与效率工具</a>）；移动端单独建立精简插件组；分离同步与编辑，用 Git 等替代实时同步。</p>
+<h2 id="版本管理：Obsidian-Git"><a href="#版本管理：Obsidian-Git" class="headerlink" title="版本管理：Obsidian Git"></a>版本管理：Obsidian Git</h2><p>Obsidian 数据本地存储，磁盘损坏、误删、误改都可能丢失——同步不是备份（Sync 冲突&#x2F;删除也会同步），Git 历史才是兜底。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 首次初始化</span></span><br><span class="line">git init</span><br><span class="line">git add .</span><br><span class="line">git commit -m <span class="string">&quot;init vault&quot;</span></span><br><span class="line">git remote add origin https://github.com/you/vault.git</span><br><span class="line">git push -u origin main</span><br><span class="line"></span><br><span class="line"><span class="comment"># 自动备份（Windows 计划任务每 30 分钟）</span></span><br><span class="line">schtasks /create /tn <span class="string">&quot;ObsidianBackup&quot;</span> /tr <span class="string">&quot;D:\scripts\backup.bat&quot;</span> /sc minute /mo 30</span><br><span class="line"></span><br><span class="line"><span class="comment"># backup.bat</span></span><br><span class="line"><span class="built_in">cd</span> /d D:\Notes\MyVault</span><br><span class="line">git add -A</span><br><span class="line">git commit -m <span class="string">&quot;auto backup %date% %time%&quot;</span></span><br><span class="line">git push</span><br></pre></td></tr></table></figure>
+
+<p><strong>恢复流程</strong>：误删单篇用 <code>git checkout &lt;commit&gt; -- 笔记路径</code>；整库丢失直接 <code>git clone</code> 后用 Obsidian 打开；本地损坏从压缩备份解压。压缩备份示例：<code>Compress-Archive -Path D:\Notes\MyVault -DestinationPath D:\Backup\vault-20261022.zip</code>。</p>
+<p><strong>备份原则（3-2-1）</strong>：3 份数据副本、2 种介质、1 份异地。<code>.gitignore</code> 排除临时与敏感文件（token、凭证），大附件考虑 LFS 或另存。</p>
+<blockquote>
+<p>[!note] 2026 更新<br>1.12 引入了 Obsidian CLI（命令行界面），可在终端控制 Obsidian 并做脚本化自动化——把”打开指定库、执行导出、触发备份”写成一条命令或 cron 任务成为可能，备份与批处理工作流因此更省心。移动端 UI 与小组件的改进也让”先捕获后同步”的链路更顺滑（见 <a href="/posts/2516645563.html">21-移动端与多设备</a>）。</p>
+</blockquote>
+<h2 id="文件级版本历史：Version-History-Diff"><a href="#文件级版本历史：Version-History-Diff" class="headerlink" title="文件级版本历史：Version History Diff"></a>文件级版本历史：Version History Diff</h2><p>不想用 Git 的用户可用 Version History Diff 插件：自动&#x2F;手动创建版本快照（默认 5 分钟间隔、保留 50 个版本），差异对比支持并排、内联、统一三种视图（增绿删红改黄），可整版恢复或部分恢复选中内容块，还能给重要版本添加标记（如”发布前最终版”）。历史缓存存储于插件目录，建议纳入备份范围；与 Obsidian Git 集成后可对照 Git 提交记录查看演变。</p>
+<h2 id="监控与维护节奏"><a href="#监控与维护节奏" class="headerlink" title="监控与维护节奏"></a>监控与维护节奏</h2><table>
+<thead>
+<tr>
+<th>时间周期</th>
+<th>维护任务</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>每周</td>
+<td>清理临时文件、更新插件</td>
+</tr>
+<tr>
+<td>每月</td>
+<td>审核插件使用情况、整理文件结构</td>
+</tr>
+<tr>
+<td>每季度</td>
+<td>重建索引、归档不活跃笔记、恢复演练</td>
+</tr>
+<tr>
+<td>每年</td>
+<td>全面审查库结构、评估拆库需求</td>
+</tr>
+</tbody></table>
+<p>衡量优化效果：记录”点击图标到完全可用”的时间并多次取均值；关注笔记打开速度、搜索响应时间、大文件编辑流畅度三项体验指标。</p>
+<blockquote>
+<p>[!warning]<br>每季度至少做一次完整恢复演练——没有验证过的备份等于没有备份。</p>
+</blockquote>
+<hr>
+<p><em><a href="/posts/2588243057.html">返回索引</a> · 下一篇：24-AI与自动化前沿</em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/2315711624.html">https://zeek-zhao.github.io/posts/2315711624.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%B7%A5%E5%85%B7/">工具</a><a class="post-meta__tags" href="/tags/obsidian/">obsidian</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/3133762148.html" title="23-车辆动力学基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">23-车辆动力学基础</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解自动驾驶规划控制所需的车辆运动学与动力学模型：模型分类与适用场景、自行车模型推导、关键参数含义、实车参数辨识与验证方法。模型是 22-控制模块 的设计基础，也是 24-仿真平台与场景数据 中仿真保真度的来源。  1. 模型的作用规划与控制依赖车辆模型来描述运动与响应：规划用模型生成动力学可行的轨迹，控制用模型设计反馈律，仿真用模型模拟真实车辆响应。模型精度影响控制效果与仿真真实性——但不同环节对精度要求不同：    环节 需求    轨迹规划 较高保真度，保证轨迹可执行   控制设计 线性化模型便于分析（LQR 等）   仿真平台 高保真车辆模型模拟真实响应   参数标定 辨识模型参数本身   2. 模型体系   模型 描述 精确度 计算效率 用途    运动学模型 位置+航向的几何关系 低-中 高 低速场景、规划参考   自行车模型 左右轮合并的简化模型 中 高 Apollo 主力模型   线性动力学模型 力与加速度的线性化 中 中-高 高速控制设计   非线性&#x2F;轮胎动力学模型 侧偏特性、非线性力 高 低 极限工况、滑移控制   选型原则...</div></div></div></a><a class="pagination-related" href="/posts/3208685137.html" title="23-Groovy脚本化"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">23-Groovy脚本化</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Groovy 脚本化能力覆盖运维自动化、数据处理与命令行工具。  1. 脚本与类的区别Groovy 脚本文件无需类声明，顶层语句直接执行。脚本编译为 Script 类，可以定义方法、变量与闭包。脚本适合快速任务与原型验证。 脚本到类的演进路径平滑：脚本逻辑稳定后可以重构为类与库。 2. 命令行脚本groovy 命令直接执行脚本，支持参数传递与返回退出码。shebang 行让 Unix 环境可以直接执行，配合 chmod 权限。 脚本开头用 #!&#x2F;usr&#x2F;bin&#x2F;env groovy，Windows 用 groovy 命令运行。 3. 参数与交互脚本通过 args 变量接收命令行参数，结合选项解析库处理命名参数。readLine 读取标准输入，实现交互式脚本。 参数校验与帮助输出提升脚本可用性，错误处理输出明确信息并返回非零退出码。 4. 数据处理脚本脚本配合集合高阶函数、正则、JSON&#x2F;XML 模块可以快速处理文件与接口数据：日志聚合、报表生成、数据清洗、格式转换。 批处理脚本用 eachFile 遍历目录、Jso...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1143600279.html" title="08-插件生态总览"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">08-插件生态总览</div></div><div class="info-2"><div class="info-item-1">插件生态总览 [!abstract] 一句话Obsidian 像 Chrome 和 VS Code：本体只是底座，插件才决定上限——但装得越多越要克制，最小可用集才是可持续的生态策略。  插件的双层结构Obsidian 的功能分两层提供：  核心插件：官方内置、可逐个开关的功能模块，包括文件恢复、日记、模板、标签面板、大纲、图谱、命令面板、搜索、白板（Canvas）、幻灯片、Bases（1.9.10+）等。核心插件默认大部分关闭，在 设置 → 核心插件 中按需开启； 社区插件：第三方开发者贡献的扩展，通过官方市场分发，数量已达数千款，覆盖查询、任务、绘图、同步、发布、AI 等几乎所有想象得到的场景。  判断一件事该找哪一层：基础体验类的功能先翻核心插件列表（很多人不知道白板、幻灯片、Bases 都是自带的），确认没有再上社区插件。 安装社区插件标准流程： 12341. 设置 → 第三方插件 → 关闭&quot;受限模式&quot;（旧称安全模式）2. 点击&quot;浏览&quot;打开社区插件市场3. 搜索插件名 → 安装 → 启用4. 进入该插件的设置页按需配置  离线或内网...</div></div></div></a><a class="pagination-related" href="/posts/2435891588.html" title="11-任务与看板管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">11-任务与看板管理</div></div><div class="info-2"><div class="info-item-1">任务与看板管理 [!abstract] 一句话Tasks 负责聚合查询、Kanban 负责可视化推进、QuickAdd 负责快速捕获——三个插件各司其职又互相咬合，让你在纯 Markdown 笔记库里跑出一套 GTD 级任务系统。  Tasks：让全库任务可查询Tasks 插件的核心思想是：任务可以写在任何笔记里（不必集中在一处），然后用查询块把它们聚合起来。任务就是普通的 Markdown 复选框 - [ ]，配合 emoji 属性标记日期、优先级和重复规则： 1- [ ] 提交项目提案 📅 2025-04-01 ⏫ 🔁 every week  常用属性：📅 截止日期（due）、🛫 开始日期（start）、✅ 完成日期（completion）、⏫&#x2F;🔼&#x2F;🔽 优先级、🔁 重复规则。完成一个带重复规则的任务时，Tasks 会自动标记完成并生成下一期的任务。 在任意笔记中插入 ```tasks 查询块即可动态汇总： 12345```tasks未完成(截止日期 today) OR (计划日期 today)按优先级 倒序排序```  再配一个”逾期未完成”...</div></div></div></a><a class="pagination-related" href="/posts/1965898256.html" title="15-表格与数据管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">15-表格与数据管理</div></div><div class="info-2"><div class="info-item-1">表格与数据管理 [!abstract] 一句话表格痛点分四层：写表格难（Advanced Tables）、要数据库视图（Notion-like Tables &#x2F; DB Folder）、属性管理乱（Metadata Menu &#x2F; Metatable）、文件散乱无序（Sortable）——本篇六件工具各解一层，并与官方 Bases 明确分工。  Advanced Tables：把 Markdown 表格写爽Markdown 表格的痛点是管道符对齐烦人、改一格全行乱。Advanced Tables 用三招解决：  自动格式化：首行输入 | 姓名 | 年龄 | 按回车，自动补全分隔行；编辑中实时对齐列宽，也可 Shift+Alt+F 手动触发 键盘导航：Tab&#x2F;Shift+Tab 在单元格间跳转，Enter 换行，Alt+Enter 插入行、Alt+Shift+方向键移动行&#x2F;列——双手不用碰鼠标 实用附加：按列排序、简单公式（=B2*C2）、CSV 粘贴导入与导出、单元格内支持 链接 和 Markdown 格式  一个项目跟踪表示例： 1234| ...</div></div></div></a><a class="pagination-related" href="/posts/1275438752.html" title="12-Excalidraw与图表可视化"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">12-Excalidraw与图表可视化</div></div><div class="info-2"><div class="info-item-1">Excalidraw与图表可视化 [!abstract] 一句话思考需要画图，数据需要画图，结构也需要画图——Excalidraw、Charts 与 Mindmap Nextgen 分别覆盖手绘白板、数据图表和思维导图三类可视化需求，让笔记从线性文本升级为多维表达。  Excalidraw：知识库里的手绘白板Excalidraw 把风靡设计圈的手绘风格白板搬进了 Obsidian。安装后通过命令面板 “Excalidraw: Create new” 新建画布，即可使用矩形、圆形、箭头、文本等工具自由绘制流程图、示意图和概念草图。 核心操作：  导航：拖动平移画布，滚轮缩放；”Fit to screen” 一键回到全景 编辑：双击元素进入编辑，F2 快速改名，Delete 删除；删除父元素会连带子元素 连接线：用连接工具把元素连起来，拖动元素时连线自动跟随 导出：支持 PNG&#x2F;SVG&#x2F;PDF，可设置背景、边框与分辨率  Excalidraw 最大的特点是与笔记双向打通：可以在画布中嵌入 笔记链接 并点击跳转，也可以把画布作为元素嵌入普通笔记；反过来，选中文本右键...</div></div></div></a><a class="pagination-related" href="/posts/1862910963.html" title="01-Obsidian简介与安装"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">01-Obsidian简介与安装</div></div><div class="info-2"><div class="info-item-1">Obsidian简介与安装 [!abstract] 一句话Obsidian 是一款”本地优先”的 Markdown 知识库软件：数据永远是属于你的纯文本文件，而双向链接、图谱与插件生态则把它变成一台思考机器。  Obsidian 是什么认知科学家史蒂芬·平克说过：”写作之难，在于将网状的思想，通过树状的句法，用线性的文字展开。”传统的文件夹笔记是树状甚至线性的，而人的思考是网状的。Obsidian 的价值正在于此：它把每篇笔记当作一张卡片，通过链接把卡片织成网络，这就是经典的卡片盒笔记法（Zettelkasten）在数字时代的落地。 与 Notion、语雀这类云端笔记相比，Obsidian 有三个根本差异。第一是本地优先：所有笔记都是存储在本地文件夹里的 .md 纯文本文件，不依赖任何服务器，软件停更了你的数据也还在；第二是可组合：它像 Chrome 和 VS Code 一样，开箱即用，又能通过插件无限扩展；第三是快：因为文件完全本地化，切换笔记几乎没有加载延迟，上下文切换极其流畅。  [!note] 2026 更新截至 2026 年，Obsidian 桌面版已更新至 1.13....</div></div></div></a><a class="pagination-related" href="/posts/3424778452.html" title="03-笔记组织与文件夹"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">03-笔记组织与文件夹</div></div><div class="info-2"><div class="info-item-1">笔记组织与文件夹 [!abstract] 一句话在 Obsidian 里，文件夹只是组织维度之一：让文件夹管”东西放在哪”，让双链与标签管”东西之间什么关系”。  文件夹、双链、标签各管一段从传统笔记软件迁移过来的用户，最容易犯的错误是把 Obsidian 当成”文件夹整理器”，在层级目录里反复纠结。正确的分工是三层：  文件夹：物理归类，一篇笔记只有一个位置。适合按”领域&#x2F;项目&#x2F;归档”划分大块； 双链：逻辑关联，把散落的笔记织成语义网络，不受目录限制； 标签：横向维度，跨目录叠加状态、类型等属性，详见 05-属性元数据与标签。  一句话原则：文件夹管物理位置，双链管逻辑关系。纠结”这篇笔记该放哪个文件夹”时，先问自己它和哪些笔记有关，用链接表达关系，文件夹只给一个粗粒度的家。 一份可直接套用的目录结构123456789Vault/├── 00-收件箱/          # 快速记录，待整理├── 01-项目/            # 有明确截止目标的事├── 02-领域/            # 长期职责范围（编程、写作、健康）├── 03-资源/  ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96%E4%B8%8E%E7%89%88%E6%9C%AC%E7%AE%A1%E7%90%86"><span class="toc-number">1.</span> <span class="toc-text">性能优化与版本管理</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%90%AF%E5%8A%A8%E4%BC%9A%E5%8F%98%E6%85%A2"><span class="toc-number">1.1.</span> <span class="toc-text">为什么启动会变慢</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9F%BA%E7%A1%80%E4%BC%98%E5%8C%96%E7%AD%96%E7%95%A5"><span class="toc-number">1.2.</span> <span class="toc-text">基础优化策略</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#FastStart-%E8%84%9A%E6%9C%AC%EF%BC%9A%E5%88%86%E9%98%B6%E6%AE%B5%E5%BB%B6%E8%BF%9F%E5%8A%A0%E8%BD%BD"><span class="toc-number">1.3.</span> <span class="toc-text">FastStart 脚本：分阶段延迟加载</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%89%88%E6%9C%AC%E7%AE%A1%E7%90%86%EF%BC%9AObsidian-Git"><span class="toc-number">1.4.</span> <span class="toc-text">版本管理：Obsidian Git</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%96%87%E4%BB%B6%E7%BA%A7%E7%89%88%E6%9C%AC%E5%8E%86%E5%8F%B2%EF%BC%9AVersion-History-Diff"><span class="toc-number">1.5.</span> <span class="toc-text">文件级版本历史：Version History Diff</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%9B%91%E6%8E%A7%E4%B8%8E%E7%BB%B4%E6%8A%A4%E8%8A%82%E5%A5%8F"><span class="toc-number">1.6.</span> <span class="toc-text">监控与维护节奏</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-10-30T16:00:00.000Z" title="发表于 2026-10-31 00:00:00">2026-10-31</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
