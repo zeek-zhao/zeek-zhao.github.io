@@ -1,0 +1,589 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>04-动态类型与类型系统 | Zeek 的 AI 知识工程</title><meta name="author" content="Zeek Zhao"><meta name="copyright" content="Zeek Zhao"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Groovy 变量在运行时持有真实类型，def 声明只是不指定类型而非无类型。方法调用基于运行时类型动态分发，这就是多态的基础。动态类型让代码灵活，但类型错误延迟到运行时才暴露。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="04-动态类型与类型系统">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1893677660.html">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:description" content="Groovy 变量在运行时持有真实类型，def 声明只是不指定类型而非无类型。方法调用基于运行时类型动态分发，这就是多态的基础。动态类型让代码灵活，但类型错误延迟到运行时才暴露。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://zeek-zhao.github.io/img/avatar.svg">
+<meta property="article:published_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-24T16:00:00.000Z">
+<meta property="article:author" content="Zeek Zhao">
+<meta property="article:tag" content="groovy">
+<meta property="article:tag" content="语言">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/avatar.svg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "04-动态类型与类型系统",
+  "url": "https://zeek-zhao.github.io/posts/1893677660.html",
+  "image": "https://zeek-zhao.github.io/img/avatar.svg",
+  "datePublished": "2026-10-24T16:00:00.000Z",
+  "dateModified": "2026-10-24T16:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Zeek Zhao",
+      "url": "https://zeek-zhao.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://zeek-zhao.github.io/posts/1893677660.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.2"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        try {
+          const data = { value }
+
+          if (ttl != null) {
+            data.expiry = Date.now() + ttl * 86400000
+          }
+
+          localStorage.setItem(key, JSON.stringify(data))
+        } catch (e) {
+          console.error(e)
+        }
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.1/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '04-动态类型与类型系统',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css"><link rel="stylesheet" href="/css/archive-refine.css"><link rel="stylesheet" href="/css/top-search.css"><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Zeek 的 AI 知识工程</span></a><a class="nav-page-title" href="/"><span class="site-name">04-动态类型与类型系统</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/posts/2919529784.html"><i class="fa-fw fas fa-link"></i><span> 短链映射</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">04-动态类型与类型系统</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/groovy/">groovy</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>[!info] 本节目标<br>掌握 Groovy 的类型模型，理解动态语言的类型行为。</p>
+</blockquote>
+<h2 id="1-动态类型"><a href="#1-动态类型" class="headerlink" title="1. 动态类型"></a>1. 动态类型</h2><p>Groovy 变量在运行时持有真实类型，def 声明只是不指定类型而非无类型。方法调用基于运行时类型动态分发，这就是多态的基础。动态类型让代码灵活，但类型错误延迟到运行时才暴露。</p>
+<p>理解动态类型的关键是区分声明期与运行期：声明期不做检查，运行期对象方法必须真实存在，否则抛出 MissingMethodException。</p>
+<h2 id="2-类型推断"><a href="#2-类型推断" class="headerlink" title="2. 类型推断"></a>2. 类型推断</h2><p>Groovy 3+ 引入静态类型推断，局部变量可以通过显式类型声明获得编译期检查。配合 @TypeChecked 注解，可以按需开启静态检查，兼顾动态灵活与静态安全。</p>
+<p>@CompileStatic 注解让代码在编译期完成类型绑定，显著提升性能，适合对性能敏感的核心逻辑。</p>
+<h2 id="3-鸭子类型"><a href="#3-鸭子类型" class="headerlink" title="3. 鸭子类型"></a>3. 鸭子类型</h2><p>Groovy 遵循鸭子类型哲学：对象只要实现所需方法就能被使用，无需实现特定接口。这让测试替身、动态代理与适配器模式实现极其简单。</p>
+<p>鸭子类型与接口互为补充：接口用于契约约束，鸭子类型用于快速组合。大型项目中两者结合使用。</p>
+<h2 id="4-类型转换"><a href="#4-类型转换" class="headerlink" title="4. 类型转换"></a>4. 类型转换</h2><p>asType 方法实现显式类型转换，如对象 as String、列表 as Set。Groovy 在赋值与参数传递时自动尝试类型转换，数字到字符串、字符串到数字等常见转换自动完成。</p>
+<p>集合类型转换常用：List 转 Set 去重，Map 转自定义对象，数组转 List 等。转换失败会抛出 ClassCastException。</p>
+<h2 id="5-泛型与擦除"><a href="#5-泛型与擦除" class="headerlink" title="5. 泛型与擦除"></a>5. 泛型与擦除</h2><p>Groovy 支持泛型语法，但运行时擦除与 Java 一致。动态调用时泛型边界由运行时对象实际类型决定，@CompileStatic 下泛型检查更严格。</p>
+<p>与 Java 集合互操作时注意泛型擦除问题，必要时显式转换。</p>
+<h2 id="6-类型系统实践建议"><a href="#6-类型系统实践建议" class="headerlink" title="6. 类型系统实践建议"></a>6. 类型系统实践建议</h2><p>脚本与测试代码优先利用动态特性提升效率；库与框架 API 建议提供显式类型或使用 @TypeChecked 保护边界；性能关键路径使用 @CompileStatic。</p>
+<p>团队约定：动态代码配足测试，确保运行时类型行为符合预期；IDE 的类型提示能帮助发现大部分笔误。</p>
+<p><em>上一篇：<a href="/posts/1972862518.html">03-语法基础</a>　下一篇：<a href="/posts/2263298668.html">05-闭包基础</a></em><br><em>（内容由AI生成，仅供参考）</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io">Zeek Zhao</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://zeek-zhao.github.io/posts/1893677660.html">https://zeek-zhao.github.io/posts/1893677660.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://zeek-zhao.github.io" target="_blank">Zeek 的 AI 知识工程</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/groovy/">groovy</a><a class="post-meta__tags" href="/tags/%E8%AF%AD%E8%A8%80/">语言</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.svg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/3578305145.html" title="04-双向链接与图谱"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">04-双向链接与图谱</div></div><div class="info-2"><div class="info-item-1">双向链接与图谱 [!abstract] 一句话双向链接让”引用”变成一条有来有回的路，图谱则把整座知识网络摊开在你眼前——这是 Obsidian 区别于传统笔记软件的灵魂功能。  双链的本质在笔记 A 中写下 B 时，Obsidian 同时记录了两个方向的信息：  出链（outgoing link）：A 指向 B，这是你亲手写下的； 入链（incoming link &#x2F; backlink）：B 的反向链接面板里自动出现 A，无需任何额外操作。  所谓”双向”，就是链接关系被系统自动反向记录。传统笔记里”A 提到了 B”这件事只有 A 知道；在 Obsidian 里，B 也永远知道谁在引用自己。积累一段时间后，你得到的不是一堆文档，而是一张知识网络——每篇笔记都是网络上的一个节点。 建立双链的五种方式123451. 手动输入：笔记名，输入时自动补全（最常用）2. 命令面板：Ctrl+P → 搜索&quot;插入链接&quot;3. 拖拽：从左侧文件列表把文件拖进编辑器，自动生成链接4. 反向链接面板：Unlinked mentions 区域一键把&quot;提及但未链接&...</div></div></div></a><a class="pagination-related" href="/posts/1972862518.html" title="03-语法基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">03-语法基础</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标快速掌握 Groovy 的语法骨架，为后续特性学习打基础。  1. 变量与类型Groovy 使用 def 声明变量，类型由赋值推断，也可以显式声明类型。变量分为局部变量、字段与属性，属性通过 getter&#x2F;setter 自动生成。基本类型在 Groovy 中自动装箱，数值运算与 Java 行为基本一致。 Groovy 是动态语言，变量可以在运行时改变类型，这带来灵活性的同时要求开发者注意运行时类型。 2. 字符串与文本Groovy 支持多种字符串形式：单引号普通字符串、双引号 GString（可插值）、三引号多行字符串、斜杠字符串用于正则。插值语法让文本拼接简洁直观，是 Groovy 最受欢迎的语法糖之一。 多行字符串常用于模板文本与文档字符串，斜杠字符串让正则表达式不再需要大量转义。 3. 运算符Groovy 运算符在 Java 基础上扩展：Elvis 运算符提供简洁的空值默认值，安全导航避免空指针，展开运算符批量调用方法，范围运算符生成区间，飞船运算符实现三向比较。 运算符还可以重载，让自定义类型获得自然的运算语义。优先级与 Java 一致...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/264025632.html" title="10-trait与特性"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">10-trait与特性</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标trait 是 Groovy 提供的行为复用机制，学习定义、混入与状态管理。  1. trait 基本概念trait 是 Groovy 的行为复用单元，类似接口但可以包含方法实现与字段。类通过 implements 混入 trait，获得其全部行为，避免多重继承的菱形问题。 trait 编译为接口加默认方法，与 Java 8 接口默认方法机制兼容，Java 类也可以实现 Groovy trait。 2. 定义与混入trait 用关键字定义，内部可以有抽象方法、实现方法与属性。多个 trait 可以同时混入，冲突方法按声明顺序或显式 override 解决。 混入后类自动获得 trait 的方法与状态，可以重写 trait 方法实现定制行为。 3. 状态与字段trait 可以声明字段，混入类自动获得对应状态。字段访问遵循属性机制，生成 getter 与 setter。 注意 trait 字段的初始化时机与混入类的构造顺序，避免依赖未初始化的状态。 4. trait 与接口对比接口只能声明抽象方法，trait 可以提供实现与状态。需要纯契约时用接口，需要共享...</div></div></div></a><a class="pagination-related" href="/posts/1678134708.html" title="40-实战项目"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">40-实战项目</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标实战项目整合前面所有知识，学习从需求到交付的完整流程。  1. 项目概述实战项目：开发一个基于 Groovy 的命令行数据处理工具，支持读取结构化数据、清洗转换、生成报告并支持插件扩展。项目整合脚本、集合、正则、IO、JSON、测试与构建全链路。 项目目标明确、范围可控，适合作为学习里程碑。 2. 需求与设计需求拆分为功能模块：数据读取、转换规则、报告生成、命令交互。模块边界清晰，接口稳定。 设计考虑扩展性：规则用 DSL 配置表达，插件机制开放扩展点。 3. 核心实现数据读取用 CSV&#x2F;JSON 解析；转换用闭包与高阶函数管道；报告用模板渲染；命令行交互用参数解析库。 实现过程运用 GDK 方法与 GString 减少样板代码，关键逻辑配 @CompileStatic 优化。 4. 测试与验证用 Spock 编写单元测试覆盖各模块：解析边界、转换规则、报告输出。Mock 隔离外部依赖。 数据驱动测试覆盖规则组合，集成测试验证端到端流程。 5. 构建与发布Gradle 管理构建：依赖声明、测试执行、可执行 jar 打包。发布脚本部署到目标环境。...</div></div></div></a><a class="pagination-related" href="/posts/2282500807.html" title="01-Groovy简介与特性"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">01-Groovy简介与特性</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标理解 Groovy 是什么、为什么需要它，以及它在 JVM 生态中的位置。  1. 语言定位Apache Groovy 是一种运行在 JVM 上的动态语言，语法与 Java 高度兼容，但对开发者更友好。它既可以作为脚本语言快速完成任务，也可以作为完整的编程语言构建大型应用。Groovy 由 Apache 软件基金会维护，是 JVM 生态中最受欢迎的动态语言之一。 Groovy 的设计目标可以用三个词概括：简洁、可读、富有表现力。它保留了 Java 开发者熟悉的语法结构，同时加入闭包、动态类型、元编程等特性，让代码更短、更直观。 2. 核心特性动态类型与类型推断让变量声明更灵活，def 关键字即可定义任意类型的变量。闭包作为一等公民，可以轻松实现集合操作、回调与 DSL。GString 提供字符串插值能力，让文本拼接更自然。操作符重载与安全导航运算符简化了日常编码。 运行时元编程与编译时 AST 转换是 Groovy 最强大的能力，可以在不修改源码的情况下增强类与方法。trait 提供了类似多继承的混入机制，静态编译选项则兼顾了动态灵活性与性能。 3. 与...</div></div></div></a><a class="pagination-related" href="/posts/1914309065.html" title="21-Groovy与Gradle构建"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">21-Groovy与Gradle构建</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Gradle 是 Groovy 生态的核心构建工具，学习构建脚本与项目配置。  1. Gradle 与 Groovy 的关系Gradle 是 JVM 生态的构建自动化工具，构建脚本默认使用 Groovy DSL（build.gradle），Groovy 开发者对构建脚本零学习成本。 Gradle 支持 Groovy 与 Kotlin 两种 DSL，Groovy DSL 更简洁灵活，适合脚本化构建逻辑。 2. 初始化 Groovy 项目gradle init 生成项目骨架，选择 Groovy 应用或库模板。标准布局包含 src&#x2F;main&#x2F;groovy 与 src&#x2F;test&#x2F;groovy 目录。 build.gradle 配置插件、依赖与任务，settings.gradle 配置项目名称与仓库。 3. Groovy 插件应用 groovy 插件启用 Groovy 编译支持，联合 java 插件管理源码集。compileGroovy 任务编译 Groovy 源码，与 Java 源码联合编译。 groovydoc 任务生成...</div></div></div></a><a class="pagination-related" href="/posts/1109974885.html" title="20-数据库访问"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">20-数据库访问</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标Groovy 简化 JDBC 访问，学习数据库操作与查询 DSL。  1. JDBC 基础Groovy 使用 java.sql 驱动连接数据库，Sql 类封装连接与查询。加载驱动、建立连接、执行 SQL 与 Java 流程一致但代码更短。 Sql.withInstance 管理连接生命周期，自动关闭资源。 2. Sql 查询Sql 的 rows 方法执行查询返回行列表，eachRow 逐行处理。查询结果行为 Map 或对象，列名直接访问。 参数化查询用问号占位符或命名参数，避免 SQL 注入，是数据库访问的铁律。 3. 增删改操作executeInsert 返回生成的主键，executeUpdate 执行更新删除，execute 执行任意 SQL。批量操作用 withBatch 提升性能。 事务管理通过 withTransaction 包裹，保证一致性。 4. 存储过程与函数Sql 支持调用存储过程与函数，通过 CallableStatement 传参与取返回。复杂业务逻辑封装在数据库时配合使用。 存储过程返回结果集与输出参数的处理要仔细验证。 5. 与...</div></div></div></a><a class="pagination-related" href="/posts/73439704.html" title="16-分类与扩展"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-25</div><div class="info-item-2">16-分类与扩展</div></div><div class="info-2"><div class="info-item-1"> [!info] 本节目标学习为现有类型添加方法的两条路径：运行时 Category 与编译期扩展。  1. 分类机制Category 是 Groovy 提供的临时扩展机制，将静态方法包装为实例方法应用到目标类型。使用 use 块限定作用范围，退出后即失效。 Category 适合局部、临时的行为增强，不影响全局行为，避免污染。 2. 定义 Category定义类，其静态方法的第一个参数为被扩展类型，后续参数为方法参数。use 块内目标类型即可调用这些方法。 例如为 String 定义统计方法、为 List 定义业务转换方法，在 use 块内直接调用。 3. 扩展模块扩展模块（Extension Module）通过 META-INF 服务描述符注册，为类型添加全局方法。分为实例扩展与静态扩展两类。 实例扩展方法第一个参数为目标实例，静态扩展用于添加类级别方法。扩展模块随 jar 分发，使用无感。 4. 扩展方法的查找顺序扩展方法在 GDK 方法与具体方法之后解析，多个扩展模块冲突时按类加载顺序。理解查找顺序避免行为覆盖困惑。 扩展方法也是动态分发的一部分，方法名冲突时优先具体方法...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.svg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Zeek Zhao</div><div class="author-info-description">用 AI 跑一条内容流水线</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">1222</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">679</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">47</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zeek-zhao"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zeek-zhao" target="_blank" title="fab fa-github"><i class="Github"></i></a><a class="social-icon" href="mailto:zeek.zhao@foxmail.com" target="_blank" title="fas fa-envelope"><i class="Email"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Personal Blog.</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E5%8A%A8%E6%80%81%E7%B1%BB%E5%9E%8B"><span class="toc-number">1.</span> <span class="toc-text">1. 动态类型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E7%B1%BB%E5%9E%8B%E6%8E%A8%E6%96%AD"><span class="toc-number">2.</span> <span class="toc-text">2. 类型推断</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E9%B8%AD%E5%AD%90%E7%B1%BB%E5%9E%8B"><span class="toc-number">3.</span> <span class="toc-text">3. 鸭子类型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E7%B1%BB%E5%9E%8B%E8%BD%AC%E6%8D%A2"><span class="toc-number">4.</span> <span class="toc-text">4. 类型转换</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E6%B3%9B%E5%9E%8B%E4%B8%8E%E6%93%A6%E9%99%A4"><span class="toc-number">5.</span> <span class="toc-text">5. 泛型与擦除</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E7%B1%BB%E5%9E%8B%E7%B3%BB%E7%BB%9F%E5%AE%9E%E8%B7%B5%E5%BB%BA%E8%AE%AE"><span class="toc-number">6.</span> <span class="toc-text">6. 类型系统实践建议</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2919529784.html" title="文章短链映射">文章短链映射</a><time datetime="2026-11-06T16:00:00.000Z" title="发表于 2026-11-07 00:00:00">2026-11-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2282500807.html" title="01-Groovy简介与特性">01-Groovy简介与特性</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1955208098.html" title="01-Hexo简介与核心概念">01-Hexo简介与核心概念</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1862910963.html" title="01-Obsidian简介与安装">01-Obsidian简介与安装</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2818472804.html" title="01-百度Apollo概述与生态">01-百度Apollo概述与生态</a><time datetime="2026-10-24T16:00:00.000Z" title="发表于 2026-10-25 00:00:00">2026-10-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By Zeek Zhao</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.2</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.2"></script><script src="/js/main.js?v=5.7.2"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners and stale content before re-rendering
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      const oldError = item.querySelector('.mermaid-error')
+      if (oldError) oldError.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (false) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script src="/js/top-search.js"></script><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
