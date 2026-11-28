@@ -1,0 +1,2083 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>05-根文件系统类型与构建方法 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="很多人把根文件系统当成一个笼统的词，但真正动手时你会发现，它既可以指根目录 / 下那一堆目录，也可以指内存里的 initramfs、Flash 上的 UBIFS，甚至远程的 NFS。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/3140138007.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="05-根文件系统类型与构建方法">
+<meta property="og:description" content="很多人把根文件系统当成一个笼统的词，但真正动手时你会发现，它既可以指根目录 / 下那一堆目录，也可以指内存里的 initramfs、Flash 上的 UBIFS，甚至远程的 NFS。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3140138007.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="05-根文件系统类型与构建方法">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-16T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="操作系统与机器人">
+          <div class="sg-head">
+            <span>🤖</span><span>操作系统与机器人</span><span class="cnt">447 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Linux">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/" class=""><span>🐧</span><span>Linux</span><span class="cnt">129</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Linux 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1681936644.html" class="">01-EC20模块4G拨号与GPS定位开发</a>
+                  
+                    <a href="/posts/4083254943.html" class="">01-Linux安全子系统访问控制与隔离</a>
+                  
+                    <a href="/posts/2415137652.html" class="">01-Linux常用命令速查</a>
+                  
+                    <a href="/posts/533232104.html" class="">01-U-Boot基础与启动流程</a>
+                  
+                    <a href="/posts/3075951192.html" class="">01-Systemd核心组件架构与功能</a>
+                  
+                    <a href="/posts/228001063.html" class="">01-基础工具排查内存泄漏</a>
+                  
+                    <a href="/posts/2735785623.html" class="">01-工业控制器软硬件测试方案</a>
+                  
+                    <a href="/posts/419018602.html" class="">01-裸机开发流程与硬件操控</a>
+                  
+                    <a href="/posts/1072254920.html" class="">02-Linux系统网络配置方法与排障</a>
+                  
+                    <a href="/posts/299621239.html" class="">02-Linux电源管理子系统架构与调优</a>
+                  
+                    <a href="/posts/1221451.html" class="">02-U-Boot新板移植适配流程</a>
+                  
+                    <a href="/posts/4128798125.html" class="">02-systemd-analyze启动性能分析</a>
+                  
+                    <a href="/posts/3888100408.html" class="">02-内核功能与模块管理命令</a>
+                  
+                    <a href="/posts/1471709349.html" class="">02-外设接口测试指南</a>
+                  
+                    <a href="/posts/609416877.html" class="">02-嵌入式开发板硬件接口速查</a>
+                  
+                    <a href="/posts/711801502.html" class="">02-磁盘与文件系统管理</a>
+                  
+                    <a href="/posts/2990991122.html" class="">03-Linux进程管理调度与IPC机制</a>
+                  
+                    <a href="/posts/2680037132.html" class="">03-U-Boot源码结构与启动流程</a>
+                  
+                    <a href="/posts/101579121.html" class="">03-mmap内存映射原理与驱动实现</a>
+                  
+                    <a href="/posts/4216171518.html" class="">03-systemd服务配置与管理</a>
+                  
+                    <a href="/posts/2319334978.html" class="">03-内核基础编译与模块开发</a>
+                  
+                    <a href="/posts/3923580784.html" class="">03-各类工具代理配置</a>
+                  
+                    <a href="/posts/3161741332.html" class="">03-开发板SSH默认端口修改与安全连接</a>
+                  
+                    <a href="/posts/3641886687.html" class="">03-网络测试指南</a>
+                  
+                    <a href="/posts/3785836924.html" class="">04-systemd核心概念与基础</a>
+                  
+                    <a href="/posts/3734120973.html" class="">04-内存管理子系统的层次与机制</a>
+                  
+                    <a href="/posts/972888713.html" class="">04-内核编译与模块功能定制</a>
+                  
+                    <a href="/posts/3751178843.html" class="">04-开发板Linux下修改MAC地址</a>
+                  
+                    <a href="/posts/1112658189.html" class="">04-根文件系统开发实践</a>
+                  
+                    <a href="/posts/1854171497.html" class="">04-芯片四大组件性能测试与选型</a>
+                  
+                    <a href="/posts/262344998.html" class="">04-驱动开发概念分类与架构流程</a>
+                  
+                    <a href="/posts/1094537113.html" class="">05-IMA完整性测量架构与配置</a>
+                  
+                    <a href="/posts/2881050404.html" class="">05-kmemleak内核内存泄漏检测</a>
+                  
+                    <a href="/posts/1992174196.html" class="">05-systemd启动流程与机制</a>
+                  
+                    <a href="/posts/3908546189.html" class="">05-内核架构与子系统协作</a>
+                  
+                    <a href="/posts/3140138007.html" class="active">05-根文件系统类型与构建方法</a>
+                  
+                    <a href="/posts/2172472796.html" class="">05-音频设备测试与故障排查</a>
+                  
+                    <a href="/posts/2557508733.html" class="">05-驱动开发框架与通用子系统</a>
+                  
+                    <a href="/posts/862017958.html" class="">06-ICM20608六轴传感器驱动移植</a>
+                  
+                    <a href="/posts/4115811846.html" class="">06-Linux基础术语与核心概念</a>
+                  
+                    <a href="/posts/2015394678.html" class="">06-S3C2440时钟体系与寄存器配置</a>
+                  
+                    <a href="/posts/1758255262.html" class="">06-journald日志查询与管理</a>
+                  
+                    <a href="/posts/45575455.html" class="">06-mtrace内存泄漏分析技巧</a>
+                  
+                    <a href="/posts/3755082214.html" class="">06-内核同步机制与并发控制</a>
+                  
+                    <a href="/posts/3813382677.html" class="">07-Linux计划任务配置与选型</a>
+                  
+                    <a href="/posts/1886591968.html" class="">07-Linux设备驱动模型核心机制</a>
+                  
+                    <a href="/posts/3144201791.html" class="">07-Sanitizer内存泄漏分析</a>
+                  
+                    <a href="/posts/1893451115.html" class="">07-systemd架构与服务管理</a>
+                  
+                    <a href="/posts/992563292.html" class="">07-内核子系统总览</a>
+                  
+                    <a href="/posts/2252012541.html" class="">07-裸机点亮LED与GPIO寄存器操作</a>
+                  
+                    <a href="/posts/2494136140.html" class="">08-Linux图像设备V4L2开发</a>
+                  
+                    <a href="/posts/2551125294.html" class="">08-TCMalloc内存分配器与内存泄漏分析</a>
+                  
+                    <a href="/posts/286299626.html" class="">08-网络协议与通信原理</a>
+                  
+                    <a href="/posts/2856475980.html" class="">08-裸机交叉编译工具链与链接脚本</a>
+                  
+                    <a href="/posts/423458188.html" class="">08-设备驱动模型与开发实践</a>
+                  
+                    <a href="/posts/4014961628.html" class="">09-Linux网卡流量统计工具选型与用法</a>
+                  
+                    <a href="/posts/4142321600.html" class="">09-Ubuntu2004禁止自动休眠的几种方式</a>
+                  
+                    <a href="/posts/1114536982.html" class="">09-内存管理基础</a>
+                  
+                    <a href="/posts/1702870561.html" class="">09-时间子系统原理与实现</a>
+                  
+                    <a href="/posts/729158944.html" class="">09-设备树DTS语法与内核解析</a>
+                  
+                    <a href="/posts/1720365042.html" class="">10-GPIO三种操作方式与设备树配置</a>
+                  
+                    <a href="/posts/1524901879.html" class="">10-Valgrind内存泄漏分析实战</a>
+                  
+                    <a href="/posts/683186726.html" class="">10-内存泄漏分析与定位流程</a>
+                  
+                    <a href="/posts/1370598446.html" class="">10-图形子系统架构与渲染栈</a>
+                  
+                    <a href="/posts/1626889410.html" class="">10-设备树架构与内核处理流程</a>
+                  
+                    <a href="/posts/1631881322.html" class="">11-CAN总线SocketCAN与CANopen开发</a>
+                  
+                    <a href="/posts/3507320406.html" class="">11-内存泄漏概念检测与修复</a>
+                  
+                    <a href="/posts/2395844944.html" class="">11-网络子系统架构与数据包流程</a>
+                  
+                    <a href="/posts/3827344601.html" class="">11-设备树开发流程与驱动实践</a>
+                  
+                    <a href="/posts/2542203250.html" class="">12-Flash驱动开发与MTD测试体系</a>
+                  
+                    <a href="/posts/3601506011.html" class="">12-嵌入式设备烧录与自动烧录SD卡</a>
+                  
+                    <a href="/posts/1249611102.html" class="">12-文件系统VFS架构与调优</a>
+                  
+                    <a href="/posts/3302243246.html" class="">12-设备树语法规则与节点属性</a>
+                  
+                    <a href="/posts/4232086438.html" class="">13-I2C协议与驱动开发调试</a>
+                  
+                    <a href="/posts/1745770341.html" class="">13-系统调用接口与陷入机制</a>
+                  
+                    <a href="/posts/3541193669.html" class="">13-设备树源码与内核实现</a>
+                  
+                    <a href="/posts/1932562151.html" class="">13-软件包管理工具与依赖排障</a>
+                  
+                    <a href="/posts/3679683762.html" class="">14-kmod工具集与内核模块管理</a>
+                  
+                    <a href="/posts/204754706.html" class="">14-内核调试工具与方法</a>
+                  
+                    <a href="/posts/337401038.html" class="">14-虚拟化子系统架构与实现</a>
+                  
+                    <a href="/posts/3619291073.html" class="">14-网络编程基础与高性能实践</a>
+                  
+                    <a href="/posts/30952159.html" class="">15-PWM子系统与三种开发方式</a>
+                  
+                    <a href="/posts/3428022739.html" class="">15-内核体系结构与学习路径</a>
+                  
+                    <a href="/posts/1156349833.html" class="">15-网络调试工具与防火墙配置</a>
+                  
+                    <a href="/posts/2084393826.html" class="">15-虚拟文件系统VFS架构与缓存</a>
+                  
+                    <a href="/posts/1492466562.html" class="">16-Linux网络基础与协议栈</a>
+                  
+                    <a href="/posts/1443612112.html" class="">16-RPMSG核间通信与开发流程</a>
+                  
+                    <a href="/posts/64163175.html" class="">16-中断处理子系统与上下半部</a>
+                  
+                    <a href="/posts/1662370678.html" class="">17-Linux网络配置与故障排查</a>
+                  
+                    <a href="/posts/3499888327.html" class="">17-RTC驱动与应用开发</a>
+                  
+                    <a href="/posts/1472071864.html" class="">17-内核子系统间交互与IPC机制</a>
+                  
+                    <a href="/posts/3375308729.html" class="">18-GPIO子系统与引脚控制架构</a>
+                  
+                    <a href="/posts/413524861.html" class="">18-Linux网络驱动与收发流程</a>
+                  
+                    <a href="/posts/1787716189.html" class="">18-Socket网络编程与粘包处理</a>
+                  
+                    <a href="/posts/2536056501.html" class="">19-SPI总线驱动与设备树配置</a>
+                  
+                    <a href="/posts/1043009254.html" class="">19-TTY子系统架构与驱动</a>
+                  
+                    <a href="/posts/2820206790.html" class="">19-以太网MAC与PHY接口</a>
+                  
+                    <a href="/posts/1783654330.html" class="">20-Linux文本处理命令与实战</a>
+                  
+                    <a href="/posts/4179949671.html" class="">20-UART串口驱动与RS485应用</a>
+                  
+                    <a href="/posts/865986603.html" class="">21-USB总线驱动框架与设备枚举</a>
+                  
+                    <a href="/posts/3847399252.html" class="">21-无线网络基础与部署排查</a>
+                  
+                    <a href="/posts/4143405040.html" class="">22-看门狗机制与软硬死锁检测</a>
+                  
+                    <a href="/posts/2990894265.html" class="">22-系统掉电保护与日志文件系统</a>
+                  
+                    <a href="/posts/3047565199.html" class="">23-Linux用户与组权限管理</a>
+                  
+                    <a href="/posts/4251339438.html" class="">23-WiFi模块PEB-WLBT-01配置与排障</a>
+                  
+                    <a href="/posts/3144456274.html" class="">24-环境变量修改与生效方法</a>
+                  
+                    <a href="/posts/2406993733.html" class="">25-ADC基础知识与工程实现</a>
+                  
+                    <a href="/posts/901317427.html" class="">26-ADB设备调试命令指南</a>
+                  
+                    <a href="/posts/970239254.html" class="">27-ARM-DSP-FPGA技术对比</a>
+                  
+                    <a href="/posts/1599150771.html" class="">28-awk文本处理与实战</a>
+                  
+                    <a href="/posts/1554852273.html" class="">29-can总线协议与编程基础</a>
+                  
+                    <a href="/posts/3987772023.html" class="">30-diff与patch补丁实战</a>
+                  
+                    <a href="/posts/663676011.html" class="">Linux 技能总览与索引</a>
+                  
+                    <a href="/posts/212295555.html" class="">31-DMA工作原理与内核API</a>
+                  
+                    <a href="/posts/2335117280.html" class="">32-eMMC嵌入式存储原理与优化</a>
+                  
+                    <a href="/posts/3281658937.html" class="">33-Flash存储器原理与编程实例</a>
+                  
+                    <a href="/posts/449212517.html" class="">34-GPIO工作模式与寄存器控制</a>
+                  
+                    <a href="/posts/2802968252.html" class="">35-I2C总线协议与驱动编程</a>
+                  
+                    <a href="/posts/646183460.html" class="">36-I2S音频总线与时钟配置</a>
+                  
+                    <a href="/posts/3921515715.html" class="">37-iMX8处理器系列与型号对比</a>
+                  
+                    <a href="/posts/3676773691.html" class="">38-KVM架构与CPU内存中断虚拟化</a>
+                  
+                    <a href="/posts/2296163704.html" class="">39-xPico240网卡配置与固件升级</a>
+                  
+                    <a href="/posts/4048648752.html" class="">40-MMU地址转换与页表管理</a>
+                  
+                    <a href="/posts/3573195005.html" class="">41-RK平台开发流程与组件</a>
+                  
+                    <a href="/posts/1368966976.html" class="">42-Shell脚本编程与实用案例</a>
+                  
+                    <a href="/posts/3800580745.html" class="">43-SPI总线原理与驱动实战</a>
+                  
+                    <a href="/posts/4029932750.html" class="">44-UART串口原理与通信实战</a>
+                  
+                    <a href="/posts/3428875847.html" class="">45-USB固件开发全流程</a>
+                  
+                    <a href="/posts/1079176846.html" class="">46-USB总线协议与驱动开发基础</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="apollo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/apollo/" class=""><span>🚗</span><span>apollo</span><span class="cnt">62</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 apollo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2818472804.html" class="">01-百度Apollo概述与生态</a>
+                  
+                    <a href="/posts/452198409.html" class="">02-版本发展与架构演进</a>
+                  
+                    <a href="/posts/1132755144.html" class="">03-自动驾驶技术基础</a>
+                  
+                    <a href="/posts/260457831.html" class="">04-开发环境搭建（Docker）</a>
+                  
+                    <a href="/posts/3892420017.html" class="">05-源码编译与部署</a>
+                  
+                    <a href="/posts/4189053877.html" class="">06-核心模块总览</a>
+                  
+                    <a href="/posts/2291656538.html" class="">07-高精地图HD Map</a>
+                  
+                    <a href="/posts/1640301657.html" class="">08-定位模块</a>
+                  
+                    <a href="/posts/2974331331.html" class="">09-传感器接入（相机激光雷达毫米波）</a>
+                  
+                    <a href="/posts/1455150168.html" class="">10-CAN总线与车辆控制接口</a>
+                  
+                    <a href="/posts/2682517011.html" class="">11-Apollo Cyber RT框架</a>
+                  
+                    <a href="/posts/1297150334.html" class="">12-Cyber消息通信与组件开发</a>
+                  
+                    <a href="/posts/3060441397.html" class="">13-Apollo配置文件与参数</a>
+                  
+                    <a href="/posts/1643555401.html" class="">14-调试与可视化工具（DreamView）</a>
+                  
+                    <a href="/posts/1298984781.html" class="">15-感知模块总览与点云感知</a>
+                  
+                    <a href="/posts/2907166516.html" class="">16-感知模块-视觉感知</a>
+                  
+                    <a href="/posts/4078895387.html" class="">17-感知模块-雷达感知</a>
+                  
+                    <a href="/posts/2013834045.html" class="">18-传感器标定与坐标转换</a>
+                  
+                    <a href="/posts/3984938707.html" class="">19-预测模块</a>
+                  
+                    <a href="/posts/1834975411.html" class="">20-规划模块</a>
+                  
+                    <a href="/posts/4019786798.html" class="">21-决策模块与场景决策</a>
+                  
+                    <a href="/posts/122258190.html" class="">22-控制模块</a>
+                  
+                    <a href="/posts/3133762148.html" class="">23-车辆动力学基础</a>
+                  
+                    <a href="/posts/1453710074.html" class="">24-仿真平台与场景数据</a>
+                  
+                    <a href="/posts/2673778811.html" class="">25-Cyber启动系统详解</a>
+                  
+                    <a href="/posts/2526415752.html" class="">26-Cyber调度系统详解</a>
+                  
+                    <a href="/posts/2588802797.html" class="">27-Cyber时间系统与定时器</a>
+                  
+                    <a href="/posts/3670574823.html" class="">28-Cyber异步调用机制</a>
+                  
+                    <a href="/posts/3931639321.html" class="">29-Cyber数据系统详解</a>
+                  
+                    <a href="/posts/2442147404.html" class="">30-Cyber网络IO详解</a>
+                  
+                    <a href="/posts/789481480.html" class="">apollo 90-资料索引指南</a>
+                  
+                    <a href="/posts/4180254357.html" class="">apollo 00-索引</a>
+                  
+                    <a href="/posts/4241092442.html" class="">31-Cyber Transform与坐标变换</a>
+                  
+                    <a href="/posts/1946355615.html" class="">32-历史版本模块演进（2.0-5.0）</a>
+                  
+                    <a href="/posts/460001587.html" class="">33-车道级导航与决策</a>
+                  
+                    <a href="/posts/2878817428.html" class="">34-红绿灯感知与通行</a>
+                  
+                    <a href="/posts/3264947560.html" class="">35-泊车场景</a>
+                  
+                    <a href="/posts/3477625335.html" class="">36-高速场景</a>
+                  
+                    <a href="/posts/2091754220.html" class="">37-城市道路场景</a>
+                  
+                    <a href="/posts/3677233744.html" class="">38-端到端自动驾驶与大模型</a>
+                  
+                    <a href="/posts/3012449597.html" class="">39-车路协同与V2X</a>
+                  
+                    <a href="/posts/2752057546.html" class="">40-安全机制与冗余设计</a>
+                  
+                    <a href="/posts/143389874.html" class="">41-性能优化与车规级部署</a>
+                  
+                    <a href="/posts/2080454184.html" class="">42-实战：搭建Demo自动驾驶演示</a>
+                  
+                    <a href="/posts/1558901718.html" class="">43-常见问题排查</a>
+                  
+                    <a href="/posts/711159921.html" class="">45-SLAM概述与开发指南</a>
+                  
+                    <a href="/posts/519418161.html" class="">44-Apollo与ROS对比及生态互通</a>
+                  
+                    <a href="/posts/1474075229.html" class="">46-激光雷达技术原理与发展</a>
+                  
+                    <a href="/posts/1848584950.html" class="">47-激光雷达算法与Lidar模块详解</a>
+                  
+                    <a href="/posts/2562893149.html" class="">48-自动驾驶数据集总览</a>
+                  
+                    <a href="/posts/1294651885.html" class="">49-KITTI与Waymo数据集实战</a>
+                  
+                    <a href="/posts/2011272759.html" class="">50-仿真平台对比与Gazebo-LGSVL实战</a>
+                  
+                    <a href="/posts/1352878638.html" class="">51-深度学习基础与CNN</a>
+                  
+                    <a href="/posts/48707843.html" class="">52-PyTorch与自动驾驶实践</a>
+                  
+                    <a href="/posts/2665165307.html" class="">53-TensorFlow与Caffe2在自动驾驶中的应用</a>
+                  
+                    <a href="/posts/2511406057.html" class="">54-自动驾驶测试方法</a>
+                  
+                    <a href="/posts/1279187638.html" class="">55-标注工具与数据闭环</a>
+                  
+                    <a href="/posts/370472885.html" class="">56-自动驾驶云服务与基础设施</a>
+                  
+                    <a href="/posts/140110120.html" class="">57-自动驾驶操作系统</a>
+                  
+                    <a href="/posts/664493653.html" class="">58-自动驾驶运行时框架对比</a>
+                  
+                    <a href="/posts/1203635596.html" class="">59-自动驾驶学习资源与链接</a>
+                  
+                    <a href="/posts/2049739451.html" class="">60-Audio模块与扩展开发</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FreeRTOS">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/FreeRTOS/" class=""><span>⏱️</span><span>FreeRTOS</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FreeRTOS 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1571422233.html" class="">01-FreeRTOS简介与内核特性</a>
+                  
+                    <a href="/posts/1616849365.html" class="">02-任务管理与调度</a>
+                  
+                    <a href="/posts/2794860845.html" class="">03-任务创建与删除</a>
+                  
+                    <a href="/posts/1110013041.html" class="">04-任务状态机</a>
+                  
+                    <a href="/posts/45138943.html" class="">05-优先级与时间片</a>
+                  
+                    <a href="/posts/586549084.html" class="">06-队列</a>
+                  
+                    <a href="/posts/129125089.html" class="">07-信号量</a>
+                  
+                    <a href="/posts/2081041408.html" class="">08-互斥量与优先级反转</a>
+                  
+                    <a href="/posts/3205967530.html" class="">09-事件组</a>
+                  
+                    <a href="/posts/1094377116.html" class="">10-任务通知</a>
+                  
+                    <a href="/posts/1628705678.html" class="">11-流缓冲与消息缓冲</a>
+                  
+                    <a href="/posts/479641272.html" class="">12-软件定时器</a>
+                  
+                    <a href="/posts/3143395966.html" class="">13-内存管理</a>
+                  
+                    <a href="/posts/359640070.html" class="">14-中断管理与临界区</a>
+                  
+                    <a href="/posts/339821033.html" class="">15-Tick与时间管理</a>
+                  
+                    <a href="/posts/224362852.html" class="">16-内核裁剪配置</a>
+                  
+                    <a href="/posts/1572534698.html" class="">17-任务栈溢出检测</a>
+                  
+                    <a href="/posts/670312188.html" class="">18-低功耗与tickless</a>
+                  
+                    <a href="/posts/544846964.html" class="">19-多核SMP</a>
+                  
+                    <a href="/posts/1505843641.html" class="">20-FreeRTOS+TCP</a>
+                  
+                    <a href="/posts/2850073665.html" class="">21-CMSIS-RTOS适配</a>
+                  
+                    <a href="/posts/2762677009.html" class="">22-常见移植实践</a>
+                  
+                    <a href="/posts/574731705.html" class="">23-调试与跟踪</a>
+                  
+                    <a href="/posts/1113963761.html" class="">24-内存保护MPU</a>
+                  
+                    <a href="/posts/1361167341.html" class="">25-FreeRTOS与C++</a>
+                  
+                    <a href="/posts/3732453393.html" class="">26-队列集与流操作</a>
+                  
+                    <a href="/posts/3895620481.html" class="">27-实战项目入门</a>
+                  
+                    <a href="/posts/2560978280.html" class="">28-常见问题排查</a>
+                  
+                    <a href="/posts/3215440781.html" class="">29-任务通知进阶</a>
+                  
+                    <a href="/posts/2405586932.html" class="">30-中断安全编程</a>
+                  
+                    <a href="/posts/3652009953.html" class="">FreeRTOS 00-索引</a>
+                  
+                    <a href="/posts/1437498579.html" class="">FreeRTOS 90-资料索引指南</a>
+                  
+                    <a href="/posts/182118895.html" class="">31-内存管理进阶</a>
+                  
+                    <a href="/posts/517617803.html" class="">32-看门狗与可靠性</a>
+                  
+                    <a href="/posts/4097610364.html" class="">33-电源管理实战</a>
+                  
+                    <a href="/posts/918463786.html" class="">34-多核任务设计</a>
+                  
+                    <a href="/posts/316568827.html" class="">35-TCP网络实战</a>
+                  
+                    <a href="/posts/944546225.html" class="">36-外设驱动集成</a>
+                  
+                    <a href="/posts/276185314.html" class="">37-系统测试与验证</a>
+                  
+                    <a href="/posts/2845406665.html" class="">38-任务间通信模式</a>
+                  
+                    <a href="/posts/271812983.html" class="">39-安全与认证</a>
+                  
+                    <a href="/posts/2988932715.html" class="">40-高级主题展望</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros1">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros1/" class=""><span>🐢</span><span>ros1</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros1 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1845556343.html" class="">01-ROS1概述与生态</a>
+                  
+                    <a href="/posts/76272331.html" class="">02-ROS1安装与环境配置</a>
+                  
+                    <a href="/posts/985253049.html" class="">03-核心概念</a>
+                  
+                    <a href="/posts/4040033312.html" class="">04-工作空间与catkin构建</a>
+                  
+                    <a href="/posts/2100167891.html" class="">05-命令行工具</a>
+                  
+                    <a href="/posts/949416713.html" class="">06-话题通信</a>
+                  
+                    <a href="/posts/735184866.html" class="">07-服务通信</a>
+                  
+                    <a href="/posts/1658567558.html" class="">08-动作通信actionlib</a>
+                  
+                    <a href="/posts/3193113578.html" class="">09-参数服务器</a>
+                  
+                    <a href="/posts/951743246.html" class="">10-roscpp编程</a>
+                  
+                    <a href="/posts/3615205173.html" class="">11-rospy编程</a>
+                  
+                    <a href="/posts/2474828684.html" class="">12-tf坐标变换</a>
+                  
+                    <a href="/posts/510479535.html" class="">13-URDF机器人建模</a>
+                  
+                    <a href="/posts/3467326343.html" class="">14-rviz可视化</a>
+                  
+                    <a href="/posts/178034368.html" class="">15-Gazebo仿真</a>
+                  
+                    <a href="/posts/1047193066.html" class="">16-launch启动文件</a>
+                  
+                    <a href="/posts/1386748878.html" class="">17-自定义消息与srv</a>
+                  
+                    <a href="/posts/78293504.html" class="">18-日志与调试</a>
+                  
+                    <a href="/posts/3580172094.html" class="">19-常用传感器驱动</a>
+                  
+                    <a href="/posts/107634443.html" class="">20-机器人运动学基础</a>
+                  
+                    <a href="/posts/1090496406.html" class="">21-导航框架move_base</a>
+                  
+                    <a href="/posts/3445109373.html" class="">22-建图</a>
+                  
+                    <a href="/posts/774536357.html" class="">23-路径规划与避障</a>
+                  
+                    <a href="/posts/2139127442.html" class="">24-AMCL定位</a>
+                  
+                    <a href="/posts/1373317896.html" class="">25-视觉处理</a>
+                  
+                    <a href="/posts/2932687442.html" class="">26-语音交互</a>
+                  
+                    <a href="/posts/1912127119.html" class="">27-MoveIt机械臂控制</a>
+                  
+                    <a href="/posts/2602875264.html" class="">28-多机器人协同</a>
+                  
+                    <a href="/posts/616282562.html" class="">29-rosbridge与Web端</a>
+                  
+                    <a href="/posts/1820681443.html" class="">30-ROS与Docker</a>
+                  
+                    <a href="/posts/1838862059.html" class="">ros1 00-索引</a>
+                  
+                    <a href="/posts/1752376526.html" class="">ros1 90-资料索引指南</a>
+                  
+                    <a href="/posts/520426601.html" class="">31-ROS与嵌入式平台</a>
+                  
+                    <a href="/posts/1774912468.html" class="">32-ROS1与ROS2对比迁移</a>
+                  
+                    <a href="/posts/3778090335.html" class="">33-仿真场景搭建</a>
+                  
+                    <a href="/posts/3561607965.html" class="">34-常见问题排查</a>
+                  
+                    <a href="/posts/1451115071.html" class="">35-性能优化</a>
+                  
+                    <a href="/posts/1856851824.html" class="">36-产品化实践</a>
+                  
+                    <a href="/posts/3405034604.html" class="">37-插件机制与自定义工具</a>
+                  
+                    <a href="/posts/3819213526.html" class="">38-ROS生态常用库</a>
+                  
+                    <a href="/posts/1488454277.html" class="">39-实战：小车自主导航</a>
+                  
+                    <a href="/posts/1504338169.html" class="">40-实战：机械臂抓取</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros2">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros2/" class=""><span>🐢</span><span>ros2</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros2 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1204306053.html" class="">01-ROS2概述与生态</a>
+                  
+                    <a href="/posts/1039368075.html" class="">02-ROS2安装与环境配置</a>
+                  
+                    <a href="/posts/3950396837.html" class="">04-工作空间与colcon构建</a>
+                  
+                    <a href="/posts/3022531917.html" class="">08-动作通信</a>
+                  
+                    <a href="/posts/3927300417.html" class="">09-参数机制</a>
+                  
+                    <a href="/posts/3825548204.html" class="">10-rclcpp编程</a>
+                  
+                    <a href="/posts/3191786011.html" class="">11-rclpy编程</a>
+                  
+                    <a href="/posts/3441056145.html" class="">12-生命周期节点</a>
+                  
+                    <a href="/posts/3898278822.html" class="">13-自定义消息接口</a>
+                  
+                    <a href="/posts/742500733.html" class="">14-执行器与回调组</a>
+                  
+                    <a href="/posts/201369509.html" class="">15-tf2坐标变换</a>
+                  
+                    <a href="/posts/1182880406.html" class="">16-URDF与xacro建模</a>
+                  
+                    <a href="/posts/1106872961.html" class="">17-rviz2可视化</a>
+                  
+                    <a href="/posts/2049131804.html" class="">18-Gazebo与Ignition仿真</a>
+                  
+                    <a href="/posts/3503988486.html" class="">19-launch系统</a>
+                  
+                    <a href="/posts/3559813711.html" class="">20-日志与调试工具</a>
+                  
+                    <a href="/posts/2378366256.html" class="">21-常用传感器驱动</a>
+                  
+                    <a href="/posts/2969019117.html" class="">22-导航2框架</a>
+                  
+                    <a href="/posts/2928992651.html" class="">23-SLAM建图</a>
+                  
+                    <a href="/posts/1486087179.html" class="">24-路径规划与避障</a>
+                  
+                    <a href="/posts/3827643133.html" class="">25-AMCL定位</a>
+                  
+                    <a href="/posts/767168211.html" class="">26-视觉处理</a>
+                  
+                    <a href="/posts/868393764.html" class="">27-语音交互</a>
+                  
+                    <a href="/posts/711846815.html" class="">28-MoveIt2机械臂控制</a>
+                  
+                    <a href="/posts/4265837254.html" class="">29-多机器人协同</a>
+                  
+                    <a href="/posts/1138612136.html" class="">30-rosbridge与Web端</a>
+                  
+                    <a href="/posts/4101548266.html" class="">ros2 00-索引</a>
+                  
+                    <a href="/posts/381645954.html" class="">ros2 03-核心概念</a>
+                  
+                    <a href="/posts/1488323843.html" class="">ros2 05-命令行工具</a>
+                  
+                    <a href="/posts/344998706.html" class="">ros2 06-话题通信</a>
+                  
+                    <a href="/posts/131381209.html" class="">ros2 07-服务通信</a>
+                  
+                    <a href="/posts/172068224.html" class="">ros2 40-实战：机械臂抓取</a>
+                  
+                    <a href="/posts/513154547.html" class="">ros2 90-资料索引指南</a>
+                  
+                    <a href="/posts/1661557767.html" class="">31-ROS2与Docker</a>
+                  
+                    <a href="/posts/1400569321.html" class="">32-ROS2与嵌入式平台</a>
+                  
+                    <a href="/posts/514195102.html" class="">33-实时性与QoS策略</a>
+                  
+                    <a href="/posts/26068340.html" class="">34-安全与权限</a>
+                  
+                    <a href="/posts/4284941043.html" class="">35-性能优化与Benchmark</a>
+                  
+                    <a href="/posts/512206225.html" class="">36-常见问题排查</a>
+                  
+                    <a href="/posts/103591067.html" class="">37-ROS2与ROS1桥接迁移</a>
+                  
+                    <a href="/posts/496626970.html" class="">38-产品化与部署实践</a>
+                  
+                    <a href="/posts/4258040718.html" class="">39-实战：自动驾驶小车</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="RT-Thread">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/RT-Thread/" class=""><span>🧵</span><span>RT-Thread</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 RT-Thread 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3906847031.html" class="">01-RT-Thread简介与生态</a>
+                  
+                    <a href="/posts/610362104.html" class="">02-内核架构</a>
+                  
+                    <a href="/posts/284852137.html" class="">03-线程管理与调度</a>
+                  
+                    <a href="/posts/1006179627.html" class="">04-线程创建与删除</a>
+                  
+                    <a href="/posts/2919135044.html" class="">05-线程状态机与优先级</a>
+                  
+                    <a href="/posts/357331050.html" class="">06-时钟与定时器</a>
+                  
+                    <a href="/posts/1414862789.html" class="">08-互斥量</a>
+                  
+                    <a href="/posts/3456321070.html" class="">09-事件集</a>
+                  
+                    <a href="/posts/2205341896.html" class="">10-邮箱</a>
+                  
+                    <a href="/posts/3843597198.html" class="">11-消息队列</a>
+                  
+                    <a href="/posts/643009288.html" class="">12-内存管理</a>
+                  
+                    <a href="/posts/2340600776.html" class="">13-内存池与内存堆</a>
+                  
+                    <a href="/posts/2027116276.html" class="">14-中断管理</a>
+                  
+                    <a href="/posts/4146654009.html" class="">15-临界区与线程同步</a>
+                  
+                    <a href="/posts/61094340.html" class="">16-设备驱动框架</a>
+                  
+                    <a href="/posts/2180335808.html" class="">17-I-O设备模型</a>
+                  
+                    <a href="/posts/3069243359.html" class="">18-FinSH控制台</a>
+                  
+                    <a href="/posts/3174840723.html" class="">19-组件与软件包</a>
+                  
+                    <a href="/posts/501684497.html" class="">20-Env与menuconfig配置</a>
+                  
+                    <a href="/posts/1358882682.html" class="">21-RT-Thread Studio</a>
+                  
+                    <a href="/posts/1974679192.html" class="">22-Scons构建</a>
+                  
+                    <a href="/posts/1558395596.html" class="">23-AT组件</a>
+                  
+                    <a href="/posts/4270916110.html" class="">24-网络组件lwIP</a>
+                  
+                    <a href="/posts/4025911074.html" class="">25-DFS文件系统</a>
+                  
+                    <a href="/posts/2437688169.html" class="">26-POSIX支持</a>
+                  
+                    <a href="/posts/1239645384.html" class="">27-动态模块加载</a>
+                  
+                    <a href="/posts/4089363247.html" class="">28-常见移植实践</a>
+                  
+                    <a href="/posts/849796471.html" class="">29-低功耗</a>
+                  
+                    <a href="/posts/47134548.html" class="">30-多核与SMP</a>
+                  
+                    <a href="/posts/2902895778.html" class="">RT-Thread 00-索引</a>
+                  
+                    <a href="/posts/4044683037.html" class="">RT-Thread 07-信号量</a>
+                  
+                    <a href="/posts/1755746755.html" class="">RT-Thread 40-高级主题展望</a>
+                  
+                    <a href="/posts/2924604793.html" class="">RT-Thread 90-资料索引指南</a>
+                  
+                    <a href="/posts/603515604.html" class="">31-微内核与混合微内核</a>
+                  
+                    <a href="/posts/1273830891.html" class="">32-调试与优化</a>
+                  
+                    <a href="/posts/2088952723.html" class="">33-安全</a>
+                  
+                    <a href="/posts/3972366794.html" class="">34-GUI组件与柿饼UI</a>
+                  
+                    <a href="/posts/4194237798.html" class="">35-传感器与驱动组件</a>
+                  
+                    <a href="/posts/1254828870.html" class="">36-实时性分析与优化</a>
+                  
+                    <a href="/posts/70811593.html" class="">37-电源管理</a>
+                  
+                    <a href="/posts/192380990.html" class="">38-实战项目入门</a>
+                  
+                    <a href="/posts/1645794736.html" class="">39-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="Zephyr">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Zephyr/" class=""><span>🍃</span><span>Zephyr</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Zephyr 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2998335701.html" class="">01-Zephyr简介与基金会</a>
+                  
+                    <a href="/posts/111570124.html" class="">02-安装与west工具</a>
+                  
+                    <a href="/posts/391350374.html" class="">03-工程结构</a>
+                  
+                    <a href="/posts/1788752700.html" class="">04-设备树Device Tree</a>
+                  
+                    <a href="/posts/2760731910.html" class="">05-Kconfig配置</a>
+                  
+                    <a href="/posts/2266609168.html" class="">06-内核与调度</a>
+                  
+                    <a href="/posts/2595343241.html" class="">07-线程管理</a>
+                  
+                    <a href="/posts/2487926311.html" class="">08-信号量</a>
+                  
+                    <a href="/posts/4159413018.html" class="">09-队列与消息</a>
+                  
+                    <a href="/posts/3342684069.html" class="">10-内存管理</a>
+                  
+                    <a href="/posts/1826938431.html" class="">11-中断处理</a>
+                  
+                    <a href="/posts/3296401581.html" class="">12-时钟与定时器</a>
+                  
+                    <a href="/posts/911217641.html" class="">13-驱动模型</a>
+                  
+                    <a href="/posts/1524886392.html" class="">14-GPIO驱动</a>
+                  
+                    <a href="/posts/497960377.html" class="">15-UART驱动</a>
+                  
+                    <a href="/posts/515235046.html" class="">16-SPI驱动</a>
+                  
+                    <a href="/posts/3496686401.html" class="">17-I2C驱动</a>
+                  
+                    <a href="/posts/2457140616.html" class="">18-ADC驱动</a>
+                  
+                    <a href="/posts/2991435572.html" class="">19-传感器子系统</a>
+                  
+                    <a href="/posts/819898526.html" class="">20-网络栈</a>
+                  
+                    <a href="/posts/551898650.html" class="">21-蓝牙BLE</a>
+                  
+                    <a href="/posts/686766330.html" class="">22-USB支持</a>
+                  
+                    <a href="/posts/4032698702.html" class="">23-文件系统</a>
+                  
+                    <a href="/posts/2833611844.html" class="">24-Shell子系统</a>
+                  
+                    <a href="/posts/2017556036.html" class="">25-日志系统</a>
+                  
+                    <a href="/posts/80085439.html" class="">26-ztest测试框架</a>
+                  
+                    <a href="/posts/3382284514.html" class="">27-twister测试</a>
+                  
+                    <a href="/posts/2853899551.html" class="">28-构建系统CMake</a>
+                  
+                    <a href="/posts/3766947609.html" class="">29-多架构支持</a>
+                  
+                    <a href="/posts/608772131.html" class="">Zephyr 00-索引</a>
+                  
+                    <a href="/posts/2374992791.html" class="">Zephyr 90-资料索引指南</a>
+                  
+                    <a href="/posts/2085179778.html" class="">30-移植新板卡</a>
+                  
+                    <a href="/posts/2023471085.html" class="">31-低功耗管理</a>
+                  
+                    <a href="/posts/447085682.html" class="">32-安全机制</a>
+                  
+                    <a href="/posts/2755005965.html" class="">33-OTA升级</a>
+                  
+                    <a href="/posts/3554942251.html" class="">34-QEMU模拟器</a>
+                  
+                    <a href="/posts/2564223040.html" class="">35-native模拟器</a>
+                  
+                    <a href="/posts/66503584.html" class="">36-调试与追踪</a>
+                  
+                    <a href="/posts/2974884396.html" class="">37-CMake模块</a>
+                  
+                    <a href="/posts/1879468777.html" class="">38-发布与版本管理</a>
+                  
+                    <a href="/posts/1364311534.html" class="">39-实战项目</a>
+                  
+                    <a href="/posts/4081303068.html" class="">40-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ubuntu24.04">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ubuntu24-04/" class=""><span>🐧</span><span>ubuntu24.04</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ubuntu24.04 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2909325257.html" class="">01-apt 与 dpkg</a>
+                  
+                    <a href="/posts/912530846.html" class="">snap</a>
+                  
+                    <a href="/posts/3939215804.html" class="">03-systemctl 与 service</a>
+                  
+                    <a href="/posts/719879336.html" class="">04-journalctl</a>
+                  
+                    <a href="/posts/3351581332.html" class="">05-htop 与 top</a>
+                  
+                    <a href="/posts/3990143705.html" class="">06-ps 与 kill</a>
+                  
+                    <a href="/posts/585076020.html" class="">07-vim 与 nano</a>
+                  
+                    <a href="/posts/1568442627.html" class="">08-grep</a>
+                  
+                    <a href="/posts/1977677039.html" class="">09-awk 与 sed</a>
+                  
+                    <a href="/posts/4049174153.html" class="">10-find 与 locate</a>
+                  
+                    <a href="/posts/3717903947.html" class="">11-tar 与 zip 与 rsync</a>
+                  
+                    <a href="/posts/2237282420.html" class="">12-ssh 与 scp</a>
+                  
+                    <a href="/posts/1707164187.html" class="">13-ufw</a>
+                  
+                    <a href="/posts/55246962.html" class="">14-cron</a>
+                  
+                    <a href="/posts/651339923.html" class="">15-systemd 定时器</a>
+                  
+                    <a href="/posts/3732393277.html" class="">16-netstat 与 ss 与 ip</a>
+                  
+                    <a href="/posts/2075061187.html" class="">17-curl 与 wget</a>
+                  
+                    <a href="/posts/321014113.html" class="">18-git</a>
+                  
+                    <a href="/posts/2822540859.html" class="">19-docker</a>
+                  
+                    <a href="/posts/3712678695.html" class="">20-python3 与 pip</a>
+                  
+                    <a href="/posts/2522287106.html" class="">21-gcc 与 make</a>
+                  
+                    <a href="/posts/635533000.html" class="">22-磁盘与日志排错工具集</a>
+                  
+                    <a href="/posts/1019958619.html" class="">ubuntu24.04 00-索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="windows">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/windows/" class=""><span>🪟</span><span>windows</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 windows 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2345133774.html" class="">01-PowerShell</a>
+                  
+                    <a href="/posts/746402433.html" class="">02-Windows Terminal</a>
+                  
+                    <a href="/posts/119374108.html" class="">03-任务管理器</a>
+                  
+                    <a href="/posts/3593758667.html" class="">04-资源监视器</a>
+                  
+                    <a href="/posts/279260672.html" class="">05-事件查看器</a>
+                  
+                    <a href="/posts/861959827.html" class="">06-注册表编辑器</a>
+                  
+                    <a href="/posts/1682198913.html" class="">07-磁盘管理</a>
+                  
+                    <a href="/posts/2304893546.html" class="">08-系统配置(msconfig)</a>
+                  
+                    <a href="/posts/143523753.html" class="">09-性能监视器</a>
+                  
+                    <a href="/posts/3851129891.html" class="">10-备份与还原</a>
+                  
+                    <a href="/posts/3417706708.html" class="">11-Windows Defender</a>
+                  
+                    <a href="/posts/2900354160.html" class="">12-Sysinternals 套件</a>
+                  
+                    <a href="/posts/569218026.html" class="">13-winget</a>
+                  
+                    <a href="/posts/1864485545.html" class="">14-PowerToys</a>
+                  
+                    <a href="/posts/1859880826.html" class="">15-剪贴板历史与截图工具</a>
+                  
+                    <a href="/posts/2173435638.html" class="">16-远程桌面</a>
+                  
+                    <a href="/posts/388811029.html" class="">17-Hyper-V</a>
+                  
+                    <a href="/posts/987941398.html" class="">18-WSL</a>
+                  
+                    <a href="/posts/2454912129.html" class="">19-BitLocker</a>
+                  
+                    <a href="/posts/2195244691.html" class="">20-任务计划程序与服务管理器</a>
+                  
+                    <a href="/posts/979849589.html" class="">21-组策略与系统还原</a>
+                  
+                    <a href="/posts/4259947464.html" class="">22-命令行工具集</a>
+                  
+                    <a href="/posts/1775093485.html" class="">windows 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/">🤖 操作系统与机器人</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/">🐧 Linux</a> / <span>05-根文件系统类型与构建方法</span></div>
+
+<h1>05-根文件系统类型与构建方法</h1>
+<div class="subtitle">很多人把根文件系统当成一个笼统的词，但真正动手时你会发现，它既可以指根目录 / 下那一堆目录，也可以指内存里的 initramfs、Flash 上的 UBIFS，甚至远程的 NFS。</div>
+<div class="article-meta">
+  <span>📅 2026-11-16</span><span>· 更新于 2026-11-16</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 9487 字 · 约 24 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/Linux/">#Linux</a><a class="tagchip" href="/tags/%E5%AE%9E%E6%88%98/">#实战</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/3140138007.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="根文件系统类型与构建方法"><a href="#根文件系统类型与构建方法" class="headerlink" title="根文件系统类型与构建方法"></a>根文件系统类型与构建方法</h1><p>很多人把根文件系统当成一个笼统的词，但真正动手时你会发现，它既可以指根目录 &#x2F; 下那一堆目录，也可以指内存里的 initramfs、Flash 上的 UBIFS，甚至远程的 NFS。我在做嵌入式开发时最常踩的坑，就是没先想清楚存储介质就去选文件系统类型。</p>
+<p>这篇从基础概念讲起，把手动构建、Buildroot、Yocto、debootstrap 几条路子都过一遍，再深入到 initramfs、闪存文件系统和网络文件系统，最后给出裁剪、优化、备份恢复的具体做法。</p>
+<h2 id="1-根文件系统基础：挂载点与核心目录的职责">1. 根文件系统基础：挂载点与核心目录的职责<a class="hlink" data-h="1-根文件系统基础：挂载点与核心目录的职责" href="#1-根文件系统基础：挂载点与核心目录的职责" title="跳到本节">¶</a></h2><h3 id="1-1-什么是根文件系统">1.1 什么是根文件系统<a class="hlink" data-h="1-1-什么是根文件系统" href="#1-1-什么是根文件系统" title="跳到本节">¶</a></h3><p>根文件系统是操作系统启动过程中挂载的第一个文件系统，包含系统引导和运行所需的基本目录和文件。在Linux系统中，根文件系统挂载在根目录（&#x2F;）上，为整个系统提供基础环境。我一般会先按下面这张目录清单核对一遍，缺哪个目录，启动阶段大概率就会报错。</p>
+<p>根文件系统通常包含以下关键部分：</p>
+<ul>
+<li><code>/bin</code>和<code>/sbin</code>: 存放基本命令和系统管理命令</li>
+<li><code>/etc</code>: 配置文件目录</li>
+<li><code>/lib</code>: 系统库文件目录</li>
+<li><code>/dev</code>: 设备文件目录</li>
+<li><code>/proc</code>和<code>/sys</code>: 虚拟文件系统挂载点</li>
+<li><code>/var</code>: 存放变量数据的目录</li>
+<li><code>/tmp</code>: 临时文件目录</li>
+<li><code>/usr</code>: 用户程序和数据存放目录</li>
+<li><code>/home</code>: 用户主目录</li>
+</ul>
+<h3 id="1-2-文件系统类型概览">1.2 文件系统类型概览<a class="hlink" data-h="1-2-文件系统类型概览" href="#1-2-文件系统类型概览" title="跳到本节">¶</a></h3><p>在Linux系统中，根据存储介质和使用场景的不同，文件系统可以分为多种类型：</p>
+<h4 id="1-2-1-内核生成的文件系统"><a href="#1-2-1-内核生成的文件系统" class="headerlink" title="1.2.1 内核生成的文件系统"></a>1.2.1 内核生成的文件系统</h4><ul>
+<li><strong>procfs</strong>: 进程文件系统，提供系统运行信息</li>
+<li><strong>sysfs</strong>: 设备文件系统，提供设备和驱动信息</li>
+<li><strong>devtmpfs</strong>: 设备文件系统，自动创建设备节点</li>
+<li><strong>debugfs</strong>: 调试文件系统，用于内核调试</li>
+<li><strong>configfs</strong>: 用户空间配置内核对象的文件系统</li>
+</ul>
+<h4 id="1-2-2-基于存储设备的文件系统"><a href="#1-2-2-基于存储设备的文件系统" class="headerlink" title="1.2.2 基于存储设备的文件系统"></a>1.2.2 基于存储设备的文件系统</h4><ol>
+<li><p><strong>内存文件系统</strong></p>
+<ul>
+<li>tmpfs: 临时文件系统，使用RAM和swap空间</li>
+<li>ramfs: RAM文件系统，只使用RAM，无大小限制</li>
+<li>ramdisk: 将一部分RAM模拟为磁盘，需要格式化</li>
+<li>initramfs: 初始化RAM文件系统，作为启动初期的临时根文件系统</li>
+</ul>
+</li>
+<li><p><strong>Flash文件系统</strong></p>
+<ul>
+<li>cramfs: 只读压缩文件系统，适合小型嵌入式系统</li>
+<li>squashfs: 只读压缩文件系统，支持高压缩比和更大文件</li>
+<li>jffs2: 日志闪存文件系统，适用于NOR Flash，支持写平衡</li>
+<li>yaffs2: 日志闪存文件系统，适用于NAND Flash，支持坏块管理</li>
+<li>ubifs: 大容量日志闪存文件系统，基于UBI层，适合大容量NAND Flash</li>
+</ul>
+</li>
+<li><p><strong>磁盘文件系统</strong></p>
+<ul>
+<li>ext2&#x2F;ext3&#x2F;ext4: Linux标准文件系统系列，稳定可靠</li>
+<li>btrfs: 新一代Linux文件系统，支持快照、校验和等高级功能</li>
+<li>xfs: 高性能文件系统，适合大容量存储</li>
+<li>f2fs: 闪存友好型文件系统，针对SSD和eMMC优化</li>
+</ul>
+</li>
+<li><p><strong>可移动存储文件系统</strong></p>
+<ul>
+<li>FAT16&#x2F;FAT32&#x2F;exFAT: 兼容性好，适用于跨平台</li>
+<li>NTFS: Windows文件系统，在Linux下需特殊支持</li>
+</ul>
+</li>
+<li><p><strong>网络文件系统</strong></p>
+<ul>
+<li>NFS: 网络文件系统，Unix&#x2F;Linux间共享</li>
+<li>Samba&#x2F;CIFS: Windows与Linux之间共享机制</li>
+<li>SSHFS: 基于SSH协议的文件系统</li>
+</ul>
+</li>
+</ol>
+<h3 id="1-3-根文件系统的启动流程">1.3 根文件系统的启动流程<a class="hlink" data-h="1-3-根文件系统的启动流程" href="#1-3-根文件系统的启动流程" title="跳到本节">¶</a></h3><p>根文件系统在Linux启动过程中扮演关键角色：</p>
+<ol>
+<li><p><strong>引导加载阶段</strong>：</p>
+<ul>
+<li>引导加载器(如GRUB、U-Boot)加载内核和初始化RAM磁盘(initramfs&#x2F;initrd)</li>
+<li>内核解压并初始化核心硬件</li>
+</ul>
+</li>
+<li><p><strong>内核初始化阶段</strong>：</p>
+<ul>
+<li>内核挂载初始rootfs(通常是initramfs)</li>
+<li>执行初始化脚本(&#x2F;init)</li>
+</ul>
+</li>
+<li><p><strong>根文件系统切换</strong>：</p>
+<ul>
+<li>识别并挂载实际的根文件系统</li>
+<li>可能通过<code>switch_root</code>从initramfs切换到真正的根文件系统</li>
+</ul>
+</li>
+<li><p><strong>系统初始化阶段</strong>：</p>
+<ul>
+<li>执行根文件系统中的初始化进程(如SysVinit、Systemd、OpenRC等)</li>
+<li>启动系统服务和用户空间程序</li>
+</ul>
+</li>
+</ol>
+<h2 id="2-构建方法：手动、Buildroot、Yocto-与发行版">2. 构建方法：手动、Buildroot、Yocto 与发行版<a class="hlink" data-h="2-构建方法：手动、Buildroot、Yocto-与发行版" href="#2-构建方法：手动、Buildroot、Yocto-与发行版" title="跳到本节">¶</a></h2><h3 id="2-1-手动构建根文件系统">2.1 手动构建根文件系统<a class="hlink" data-h="2-1-手动构建根文件系统" href="#2-1-手动构建根文件系统" title="跳到本节">¶</a></h3><p>手动构建可以提供最大的灵活性和对系统的完全控制，我自己只在教学或做极小镜像时才这么做：</p>
+<h4 id="2-1-1-基础目录结构创建"><a href="#2-1-1-基础目录结构创建" class="headerlink" title="2.1.1 基础目录结构创建"></a>2.1.1 基础目录结构创建</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p rootfs/&#123;bin,sbin,etc,dev,proc,sys,tmp,usr,var,home,root,lib,opt,mnt,media&#125;</span><br><span class="line"><span class="built_in">mkdir</span> -p rootfs/usr/&#123;bin,sbin,lib,share,include&#125;</span><br><span class="line"><span class="built_in">mkdir</span> -p rootfs/var/&#123;<span class="built_in">log</span>,run,lock,tmp&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-1-2-基本工具和库文件"><a href="#2-1-2-基本工具和库文件" class="headerlink" title="2.1.2 基本工具和库文件"></a>2.1.2 基本工具和库文件</h4><ol>
+<li><p><strong>基本系统工具</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 复制基本命令工具</span></span><br><span class="line"><span class="built_in">cp</span> -a /bin/&#123;bash,busybox,mount,umount,<span class="built_in">ls</span>,<span class="built_in">cat</span>,<span class="built_in">mkdir</span>&#125; rootfs/bin/</span><br><span class="line"><span class="comment"># 复制系统管理工具</span></span><br><span class="line"><span class="built_in">cp</span> -a /sbin/&#123;init,getty,login&#125; rootfs/sbin/</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>依赖库文件</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 复制工具所需库文件</span></span><br><span class="line"><span class="built_in">cp</span> -a /lib/ld-linux*.so* rootfs/lib/</span><br><span class="line"><span class="built_in">cp</span> -a /lib/libc.so* rootfs/lib/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用ldd工具检查和复制依赖</span></span><br><span class="line"><span class="keyword">for</span> BIN <span class="keyword">in</span> $(find rootfs/bin rootfs/sbin -<span class="built_in">type</span> f -executable); <span class="keyword">do</span></span><br><span class="line">  <span class="keyword">for</span> LIB <span class="keyword">in</span> $(ldd <span class="variable">$BIN</span> | grep -o <span class="string">&#x27;/lib.*\.so[.0-9]*&#x27;</span>); <span class="keyword">do</span></span><br><span class="line">    <span class="built_in">cp</span> -a <span class="variable">$LIB</span> rootfs/lib/</span><br><span class="line">  <span class="keyword">done</span></span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>设备节点创建</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建基本设备节点</span></span><br><span class="line"><span class="built_in">mknod</span> -m 622 rootfs/dev/console c 5 1</span><br><span class="line"><span class="built_in">mknod</span> -m 622 rootfs/dev/tty c 5 0</span><br><span class="line"><span class="built_in">mknod</span> -m 622 rootfs/dev/tty0 c 4 0</span><br><span class="line"><span class="built_in">mknod</span> -m 666 rootfs/dev/null c 1 3</span><br><span class="line"><span class="built_in">mknod</span> -m 666 rootfs/dev/zero c 1 5</span><br><span class="line"><span class="built_in">mknod</span> -m 666 rootfs/dev/random c 1 8</span><br><span class="line"><span class="built_in">mknod</span> -m 666 rootfs/dev/urandom c 1 9</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="2-1-3-系统配置文件"><a href="#2-1-3-系统配置文件" class="headerlink" title="2.1.3 系统配置文件"></a>2.1.3 系统配置文件</h4><p>创建必要的配置文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># /etc/fstab</span></span><br><span class="line"><span class="built_in">cat</span> &gt; rootfs/etc/fstab &lt;&lt;<span class="string">EOF</span></span><br><span class="line"><span class="string"># device  mountpoint  fstype  options  dump  fsck</span></span><br><span class="line"><span class="string">proc      /proc       proc    defaults  0     0</span></span><br><span class="line"><span class="string">sysfs     /sys        sysfs   defaults  0     0</span></span><br><span class="line"><span class="string">devtmpfs  /dev        devtmpfs defaults 0     0</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># /etc/inittab</span></span><br><span class="line"><span class="built_in">cat</span> &gt; rootfs/etc/inittab &lt;&lt;<span class="string">EOF</span></span><br><span class="line"><span class="string">::sysinit:/etc/init.d/rcS</span></span><br><span class="line"><span class="string">::respawn:/sbin/getty -L ttyS0 115200 vt100</span></span><br><span class="line"><span class="string">::ctrlaltdel:/sbin/reboot</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动脚本</span></span><br><span class="line"><span class="built_in">mkdir</span> -p rootfs/etc/init.d</span><br><span class="line"><span class="built_in">cat</span> &gt; rootfs/etc/init.d/rcS &lt;&lt;<span class="string">EOF</span></span><br><span class="line"><span class="string">#!/bin/sh</span></span><br><span class="line"><span class="string">mount -a</span></span><br><span class="line"><span class="string">mkdir -p /dev/pts</span></span><br><span class="line"><span class="string">mount -t devpts devpts /dev/pts</span></span><br><span class="line"><span class="string">echo &quot;System booted successfully!&quot;</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"><span class="built_in">chmod</span> +x rootfs/etc/init.d/rcS</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-使用Buildroot构建根文件系统">2.2 使用Buildroot构建根文件系统<a class="hlink" data-h="2-2-使用Buildroot构建根文件系统" href="#2-2-使用Buildroot构建根文件系统" title="跳到本节">¶</a></h3><p>Buildroot是一个简单高效的工具，用于生成嵌入式Linux系统：</p>
+<h4 id="2-2-1-安装和配置Buildroot"><a href="#2-2-1-安装和配置Buildroot" class="headerlink" title="2.2.1 安装和配置Buildroot"></a>2.2.1 安装和配置Buildroot</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 下载Buildroot</span></span><br><span class="line">git <span class="built_in">clone</span> https://git.buildroot.net/buildroot</span><br><span class="line"><span class="built_in">cd</span> buildroot</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置</span></span><br><span class="line">make menuconfig</span><br><span class="line"></span><br><span class="line"><span class="comment"># 主要配置项</span></span><br><span class="line"><span class="comment"># - Target Architecture: 选择目标架构</span></span><br><span class="line"><span class="comment"># - Target Architecture Variant: 处理器型号</span></span><br><span class="line"><span class="comment"># - Target ABI: 应用二进制接口</span></span><br><span class="line"><span class="comment"># - Toolchain: 交叉编译工具链</span></span><br><span class="line"><span class="comment"># - System configuration: 系统配置</span></span><br><span class="line"><span class="comment"># - Package Selection: 软件包选择</span></span><br><span class="line"><span class="comment"># - Filesystem images: 文件系统镜像类型</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="2-2-2-定制Buildroot"><a href="#2-2-2-定制Buildroot" class="headerlink" title="2.2.2 定制Buildroot"></a>2.2.2 定制Buildroot</h4><ol>
+<li><p><strong>软件包选择</strong>：</p>
+<ul>
+<li>在<code>Package Selection</code>中选择需要的软件包</li>
+<li>核心工具: BusyBox, Bash等</li>
+<li>系统工具: util-linux, e2fsprogs等</li>
+<li>网络工具: iptables, dhcpcd等</li>
+</ul>
+</li>
+<li><p><strong>自定义配置</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建overlay目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p board/myproject/rootfs-overlay</span><br><span class="line"></span><br><span class="line"><span class="comment"># 添加自定义文件</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;Welcome to my embedded system&quot;</span> &gt; board/myproject/rootfs-overlay/etc/issue</span><br><span class="line"></span><br><span class="line"><span class="comment"># 在defconfig中指定overlay</span></span><br><span class="line">BR2_ROOTFS_OVERLAY=<span class="string">&quot;board/myproject/rootfs-overlay&quot;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>构建和生成</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 构建系统</span></span><br><span class="line">make</span><br><span class="line"></span><br><span class="line"><span class="comment"># 输出文件位于output/images/</span></span><br><span class="line"><span class="built_in">ls</span> -l output/images/</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="2-3-使用Yocto-Project构建根文件系统">2.3 使用Yocto Project构建根文件系统<a class="hlink" data-h="2-3-使用Yocto-Project构建根文件系统" href="#2-3-使用Yocto-Project构建根文件系统" title="跳到本节">¶</a></h3><p>Yocto Project是一个完整的嵌入式Linux开发环境，适合大型项目：</p>
+<h4 id="2-3-1-设置Yocto环境"><a href="#2-3-1-设置Yocto环境" class="headerlink" title="2.3.1 设置Yocto环境"></a>2.3.1 设置Yocto环境</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装依赖</span></span><br><span class="line"><span class="built_in">sudo</span> apt-get install git-core python3 diffstat unzip texinfo gcc-multilib \</span><br><span class="line">     build-essential chrpath socat cpio python3-pip python3-pexpect xz-utils</span><br><span class="line"></span><br><span class="line"><span class="comment"># 下载Yocto</span></span><br><span class="line">git <span class="built_in">clone</span> git://git.yoctoproject.org/poky</span><br><span class="line"><span class="built_in">cd</span> poky</span><br><span class="line">git checkout honister  <span class="comment"># 选择发行版</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 初始化构建环境</span></span><br><span class="line"><span class="built_in">source</span> oe-init-build-env build_dir</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-3-2-配置和定制Yocto"><a href="#2-3-2-配置和定制Yocto" class="headerlink" title="2.3.2 配置和定制Yocto"></a>2.3.2 配置和定制Yocto</h4><ol>
+<li><p><strong>基本配置</strong>：<br>编辑<code>conf/local.conf</code>文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">MACHINE ?= &quot;qemuarm&quot;  # 或其他目标平台</span><br><span class="line">DISTRO ?= &quot;poky&quot;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>添加层</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bitbake-layers add-layer ../meta-openembedded/meta-oe</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>创建自定义层</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">bitbake-layers create-layer ../meta-mylayer</span><br><span class="line">bitbake-layers add-layer ../meta-mylayer</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>定制配方</strong>：<br>在<code>meta-mylayer/recipes-core/images/</code>创建自定义镜像配方：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">require recipes-core/images/core-image-minimal.bb</span><br><span class="line"></span><br><span class="line">IMAGE_INSTALL += &quot;dropbear openssh-sftp-server&quot;</span><br><span class="line">EXTRA_IMAGE_FEATURES += &quot;package-management&quot;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="2-3-3-构建和镜像生成"><a href="#2-3-3-构建和镜像生成" class="headerlink" title="2.3.3 构建和镜像生成"></a>2.3.3 构建和镜像生成</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 构建自定义镜像</span></span><br><span class="line">bitbake custom-image</span><br><span class="line"></span><br><span class="line"><span class="comment"># 输出位于tmp/deploy/images/&lt;machine&gt;/</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-使用发行版构建根文件系统">2.4 使用发行版构建根文件系统<a class="hlink" data-h="2-4-使用发行版构建根文件系统" href="#2-4-使用发行版构建根文件系统" title="跳到本节">¶</a></h3><p>可以基于现有Linux发行版构建轻量级根文件系统：</p>
+<h4 id="2-4-1-使用debootstrap-Debian-Ubuntu"><a href="#2-4-1-使用debootstrap-Debian-Ubuntu" class="headerlink" title="2.4.1 使用debootstrap(Debian&#x2F;Ubuntu)"></a>2.4.1 使用debootstrap(Debian&#x2F;Ubuntu)</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装debootstrap</span></span><br><span class="line"><span class="built_in">sudo</span> apt-get install debootstrap</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建基本系统</span></span><br><span class="line"><span class="built_in">sudo</span> debootstrap --<span class="built_in">arch</span>=armhf bullseye rootfs http://deb.debian.org/debian/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进入chroot环境定制</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">chroot</span> rootfs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 在chroot环境中安装必要软件包</span></span><br><span class="line">apt-get update</span><br><span class="line">apt-get install --no-install-recommends linux-image-armmp openssh-server</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-4-2-使用dnf-Fedora-CentOS"><a href="#2-4-2-使用dnf-Fedora-CentOS" class="headerlink" title="2.4.2 使用dnf(Fedora&#x2F;CentOS)"></a>2.4.2 使用dnf(Fedora&#x2F;CentOS)</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装dnf</span></span><br><span class="line"><span class="built_in">sudo</span> apt-get install dnf</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建基本系统</span></span><br><span class="line"><span class="built_in">sudo</span> dnf --releasever=35 --installroot=rootfs --forcearch=armhfp install @core</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进入chroot环境定制</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">chroot</span> rootfs</span><br></pre></td></tr></table></figure>
+
+<h2 id="3-特殊类型：initramfs、闪存与网络文件系统">3. 特殊类型：initramfs、闪存与网络文件系统<a class="hlink" data-h="3-特殊类型：initramfs、闪存与网络文件系统" href="#3-特殊类型：initramfs、闪存与网络文件系统" title="跳到本节">¶</a></h2><h3 id="3-1-initramfs详解">3.1 initramfs详解<a class="hlink" data-h="3-1-initramfs详解" href="#3-1-initramfs详解" title="跳到本节">¶</a></h3><p>initramfs是内核启动过程中使用的临时RAM文件系统，为后续挂载真正的根文件系统提供必要工具。踩过的坑是 init 脚本里忘了挂 devtmpfs，结果后面根本找不到根设备。</p>
+<h4 id="3-1-1-initramfs构建方法"><a href="#3-1-1-initramfs构建方法" class="headerlink" title="3.1.1 initramfs构建方法"></a>3.1.1 initramfs构建方法</h4><ol>
+<li><p><strong>手动创建目录结构</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p initramfs/&#123;bin,sbin,etc,proc,sys,dev,usr,lib&#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>添加基本工具和库</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 复制基本工具</span></span><br><span class="line"><span class="built_in">cp</span> -a /bin/&#123;busybox,sh&#125; initramfs/bin/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建busybox符号链接</span></span><br><span class="line"><span class="built_in">cd</span> initramfs/bin</span><br><span class="line"><span class="built_in">ln</span> -s busybox mount</span><br><span class="line"><span class="built_in">ln</span> -s busybox <span class="built_in">ls</span></span><br><span class="line"><span class="built_in">cd</span> ../..</span><br><span class="line"></span><br><span class="line"><span class="comment"># 复制必要的库文件</span></span><br><span class="line"><span class="built_in">cp</span> -a /lib/ld-linux-*.so* initramfs/lib/</span><br><span class="line"><span class="built_in">cp</span> -a /lib/libc.so* initramfs/lib/</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>创建init脚本</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt; initramfs/init &lt;&lt;<span class="string">EOF</span></span><br><span class="line"><span class="string">#!/bin/sh</span></span><br><span class="line"><span class="string">mount -t proc none /proc</span></span><br><span class="line"><span class="string">mount -t sysfs none /sys</span></span><br><span class="line"><span class="string">mount -t devtmpfs none /dev</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 检测真正的根文件系统</span></span><br><span class="line"><span class="string">if [ -b /dev/sda1 ]; then</span></span><br><span class="line"><span class="string">    mkdir -p /mnt/root</span></span><br><span class="line"><span class="string">    mount /dev/sda1 /mnt/root</span></span><br><span class="line"><span class="string">    exec switch_root /mnt/root /sbin/init</span></span><br><span class="line"><span class="string">else</span></span><br><span class="line"><span class="string">    echo &quot;Root device not found, dropping to shell&quot;</span></span><br><span class="line"><span class="string">    exec /bin/sh</span></span><br><span class="line"><span class="string">fi</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"><span class="built_in">chmod</span> +x initramfs/init</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>打包initramfs</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> initramfs</span><br><span class="line">find . | cpio -H newc -o | gzip &gt; ../initramfs.cpio.gz</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="3-1-2-内核集成initramfs"><a href="#3-1-2-内核集成initramfs" class="headerlink" title="3.1.2 内核集成initramfs"></a>3.1.2 内核集成initramfs</h4><p>可以将initramfs直接集成到内核中：</p>
+<ol>
+<li><p><strong>内核配置</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">CONFIG_BLK_DEV_INITRD=y</span><br><span class="line">CONFIG_INITRAMFS_SOURCE=&quot;/path/to/initramfs.cpio.gz&quot;</span><br><span class="line">CONFIG_INITRAMFS_COMPRESSION_GZIP=y</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>编译内核</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j4</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="3-1-3-initramfs高级功能"><a href="#3-1-3-initramfs高级功能" class="headerlink" title="3.1.3 initramfs高级功能"></a>3.1.3 initramfs高级功能</h4><ol>
+<li><p><strong>加载额外驱动</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在init脚本中</span></span><br><span class="line">insmod /lib/modules/extra_driver.ko</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>RAID&#x2F;LVM支持</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装必要工具</span></span><br><span class="line"><span class="built_in">cp</span> -a /sbin/&#123;mdadm,lvm&#125; initramfs/sbin/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 在init脚本中</span></span><br><span class="line">mdadm --assemble --scan</span><br><span class="line">vgchange -ay</span><br><span class="line">mount /dev/mapper/vg-root /mnt/root</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>加密分区解锁</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 复制cryptsetup工具</span></span><br><span class="line"><span class="built_in">cp</span> -a /sbin/cryptsetup initramfs/sbin/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 在init脚本中</span></span><br><span class="line">cryptsetup luksOpen /dev/sda2 cryptroot</span><br><span class="line">mount /dev/mapper/cryptroot /mnt/root</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="3-2-闪存文件系统详解">3.2 闪存文件系统详解<a class="hlink" data-h="3-2-闪存文件系统详解" href="#3-2-闪存文件系统详解" title="跳到本节">¶</a></h3><p>闪存介质有其特殊性，需要专用文件系统以应对写入次数限制、块擦除等特性。</p>
+<h4 id="3-2-1-JFFS2文件系统"><a href="#3-2-1-JFFS2文件系统" class="headerlink" title="3.2.1 JFFS2文件系统"></a>3.2.1 JFFS2文件系统</h4><p>适用于NOR闪存的日志型文件系统：</p>
+<ol>
+<li><p><strong>特点</strong>：</p>
+<ul>
+<li>支持压缩</li>
+<li>日志结构，支持掉电恢复</li>
+<li>磨损均衡机制</li>
+<li>垃圾回收机制</li>
+</ul>
+</li>
+<li><p><strong>创建JFFS2镜像</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 生成空闪存镜像</span></span><br><span class="line">mkfs.jffs2 -r rootfs/ -o rootfs.jffs2 -e 128KiB -p</span><br><span class="line"></span><br><span class="line"><span class="comment"># 烧写到Flash</span></span><br><span class="line">flash_erase /dev/mtd0 0 0</span><br><span class="line">nandwrite -p /dev/mtd0 rootfs.jffs2</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>挂载JFFS2文件系统</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">mount -t jffs2 /dev/mtdblock0 /mnt</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="3-2-2-UBIFS文件系统"><a href="#3-2-2-UBIFS文件系统" class="headerlink" title="3.2.2 UBIFS文件系统"></a>3.2.2 UBIFS文件系统</h4><p>适用于大容量NAND闪存的现代文件系统：</p>
+<ol>
+<li><p><strong>特点</strong>：</p>
+<ul>
+<li>基于UBI层的闪存文件系统</li>
+<li>支持坏块管理和磨损均衡</li>
+<li>熟悉的文件系统语义</li>
+<li>支持日志和无序访问</li>
+</ul>
+</li>
+<li><p><strong>准备UBI镜像</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建UBIFS镜像</span></span><br><span class="line">mkfs.ubifs -r rootfs/ -m 2048 -e 126976 -c 2000 -o ubifs.img</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建UBI镜像</span></span><br><span class="line">ubinize -o ubi.img -m 2048 -p 128KiB -s 512 ubinize.cfg</span><br></pre></td></tr></table></figure>
+
+<p>其中<code>ubinize.cfg</code>内容：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">[rootfs]</span><br><span class="line">mode=ubi</span><br><span class="line">image=ubifs.img</span><br><span class="line">vol_id=0</span><br><span class="line">vol_size=100MiB</span><br><span class="line">vol_type=dynamic</span><br><span class="line">vol_name=rootfs</span><br><span class="line">vol_flags=autoresize</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>烧写与挂载</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 烧写到NAND Flash</span></span><br><span class="line">ubiformat /dev/mtd0 -f ubi.img</span><br><span class="line"></span><br><span class="line"><span class="comment"># 挂载</span></span><br><span class="line">ubiattach -p /dev/mtd0</span><br><span class="line">mount -t ubifs ubi0:rootfs /mnt</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="3-2-3-SquashFS文件系统"><a href="#3-2-3-SquashFS文件系统" class="headerlink" title="3.2.3 SquashFS文件系统"></a>3.2.3 SquashFS文件系统</h4><p>高度压缩的只读文件系统，适合固件存储：</p>
+<ol>
+<li><p><strong>特点</strong>：</p>
+<ul>
+<li>高压缩比</li>
+<li>只读特性保证数据完整性</li>
+<li>支持多种压缩算法</li>
+<li>适合系统固件或只读数据存储</li>
+</ul>
+</li>
+<li><p><strong>创建SquashFS镜像</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建镜像</span></span><br><span class="line">mksquashfs rootfs/ rootfs.squashfs -comp xz -b 1M</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查镜像信息</span></span><br><span class="line">unsquashfs -s rootfs.squashfs</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>结合overlayfs使用</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 挂载只读基础层</span></span><br><span class="line">mount -t squashfs /dev/mtdblock0 /mnt/rom</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建可写层</span></span><br><span class="line">mount -t tmpfs tmpfs /mnt/rw</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建工作目录和挂载点</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /mnt/rw/work /mnt/rw/upper /mnt/overlay</span><br><span class="line"></span><br><span class="line"><span class="comment"># 挂载overlayfs</span></span><br><span class="line">mount -t overlay overlay -o lowerdir=/mnt/rom,upperdir=/mnt/rw/upper,workdir=/mnt/rw/work /mnt/overlay</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="3-3-网络文件系统详解">3.3 网络文件系统详解<a class="hlink" data-h="3-3-网络文件系统详解" href="#3-3-网络文件系统详解" title="跳到本节">¶</a></h3><p>网络文件系统允许设备通过网络加载根文件系统，便于开发和调试。</p>
+<h4 id="3-3-1-NFS根文件系统配置"><a href="#3-3-1-NFS根文件系统配置" class="headerlink" title="3.3.1 NFS根文件系统配置"></a>3.3.1 NFS根文件系统配置</h4><h5 id="3-3-1-1-在Ubuntu主机上安装NFS服务"><a href="#3-3-1-1-在Ubuntu主机上安装NFS服务" class="headerlink" title="3.3.1.1 在Ubuntu主机上安装NFS服务"></a>3.3.1.1 在Ubuntu主机上安装NFS服务</h5><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装NFS服务器</span></span><br><span class="line"><span class="built_in">sudo</span> apt-get install nfs-kernel-server</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看NFS服务状态</span></span><br><span class="line"><span class="built_in">sudo</span> service nfs-kernel-server status</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动NFS服务</span></span><br><span class="line"><span class="built_in">sudo</span> service nfs-kernel-server start</span><br></pre></td></tr></table></figure>
+
+<h5 id="3-3-1-2-配置NFS共享目录"><a href="#3-3-1-2-配置NFS共享目录" class="headerlink" title="3.3.1.2 配置NFS共享目录"></a>3.3.1.2 配置NFS共享目录</h5><ol>
+<li><p>创建用于共享的根文件系统目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p /home/&lt;用户名&gt;/nfsroot</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>解压根文件系统到该目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p /home/&lt;用户名&gt;/nfsroot/&lt;项目名&gt;</span><br><span class="line"><span class="built_in">sudo</span> tar -xzf &lt;根文件系统压缩包&gt; -C /home/&lt;用户名&gt;/nfsroot/&lt;项目名&gt;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>编辑NFS配置文件<code>/etc/exports</code>，添加共享目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/home/&lt;用户名&gt;/nfsroot *(rw,sync,no_root_squash,no_subtree_check)</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>参数说明：</p>
+<ul>
+<li><code>rw</code>: 允许读写访问</li>
+<li><code>sync</code>: 实时同步数据，确保数据完整性</li>
+<li><code>no_root_squash</code>: 允许客户端root用户保持root权限</li>
+<li><code>no_subtree_check</code>: 不检查父目录权限</li>
+<li><code>*</code>: 允许所有客户端访问（可替换为具体IP或网段）</li>
+</ul>
+<ol start="4">
+<li>重新加载NFS配置：<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> exportfs -r</span><br><span class="line"><span class="comment"># 或重启服务</span></span><br><span class="line"><span class="built_in">sudo</span> service nfs-kernel-server restart</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="3-3-1-3-NFS服务器调试">3.3.1.3 NFS服务器调试<a class="hlink" data-h="3-3-1-3-NFS服务器调试" href="#3-3-1-3-NFS服务器调试" title="跳到本节">¶</a></h3><ol>
+<li><p>查看当前共享的目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">showmount -e localhost</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>检查客户端连接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">showmount -a</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>开启NFS调试信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> rpcdebug -m nfsd -s all   <span class="comment"># 开启所有NFS服务器调试标志</span></span><br><span class="line"><span class="built_in">sudo</span> rpcdebug -m nfsd -c all   <span class="comment"># 清除所有NFS服务器调试标志</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>查看实时调试日志：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> journalctl -fl</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="3-3-2-TFTP服务器配置"><a href="#3-3-2-TFTP服务器配置" class="headerlink" title="3.3.2 TFTP服务器配置"></a>3.3.2 TFTP服务器配置</h4><p>在网络启动过程中，TFTP(Trivial File Transfer Protocol)用于传输内核镜像和设备树文件。</p>
+<h5 id="3-3-2-1-在Ubuntu主机上安装TFTP服务"><a href="#3-3-2-1-在Ubuntu主机上安装TFTP服务" class="headerlink" title="3.3.2.1 在Ubuntu主机上安装TFTP服务"></a>3.3.2.1 在Ubuntu主机上安装TFTP服务</h5><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> apt-get install tftpd-hpa</span><br></pre></td></tr></table></figure>
+
+<h5 id="3-3-2-2-配置TFTP服务"><a href="#3-3-2-2-配置TFTP服务" class="headerlink" title="3.3.2.2 配置TFTP服务"></a>3.3.2.2 配置TFTP服务</h5><ol>
+<li><p>编辑TFTP配置文件<code>/etc/default/tftpd-hpa</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">TFTP_USERNAME=&quot;tftp&quot;</span><br><span class="line">TFTP_DIRECTORY=&quot;/tftpboot&quot;</span><br><span class="line">TFTP_ADDRESS=&quot;0.0.0.0:69&quot;</span><br><span class="line">TFTP_OPTIONS=&quot;-l -c -s&quot;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>创建TFTP根目录并设置权限：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> <span class="built_in">mkdir</span> -p /tftpboot</span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">chmod</span> 777 /tftpboot</span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">chown</span> nobody /tftpboot</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>重启TFTP服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> service tftpd-hpa restart</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h5 id="3-3-2-3-拷贝内核和设备树文件"><a href="#3-3-2-3-拷贝内核和设备树文件" class="headerlink" title="3.3.2.3 拷贝内核和设备树文件"></a>3.3.2.3 拷贝内核和设备树文件</h5><p>将编译好的内核镜像和设备树文件拷贝到TFTP根目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cp</span> zImage /tftpboot/</span><br><span class="line"><span class="built_in">cp</span> *.dtb /tftpboot/</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-3-3-配置开发板网络启动"><a href="#3-3-3-配置开发板网络启动" class="headerlink" title="3.3.3 配置开发板网络启动"></a>3.3.3 配置开发板网络启动</h4><h5 id="3-3-3-1-U-Boot-Barebox配置"><a href="#3-3-3-1-U-Boot-Barebox配置" class="headerlink" title="3.3.3.1 U-Boot&#x2F;Barebox配置"></a>3.3.3.1 U-Boot&#x2F;Barebox配置</h5><p>在U-Boot或Barebox命令行中配置网络参数：</p>
+<p><strong>设置IP地址</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">```text</span><br><span class="line"># 对于U-Boot</span><br><span class="line">setenv ipaddr 192.168.1.100      # 开发板IP地址</span><br><span class="line">setenv serverip 192.168.1.10     # NFS服务器IP地址</span><br><span class="line">setenv netmask 255.255.255.0     # 网络掩码</span><br><span class="line">setenv gatewayip 192.168.1.1     # 网关地址</span><br><span class="line">saveenv                          # 保存环境变量</span><br><span class="line">```text</span><br><span class="line">```text</span><br><span class="line"></span><br><span class="line">```text</span><br><span class="line">```text</span><br><span class="line"># 对于Barebox</span><br><span class="line">edit /env/network/eth0</span><br><span class="line"># 修改内容为：</span><br><span class="line">ipaddr=192.168.5.126</span><br><span class="line">netmask=255.255.255.0</span><br><span class="line">gateway=192.168.5.1</span><br><span class="line">serverip=192.168.5.104</span><br><span class="line">saveenv  # 保存环境变量</span><br><span class="line">```text</span><br></pre></td></tr></table></figure>
+
+<p><strong>配置启动参数</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">```text</span><br><span class="line"># 对于U-Boot</span><br><span class="line">setenv bootargs &quot;console=ttyS0,115200 root=/dev/nfs rw nfsroot=$&#123;serverip&#125;:/home/user/nfsroot,v3,tcp ip=$&#123;ipaddr&#125;:$&#123;serverip&#125;:$&#123;gatewayip&#125;:$&#123;netmask&#125;::eth0:off&quot;</span><br><span class="line">saveenv</span><br><span class="line">```text</span><br><span class="line">```text</span><br><span class="line"></span><br><span class="line">```text</span><br><span class="line">```text</span><br><span class="line"># 对于Barebox</span><br><span class="line">edit /env/boot/net</span><br><span class="line"># 修改内容：</span><br><span class="line">#!/bin/sh</span><br><span class="line"></span><br><span class="line">[ -e /env/config-expansions ] &amp;&amp; /env/config-expansions</span><br><span class="line"></span><br><span class="line">path=&quot;/mnt/tftp&quot;</span><br><span class="line"></span><br><span class="line">global.bootm.image=&quot;$&#123;path&#125;/zImage-board-name&quot;</span><br><span class="line">global.bootm.oftree=&quot;$&#123;path&#125;/devicetree-name.dtb&quot;</span><br><span class="line"></span><br><span class="line">nfsroot=&quot;/home/user/nfsroot/project-name&quot;</span><br><span class="line">bootargs-ip</span><br><span class="line">global.linux.bootargs.dyn.root=&quot;root=/dev/nfs nfsroot=$nfsroot,vers=3,udp&quot;</span><br><span class="line"></span><br><span class="line">saveenv</span><br><span class="line">```text</span><br></pre></td></tr></table></figure>
+
+<h5 id="3-3-3-2-网络启动命令"><a href="#3-3-3-2-网络启动命令" class="headerlink" title="3.3.3.2 网络启动命令"></a>3.3.3.2 网络启动命令</h5><p>在U-Boot命令行中执行网络启动：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"># 对于U-Boot</span><br><span class="line">dhcp                          # 获取IP地址(如已设置可跳过)</span><br><span class="line">tftp $&#123;loadaddr&#125; zImage       # 通过TFTP加载内核</span><br><span class="line">tftp $&#123;fdt_addr&#125; board.dtb    # 通过TFTP加载设备树</span><br><span class="line">bootz $&#123;loadaddr&#125; - $&#123;fdt_addr&#125; # 启动内核</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">```text</span><br><span class="line"># 对于Barebox</span><br><span class="line">ifup eth0                     # 启用网络接口</span><br><span class="line">boot net                      # 通过网络启动</span><br><span class="line">```text</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-3-4-其他网络文件系统选项"><a href="#3-3-4-其他网络文件系统选项" class="headerlink" title="3.3.4 其他网络文件系统选项"></a>3.3.4 其他网络文件系统选项</h4><p>配置U-Boot自动从网络启动：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">setenv bootcmd &#x27;dhcp; tftp $&#123;loadaddr&#125; zImage; tftp $&#123;fdt_addr&#125; board.dtb; bootz $&#123;loadaddr&#125; - $&#123;fdt_addr&#125;&#x27;</span><br><span class="line">saveenv</span><br><span class="line">```bash</span><br><span class="line"></span><br><span class="line">1. **SSHFS**：</span><br><span class="line">   ```bash</span><br><span class="line">   # 在目标系统安装sshfs</span><br><span class="line">   apt-get install sshfs</span><br><span class="line"></span><br><span class="line">   # 挂载远程文件系统</span><br><span class="line">   sshfs user@server:/path/to/rootfs /mnt/remote</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>**NBD (网络块设备)**：<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 服务器端</span></span><br><span class="line">nbd-server 1234 rootfs.img</span><br><span class="line"></span><br><span class="line"><span class="comment"># 客户端</span></span><br><span class="line">modprobe nbd</span><br><span class="line">nbd-client server_ip 1234 /dev/nbd0</span><br><span class="line">mount /dev/nbd0 /mnt</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="3-3-5-网络根文件系统内核配置要求"><a href="#3-3-5-网络根文件系统内核配置要求" class="headerlink" title="3.3.5 网络根文件系统内核配置要求"></a>3.3.5 网络根文件系统内核配置要求</h4><p>要支持网络根文件系统，内核需要启用以下配置：</p>
+<ol>
+<li><p>网络支持：</p>
+<ul>
+<li><code>CONFIG_PACKET=y</code> - 数据包套接字支持</li>
+<li><code>CONFIG_INET=y</code> - TCP&#x2F;IP支持</li>
+</ul>
+</li>
+<li><p>NFS客户端支持：</p>
+<ul>
+<li><code>CONFIG_NFS_FS=y</code> - NFS文件系统支持</li>
+<li><code>CONFIG_ROOT_NFS=y</code> - NFS作为根文件系统支持</li>
+<li><code>CONFIG_NFS_V3=y</code> - NFSv3协议支持</li>
+<li><code>CONFIG_IP_PNP=y</code> - 协议初始化配置</li>
+<li><code>CONFIG_IP_PNP_DHCP=y</code> - DHCP支持</li>
+<li><code>CONFIG_IP_PNP_BOOTP=y</code> - BOOTP支持</li>
+</ul>
+</li>
+</ol>
+<p>可以通过以下命令检查内核是否支持NFS根文件系统：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/filesystems | grep nfs</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-3-6-网络根文件系统调试和优化"><a href="#3-3-6-网络根文件系统调试和优化" class="headerlink" title="3.3.6 网络根文件系统调试和优化"></a>3.3.6 网络根文件系统调试和优化</h4><h5 id="3-3-6-1-常见问题及解决方案"><a href="#3-3-6-1-常见问题及解决方案" class="headerlink" title="3.3.6.1 常见问题及解决方案"></a>3.3.6.1 常见问题及解决方案</h5><ol>
+<li><p><strong>网络连接问题</strong></p>
+<ul>
+<li><strong>现象</strong>：开发板无法连接到NFS服务器</li>
+<li><strong>解决方案</strong>：<ol>
+<li>检查网线连接和网络设备</li>
+<li>确认IP地址配置正确</li>
+<li>使用ping命令测试连接</li>
+<li>检查防火墙设置，必要时临时禁用：<code>sudo ufw disable</code></li>
+</ol>
+</li>
+</ul>
+</li>
+<li><p><strong>NFS挂载失败</strong></p>
+<ul>
+<li><strong>现象</strong>：内核启动时报NFS挂载错误</li>
+<li><strong>解决方案</strong>：<ol>
+<li>检查NFS服务是否正常运行：<code>sudo service nfs-kernel-server status</code></li>
+<li>确认导出目录权限：<code>cat /etc/exports</code></li>
+<li>检查NFS版本匹配，尝试指定不同版本：<code>vers=3</code>或<code>vers=4</code></li>
+<li>查看服务器日志：<code>sudo journalctl -u nfs-kernel-server</code></li>
+</ol>
+</li>
+</ul>
+</li>
+<li><p><strong>内核加载失败</strong></p>
+<ul>
+<li><strong>现象</strong>：无法通过TFTP加载内核或设备树</li>
+<li><strong>解决方案</strong>：<ol>
+<li>检查TFTP服务是否正常运行：<code>sudo service tftpd-hpa status</code></li>
+<li>确认文件权限和所有者：<code>ls -la /tftpboot/</code></li>
+<li>测试TFTP服务：使用TFTP客户端从另一台机器下载测试</li>
+</ol>
+</li>
+</ul>
+</li>
+<li><p><strong>文件系统权限问题</strong></p>
+<ul>
+<li><strong>现象</strong>：挂载成功但无法创建文件或修改权限</li>
+<li><strong>解决方案</strong>：<ol>
+<li>确认NFS导出选项包含<code>no_root_squash</code></li>
+<li>检查目录权限：<code>ls -la /home/user/nfsroot/</code></li>
+<li>修改共享目录的所有者：<code>sudo chown -R nobody:nogroup /home/user/nfsroot/</code></li>
+</ol>
+</li>
+</ul>
+</li>
+</ol>
+<h5 id="3-3-6-2-性能优化"><a href="#3-3-6-2-性能优化" class="headerlink" title="3.3.6.2 性能优化"></a>3.3.6.2 性能优化</h5><ol>
+<li><p><strong>NFS优化</strong></p>
+<ul>
+<li><p><strong>协议选择</strong>：</p>
+<ul>
+<li>UDP通常比TCP更快，但可靠性低：<code>nfsroot=...,udp</code></li>
+<li>对于不稳定网络，应使用TCP：<code>nfsroot=...,tcp</code></li>
+</ul>
+</li>
+<li><p><strong>缓存优化</strong>：</p>
+<ul>
+<li>增加读写缓冲区大小：<code>rsize=8192,wsize=8192</code></li>
+<li>例如：<code>nfsroot=...,rsize=8192,wsize=8192,udp</code></li>
+</ul>
+</li>
+<li><p><strong>挂载选项</strong>：</p>
+<ul>
+<li>异步模式提高性能但降低数据安全性：<code>async</code></li>
+<li>例如：<code>nfsroot=...,async</code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p><strong>网络优化</strong></p>
+<ul>
+<li>使用交换机而非集线器</li>
+<li>使用千兆网而非百兆网</li>
+<li>调整网卡参数：<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ethtool -G eth0 rx 4096 tx 4096</span><br></pre></td></tr></table></figure></li>
+<li>减少网络拥塞：为NFS服务器和开发板配置专用网络</li>
+</ul>
+</li>
+</ol>
+<h5 id="3-3-6-3-文件系统结构优化"><a href="#3-3-6-3-文件系统结构优化" class="headerlink" title="3.3.6.3 文件系统结构优化"></a>3.3.6.3 文件系统结构优化</h5><ol>
+<li><p><strong>分离目录挂载</strong>：</p>
+<ul>
+<li>将频繁写入的目录挂载到临时文件系统：<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">mount -t tmpfs tmpfs /var/log</span><br><span class="line">mount -t tmpfs tmpfs /tmp</span><br></pre></td></tr></table></figure></li>
+</ul>
+</li>
+<li><p><strong>符号链接</strong>：</p>
+<ul>
+<li>将大型静态文件保存在本地存储，通过符号链接在NFS文件系统中引用</li>
+</ul>
+</li>
+</ol>
+<h4 id="3-3-7-不同类型网络文件系统的比较"><a href="#3-3-7-不同类型网络文件系统的比较" class="headerlink" title="3.3.7 不同类型网络文件系统的比较"></a>3.3.7 不同类型网络文件系统的比较</h4><h5 id="3-3-7-1-NFS-vs-Samba"><a href="#3-3-7-1-NFS-vs-Samba" class="headerlink" title="3.3.7.1 NFS vs Samba"></a>3.3.7.1 NFS vs Samba</h5><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>NFS</th>
+<th>Samba</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>适用平台</td>
+<td>主要为Unix&#x2F;Linux</td>
+<td>跨平台，特别适合Windows</td>
+</tr>
+<tr>
+<td>协议</td>
+<td>NFS协议</td>
+<td>SMB&#x2F;CIFS协议</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>在Linux环境中较高</td>
+<td>额外协议转换开销</td>
+</tr>
+<tr>
+<td>安全性</td>
+<td>基本安全机制</td>
+<td>支持更强的身份验证</td>
+</tr>
+<tr>
+<td>易用性</td>
+<td>配置简单</td>
+<td>配置相对复杂</td>
+</tr>
+<tr>
+<td>作为根文件系统</td>
+<td>支持</td>
+<td>不支持</td>
+</tr>
+</tbody></table>
+<h5 id="3-3-7-2-其他网络文件系统选项"><a href="#3-3-7-2-其他网络文件系统选项" class="headerlink" title="3.3.7.2 其他网络文件系统选项"></a>3.3.7.2 其他网络文件系统选项</h5><ol>
+<li><p>**AFS (Andrew File System)**：</p>
+<ul>
+<li>分布式文件系统，具有本地缓存功能</li>
+<li>适合大规模网络环境</li>
+</ul>
+</li>
+<li><p>**CIFS (Common Internet File System)**：</p>
+<ul>
+<li>微软SMB协议的改进版本</li>
+<li>广泛用于Windows环境</li>
+</ul>
+</li>
+<li><p><strong>WebDAV</strong>：</p>
+<ul>
+<li>基于HTTP的协议扩展</li>
+<li>可通过网络防火墙访问</li>
+</ul>
+</li>
+</ol>
+<h4 id="3-3-8-网络根文件系统的应用场景"><a href="#3-3-8-网络根文件系统的应用场景" class="headerlink" title="3.3.8 网络根文件系统的应用场景"></a>3.3.8 网络根文件系统的应用场景</h4><h5 id="3-3-8-1-开发和调试环境"><a href="#3-3-8-1-开发和调试环境" class="headerlink" title="3.3.8.1 开发和调试环境"></a>3.3.8.1 开发和调试环境</h5><p>网络根文件系统在开发和调试阶段特别有价值，可以：</p>
+<ul>
+<li>快速测试软件更改，无需重新烧录</li>
+<li>方便使用主机上的开发工具</li>
+<li>简化日志收集和分析过程</li>
+<li>允许多人同时在同一环境中开发</li>
+</ul>
+<h5 id="3-3-8-2-产品测试和质量控制"><a href="#3-3-8-2-产品测试和质量控制" class="headerlink" title="3.3.8.2 产品测试和质量控制"></a>3.3.8.2 产品测试和质量控制</h5><p>在测试环境中使用网络根文件系统可以：</p>
+<ul>
+<li>确保所有设备使用完全相同的文件系统</li>
+<li>方便在测试中快速更新软件</li>
+<li>集中收集测试日志和结果</li>
+<li>简化批量设备测试流程</li>
+</ul>
+<h5 id="3-3-8-3-生产环境中的考量"><a href="#3-3-8-3-生产环境中的考量" class="headerlink" title="3.3.8.3 生产环境中的考量"></a>3.3.8.3 生产环境中的考量</h5><p>在生产环境中，通常不会使用网络根文件系统，因为：</p>
+<ul>
+<li>需要稳定独立运行</li>
+<li>网络依赖会增加故障点</li>
+<li>性能和安全考虑</li>
+</ul>
+<p>生产系统通常会将开发阶段的网络根文件系统转换为本地存储的文件系统。</p>
+<h4 id="3-3-9-结合initramfs和网络启动"><a href="#3-3-9-结合initramfs和网络启动" class="headerlink" title="3.3.9 结合initramfs和网络启动"></a>3.3.9 结合initramfs和网络启动</h4><h5 id="3-3-9-1-initramfs与NFS结合"><a href="#3-3-9-1-initramfs与NFS结合" class="headerlink" title="3.3.9.1 initramfs与NFS结合"></a>3.3.9.1 initramfs与NFS结合</h5><p>使用initramfs可以解决网络启动的一些问题：</p>
+<ol>
+<li>提供必要的网络驱动和工具</li>
+<li>实现复杂的启动逻辑</li>
+<li>在挂载网络文件系统前执行初始化任务</li>
+</ol>
+<p>实现步骤：</p>
+<ol>
+<li>创建包含必要工具的initramfs</li>
+<li>配置initramfs中的init脚本挂载NFS根文件系统</li>
+<li>将initramfs与内核一起加载</li>
+</ol>
+<h5 id="3-3-9-2-创建支持NFS的initramfs"><a href="#3-3-9-2-创建支持NFS的initramfs" class="headerlink" title="3.3.9.2 创建支持NFS的initramfs"></a>3.3.9.2 创建支持NFS的initramfs</h5><ol>
+<li><p><strong>准备基本目录结构</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p initramfs/&#123;bin,sbin,etc,proc,sys,dev,run,tmp,usr,var&#125;</span><br><span class="line"><span class="built_in">cd</span> initramfs</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>复制必要的工具</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cp</span> /bin/&#123;busybox,sh&#125; bin/</span><br><span class="line"><span class="built_in">cp</span> /sbin/&#123;udhcpc,ip&#125; sbin/</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>创建init脚本</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt; init &lt;&lt;<span class="string">EOF</span></span><br><span class="line"><span class="string">#!/bin/sh</span></span><br><span class="line"><span class="string">mount -t proc none /proc</span></span><br><span class="line"><span class="string">mount -t sysfs none /sys</span></span><br><span class="line"><span class="string">mount -t devtmpfs none /dev</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 配置网络</span></span><br><span class="line"><span class="string">ip link set eth0 up</span></span><br><span class="line"><span class="string">udhcpc -i eth0</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 挂载NFS根文件系统</span></span><br><span class="line"><span class="string">mkdir -p /mnt/root</span></span><br><span class="line"><span class="string">mount -t nfs -o vers=3,nolock 192.168.1.10:/home/user/nfsroot /mnt/root</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 切换到真正的根文件系统</span></span><br><span class="line"><span class="string">exec switch_root /mnt/root /sbin/init</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">chmod</span> +x init</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>打包initramfs</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">find . | cpio -H newc -o | gzip &gt; ../initramfs.cpio.gz</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>配置引导加载器使用initramfs</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">```text</span><br><span class="line">   # 对于U-Boot</span><br><span class="line">   setenv bootargs &quot;console=ttyS0,115200&quot;</span><br><span class="line">   setenv initrd_high 0xffffffff</span><br><span class="line">```text</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="3-3-10-网络根文件系统的最佳实践"><a href="#3-3-10-网络根文件系统的最佳实践" class="headerlink" title="3.3.10 网络根文件系统的最佳实践"></a>3.3.10 网络根文件系统的最佳实践</h4><h5 id="3-3-10-1-最佳使用场景"><a href="#3-3-10-1-最佳使用场景" class="headerlink" title="3.3.10.1 最佳使用场景"></a>3.3.10.1 最佳使用场景</h5><ul>
+<li><strong>开发和调试阶段</strong>：快速迭代，无需频繁烧录</li>
+<li><strong>教学和培训环境</strong>：多个开发板共享同一文件系统</li>
+<li><strong>测试自动化</strong>：便于集中管理和更新测试用例</li>
+<li><strong>系统恢复方案</strong>：作为备份启动选项</li>
+</ul>
+<h5 id="3-3-10-2-配置和管理建议"><a href="#3-3-10-2-配置和管理建议" class="headerlink" title="3.3.10.2 配置和管理建议"></a>3.3.10.2 配置和管理建议</h5><ol>
+<li><p><strong>网络配置</strong>：</p>
+<ul>
+<li>使用专用网络，减少干扰</li>
+<li>优先使用有线网络而非无线网络</li>
+<li>确保交换机和网络设备质量可靠</li>
+</ul>
+</li>
+<li><p><strong>安全考虑</strong>：</p>
+<ul>
+<li>限制NFS访问特定IP或网段</li>
+<li>使用防火墙规则限制不必要的访问</li>
+<li>定期备份服务器上的文件系统</li>
+</ul>
+</li>
+<li><p><strong>性能优化</strong>：</p>
+<ul>
+<li>根据网络情况选择UDP或TCP</li>
+<li>调整缓冲区大小和数据块大小</li>
+<li>将频繁访问的文件保存在本地存储</li>
+</ul>
+</li>
+<li><p><strong>可靠性提升</strong>：</p>
+<ul>
+<li>配置备用NFS服务器</li>
+<li>实现自动故障恢复机制</li>
+<li>使用网络监控工具及时发现问题</li>
+</ul>
+</li>
+</ol>
+<h5 id="3-3-10-3-从网络到产品的迁移路径"><a href="#3-3-10-3-从网络到产品的迁移路径" class="headerlink" title="3.3.10.3 从网络到产品的迁移路径"></a>3.3.10.3 从网络到产品的迁移路径</h5><p>开发完成后，通常需要从网络根文件系统迁移到产品使用的本地存储：</p>
+<ol>
+<li><p><strong>冻结开发环境</strong>：</p>
+<ul>
+<li>标记稳定版本，停止向NFS文件系统添加功能</li>
+</ul>
+</li>
+<li><p><strong>优化文件系统</strong>：</p>
+<ul>
+<li>删除调试工具和不必要的文件</li>
+<li>压缩静态内容，减小镜像大小</li>
+<li>配置适合生产环境的系统参数</li>
+</ul>
+</li>
+<li><p><strong>创建生产镜像</strong>：</p>
+<ul>
+<li>根据目标存储类型选择合适的文件系统</li>
+<li>创建只读部分和可写部分</li>
+<li>实施适当的安全强化措施</li>
+</ul>
+</li>
+<li><p><strong>验证和测试</strong>：</p>
+<ul>
+<li>全面测试本地存储的系统行为</li>
+<li>验证启动时间和性能参数</li>
+<li>测试系统恢复和容错能力</li>
+</ul>
+</li>
+</ol>
+<h2 id="4-定制与优化：裁剪、启动、空间和安全">4. 定制与优化：裁剪、启动、空间和安全<a class="hlink" data-h="4-定制与优化：裁剪、启动、空间和安全" href="#4-定制与优化：裁剪、启动、空间和安全" title="跳到本节">¶</a></h2><h3 id="4-1-系统裁剪策略">4.1 系统裁剪策略<a class="hlink" data-h="4-1-系统裁剪策略" href="#4-1-系统裁剪策略" title="跳到本节">¶</a></h3><p>我裁剪系统时一般从文档和 locale 下手，这两块通常能省出不少空间：</p>
+<h4 id="4-1-1-移除不必要组件"><a href="#4-1-1-移除不必要组件" class="headerlink" title="4.1.1 移除不必要组件"></a>4.1.1 移除不必要组件</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 识别大文件</span></span><br><span class="line"><span class="built_in">du</span> -h --max-depth=1 /path/to/rootfs | <span class="built_in">sort</span> -h</span><br><span class="line"><span class="built_in">du</span> -h --max-depth=1 /path/to/rootfs/usr | <span class="built_in">sort</span> -h</span><br><span class="line"></span><br><span class="line"><span class="comment"># 移除文档和本地化文件</span></span><br><span class="line"><span class="built_in">rm</span> -rf /path/to/rootfs/usr/share/doc</span><br><span class="line"><span class="built_in">rm</span> -rf /path/to/rootfs/usr/share/man</span><br><span class="line"><span class="built_in">rm</span> -rf /path/to/rootfs/usr/share/locale</span><br></pre></td></tr></table></figure>
+
+<h4 id="4-1-2-BusyBox优化"><a href="#4-1-2-BusyBox优化" class="headerlink" title="4.1.2 BusyBox优化"></a>4.1.2 BusyBox优化</h4><p>使用BusyBox替代标准工具集可大幅减小体积：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 编译定制BusyBox</span></span><br><span class="line">make menuconfig  <span class="comment"># 选择需要的工具</span></span><br><span class="line">make CROSS_COMPILE=arm-linux-gnueabihf-</span><br><span class="line">make CROSS_COMPILE=arm-linux-gnueabihf- CONFIG_PREFIX=/path/to/rootfs install</span><br></pre></td></tr></table></figure>
+
+<h4 id="4-1-3-库优化"><a href="#4-1-3-库优化" class="headerlink" title="4.1.3 库优化"></a>4.1.3 库优化</h4><ol>
+<li><p><strong>标识未使用的库</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">find /path/to/rootfs -name <span class="string">&quot;*.so*&quot;</span> | xargs arm-linux-gnueabihf-strip</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>使用静态链接</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">arm-linux-gnueabihf-gcc -static hello.c -o hello</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>使用musl或uclibc替代glibc</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在Buildroot中选择轻量级C库</span></span><br><span class="line">BR2_TOOLCHAIN_BUILDROOT_LIBC=<span class="string">&quot;musl&quot;</span></span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="4-2-启动优化">4.2 启动优化<a class="hlink" data-h="4-2-启动优化" href="#4-2-启动优化" title="跳到本节">¶</a></h3><h4 id="4-2-1-init系统选择"><a href="#4-2-1-init系统选择" class="headerlink" title="4.2.1 init系统选择"></a>4.2.1 init系统选择</h4><p>根据需求选择合适的init系统：</p>
+<ol>
+<li><p><strong>BusyBox init</strong>：最轻量级的选择</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">```text</span><br><span class="line">   # /etc/inittab示例</span><br><span class="line">   ::sysinit:/etc/init.d/rcS</span><br><span class="line">   ::respawn:/sbin/getty -L ttyS0 115200 vt100</span><br><span class="line">```text</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>systemd</strong>：功能丰富但资源消耗较大</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 禁用不需要的服务</span></span><br><span class="line">systemctl <span class="built_in">disable</span> bluetooth.service</span><br><span class="line">systemctl mask systemd-networkd-wait-online.service</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>sysvinit</strong>：传统且可靠</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 优化启动脚本</span></span><br><span class="line">update-rc.d -f bluetooth remove</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="4-2-2-并行启动"><a href="#4-2-2-并行启动" class="headerlink" title="4.2.2 并行启动"></a>4.2.2 并行启动</h4><p>配置服务并行启动以减少启动时间：</p>
+<ol>
+<li><p><strong>systemd并行启动</strong>：<br>systemd默认并行启动服务，无需特殊配置</p>
+</li>
+<li><p><strong>sysvinit并行启动</strong>：<br>修改<code>/etc/init.d/rc</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CONCURRENCY=makefile</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="4-2-3-启动服务优化"><a href="#4-2-3-启动服务优化" class="headerlink" title="4.2.3 启动服务优化"></a>4.2.3 启动服务优化</h4><ol>
+<li><p><strong>移除不必要的服务</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 对于systemd</span></span><br><span class="line">systemctl <span class="built_in">disable</span> cups.service avahi-daemon.service</span><br><span class="line"></span><br><span class="line"><span class="comment"># 对于sysvinit</span></span><br><span class="line">update-rc.d -f cups remove</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>延迟非关键服务启动</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># systemd service文件</span></span><br><span class="line">[Unit]</span><br><span class="line">After=network-online.target</span><br><span class="line"></span><br><span class="line">[Service]</span><br><span class="line">Type=simple</span><br><span class="line">ExecStartPre=/bin/sleep 10</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="4-3-存储空间优化">4.3 存储空间优化<a class="hlink" data-h="4-3-存储空间优化" href="#4-3-存储空间优化" title="跳到本节">¶</a></h3><h4 id="4-3-1-压缩技术"><a href="#4-3-1-压缩技术" class="headerlink" title="4.3.1 压缩技术"></a>4.3.1 压缩技术</h4><ol>
+<li><p><strong>文件系统级压缩</strong>：</p>
+<ul>
+<li>使用squashfs、erofs等压缩文件系统<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">mksquashfs rootfs/ rootfs.squashfs -comp xz</span><br></pre></td></tr></table></figure></li>
+</ul>
+</li>
+<li><p><strong>库和二进制压缩</strong>：</p>
+<ul>
+<li>UPX压缩可执行文件<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">upx --best /path/to/rootfs/bin/*</span><br><span class="line">upx --best /path/to/rootfs/sbin/*</span><br></pre></td></tr></table></figure></li>
+</ul>
+</li>
+<li><p><strong>数据压缩</strong>：</p>
+<ul>
+<li>压缩大型数据文件<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">find /path/to/rootfs -name <span class="string">&quot;*.xml&quot;</span> -<span class="built_in">exec</span> gzip -9 &#123;&#125; \;</span><br></pre></td></tr></table></figure></li>
+</ul>
+</li>
+</ol>
+<h4 id="4-3-2-去重和符号链接"><a href="#4-3-2-去重和符号链接" class="headerlink" title="4.3.2 去重和符号链接"></a>4.3.2 去重和符号链接</h4><ol>
+<li><p><strong>共享库去重</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 识别重复文件</span></span><br><span class="line">fdupes -r /path/to/rootfs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建硬链接替代重复文件</span></span><br><span class="line">fdupes -r -L /path/to/rootfs</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>使用符号链接合并相似文件</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">ln</span> -sf target_file link_name</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="4-3-3-tmpfs挂载"><a href="#4-3-3-tmpfs挂载" class="headerlink" title="4.3.3 tmpfs挂载"></a>4.3.3 tmpfs挂载</h4><p>将频繁写入的目录挂载为tmpfs，减少闪存写入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># /etc/fstab示例</span></span><br><span class="line">tmpfs /var/log tmpfs defaults,size=5M 0 0</span><br><span class="line">tmpfs /var/run tmpfs defaults,size=5M 0 0</span><br><span class="line">tmpfs /tmp tmpfs defaults,size=10M 0 0</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-安全性优化">4.4 安全性优化<a class="hlink" data-h="4-4-安全性优化" href="#4-4-安全性优化" title="跳到本节">¶</a></h3><h4 id="4-4-1-最小权限原则"><a href="#4-4-1-最小权限原则" class="headerlink" title="4.4.1 最小权限原则"></a>4.4.1 最小权限原则</h4><ol>
+<li><p><strong>限制SUID&#x2F;SGID文件</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">find /path/to/rootfs -perm /6000 -<span class="built_in">type</span> f -<span class="built_in">ls</span></span><br><span class="line"><span class="built_in">chmod</span> a-s /path/to/rootfs/bin/ping  <span class="comment"># 移除不必要的SUID权限</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>正确设置文件权限</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chmod</span> 600 /path/to/rootfs/etc/shadow</span><br><span class="line"><span class="built_in">chmod</span> 750 /path/to/rootfs/root</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="4-4-2-安全加固"><a href="#4-4-2-安全加固" class="headerlink" title="4.4.2 安全加固"></a>4.4.2 安全加固</h4><ol>
+<li><p><strong>配置防火墙规则</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 添加基本防火墙脚本</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /path/to/rootfs/etc/init.d/firewall &lt;&lt;<span class="string">EOF</span></span><br><span class="line"><span class="string">#!/bin/sh</span></span><br><span class="line"><span class="string">iptables -F</span></span><br><span class="line"><span class="string">iptables -P INPUT DROP</span></span><br><span class="line"><span class="string">iptables -P FORWARD DROP</span></span><br><span class="line"><span class="string">iptables -A INPUT -i lo -j ACCEPT</span></span><br><span class="line"><span class="string">iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT</span></span><br><span class="line"><span class="string">iptables -A INPUT -p tcp --dport 22 -j ACCEPT</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"><span class="built_in">chmod</span> +x /path/to/rootfs/etc/init.d/firewall</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>移除不必要的服务</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">rm</span> -f /path/to/rootfs/etc/init.d/telnetd</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>限制登录访问</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">&quot;pts/0&quot;</span> &gt; /path/to/rootfs/etc/securetty</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h4 id="4-4-3-启用SELinux-AppArmor"><a href="#4-4-3-启用SELinux-AppArmor" class="headerlink" title="4.4.3 启用SELinux&#x2F;AppArmor"></a>4.4.3 启用SELinux&#x2F;AppArmor</h4><p>针对高安全需求场景：</p>
+<ol>
+<li><p><strong>添加SELinux支持</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装SELinux文件</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /path/to/rootfs/selinux</span><br><span class="line"><span class="built_in">cp</span> -a /etc/selinux/* /path/to/rootfs/selinux/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置内核参数</span></span><br><span class="line">setenv bootargs <span class="string">&quot;<span class="variable">$&#123;bootargs&#125;</span> security=selinux selinux=1&quot;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>配置AppArmor</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在引导参数中启用</span></span><br><span class="line">setenv bootargs <span class="string">&quot;<span class="variable">$&#123;bootargs&#125;</span> apparmor=1 security=apparmor&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 复制配置文件</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /path/to/rootfs/etc/apparmor.d/</span><br><span class="line"><span class="built_in">cp</span> -a /etc/apparmor.d/* /path/to/rootfs/etc/apparmor.d/</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="5-备份与恢复：镜像、增量与网络三种手段">5. 备份与恢复：镜像、增量与网络三种手段<a class="hlink" data-h="5-备份与恢复：镜像、增量与网络三种手段" href="#5-备份与恢复：镜像、增量与网络三种手段" title="跳到本节">¶</a></h2><h3 id="5-1-备份策略">5.1 备份策略<a class="hlink" data-h="5-1-备份策略" href="#5-1-备份策略" title="跳到本节">¶</a></h3><h4 id="5-1-1-完整镜像备份"><a href="#5-1-1-完整镜像备份" class="headerlink" title="5.1.1 完整镜像备份"></a>5.1.1 完整镜像备份</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建完整分区镜像</span></span><br><span class="line"><span class="built_in">dd</span> <span class="keyword">if</span>=/dev/mmcblk0p1 of=rootfs_backup.img bs=4M</span><br><span class="line"></span><br><span class="line"><span class="comment"># 压缩镜像文件</span></span><br><span class="line">gzip -9 rootfs_backup.img</span><br></pre></td></tr></table></figure>
+
+<h4 id="5-1-2-增量备份"><a href="#5-1-2-增量备份" class="headerlink" title="5.1.2 增量备份"></a>5.1.2 增量备份</h4><p>使用rsync进行增量备份：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 初始完整备份</span></span><br><span class="line">rsync -avz /path/to/rootfs/ /path/to/backup/full/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 增量备份</span></span><br><span class="line">rsync -avz --link-dest=/path/to/backup/full/ /path/to/rootfs/ /path/to/backup/incremental/</span><br></pre></td></tr></table></figure>
+
+<h4 id="5-1-3-配置文件备份"><a href="#5-1-3-配置文件备份" class="headerlink" title="5.1.3 配置文件备份"></a>5.1.3 配置文件备份</h4><p>针对关键配置文件的定期备份：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">tar -czf configs_backup.tar.gz /path/to/rootfs/etc/</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-恢复方法">5.2 恢复方法<a class="hlink" data-h="5-2-恢复方法" href="#5-2-恢复方法" title="跳到本节">¶</a></h3><h4 id="5-2-1-完整镜像恢复"><a href="#5-2-1-完整镜像恢复" class="headerlink" title="5.2.1 完整镜像恢复"></a>5.2.1 完整镜像恢复</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 恢复完整分区镜像</span></span><br><span class="line">gunzip -c rootfs_backup.img.gz | <span class="built_in">dd</span> of=/dev/mmcblk0p1 bs=4M</span><br></pre></td></tr></table></figure>
+
+<h4 id="5-2-2-使用恢复分区"><a href="#5-2-2-使用恢复分区" class="headerlink" title="5.2.2 使用恢复分区"></a>5.2.2 使用恢复分区</h4><p>在系统设计时预留恢复分区：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># U-Boot恢复命令示例</span></span><br><span class="line">setenv recovery_cmd <span class="string">&#x27;mmc read $&#123;loadaddr&#125; 0x1000 0x2000; nand erase.part rootfs; nand write $&#123;loadaddr&#125; rootfs 0x1000000&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="5-2-3-网络恢复"><a href="#5-2-3-网络恢复" class="headerlink" title="5.2.3 网络恢复"></a>5.2.3 网络恢复</h4><p>配置通过网络恢复系统：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 通过TFTP下载恢复镜像</span></span><br><span class="line">tftp <span class="variable">$&#123;loadaddr&#125;</span> recovery.img</span><br><span class="line">nand erase.part rootfs</span><br><span class="line">nand write <span class="variable">$&#123;loadaddr&#125;</span> rootfs 0x<span class="variable">$&#123;filesize&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="6-常见问题：损坏、空间耗尽与只读挂载">6. 常见问题：损坏、空间耗尽与只读挂载<a class="hlink" data-h="6-常见问题：损坏、空间耗尽与只读挂载" href="#6-常见问题：损坏、空间耗尽与只读挂载" title="跳到本节">¶</a></h2><p>我遇到文件系统报错时一般先看 dmesg 和挂载选项，多数情况不是文件系统坏了，而是被挂成了只读。</p>
+<h3 id="6-1-文件系统损坏">6.1 文件系统损坏<a class="hlink" data-h="6-1-文件系统损坏" href="#6-1-文件系统损坏" title="跳到本节">¶</a></h3><h4 id="6-1-1-ext2-3-4文件系统修复"><a href="#6-1-1-ext2-3-4文件系统修复" class="headerlink" title="6.1.1 ext2&#x2F;3&#x2F;4文件系统修复"></a>6.1.1 ext2&#x2F;3&#x2F;4文件系统修复</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查并修复文件系统</span></span><br><span class="line">e2fsck -f /dev/mmcblk0p1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 强制检查</span></span><br><span class="line">e2fsck -fy /dev/mmcblk0p1</span><br></pre></td></tr></table></figure>
+
+<h4 id="6-1-2-闪存文件系统恢复"><a href="#6-1-2-闪存文件系统恢复" class="headerlink" title="6.1.2 闪存文件系统恢复"></a>6.1.2 闪存文件系统恢复</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># JFFS2清除</span></span><br><span class="line">flash_erase /dev/mtd0 0 0</span><br><span class="line"></span><br><span class="line"><span class="comment"># UBIFS检查</span></span><br><span class="line">ubifs_fsck /dev/mtd0</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-存储空间耗尽">6.2 存储空间耗尽<a class="hlink" data-h="6-2-存储空间耗尽" href="#6-2-存储空间耗尽" title="跳到本节">¶</a></h3><h4 id="6-2-1-识别大文件"><a href="#6-2-1-识别大文件" class="headerlink" title="6.2.1 识别大文件"></a>6.2.1 识别大文件</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查找大文件</span></span><br><span class="line">find / -<span class="built_in">type</span> f -size +10M -<span class="built_in">exec</span> <span class="built_in">ls</span> -lh &#123;&#125; \;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 分析目录占用</span></span><br><span class="line"><span class="built_in">du</span> -h --max-depth=2 /var | <span class="built_in">sort</span> -rh</span><br></pre></td></tr></table></figure>
+
+<h4 id="6-2-2-清理策略"><a href="#6-2-2-清理策略" class="headerlink" title="6.2.2 清理策略"></a>6.2.2 清理策略</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 清理日志文件</span></span><br><span class="line">logrotate -f /etc/logrotate.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># 清理临时文件</span></span><br><span class="line">find /tmp -<span class="built_in">type</span> f -atime +7 -delete</span><br><span class="line">find /var/log -<span class="built_in">type</span> f -name <span class="string">&quot;*.gz&quot;</span> -delete</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-只读文件系统问题">6.3 只读文件系统问题<a class="hlink" data-h="6-3-只读文件系统问题" href="#6-3-只读文件系统问题" title="跳到本节">¶</a></h3><h4 id="6-3-1-识别原因"><a href="#6-3-1-识别原因" class="headerlink" title="6.3.1 识别原因"></a>6.3.1 识别原因</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看挂载选项</span></span><br><span class="line">mount | grep rootfs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查文件系统错误</span></span><br><span class="line">dmesg | grep -i <span class="string">&quot;read-only&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="6-3-2-解决方法"><a href="#6-3-2-解决方法" class="headerlink" title="6.3.2 解决方法"></a>6.3.2 解决方法</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 尝试重新挂载为读写</span></span><br><span class="line">mount -o remount,rw /</span><br><span class="line"></span><br><span class="line"><span class="comment"># 手动文件系统检查</span></span><br><span class="line">fsck.ext4 -y /dev/mmcblk0p1</span><br></pre></td></tr></table></figure>
+
+<h2 id="7-从网络迁移到本地：镜像制作与烧写">7. 从网络迁移到本地：镜像制作与烧写<a class="hlink" data-h="7-从网络迁移到本地：镜像制作与烧写" href="#7-从网络迁移到本地：镜像制作与烧写" title="跳到本节">¶</a></h2><h3 id="7-1-创建本地根文件系统镜像">7.1 创建本地根文件系统镜像<a class="hlink" data-h="7-1-创建本地根文件系统镜像" href="#7-1-创建本地根文件系统镜像" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>准备镜像文件</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">dd</span> <span class="keyword">if</span>=/dev/zero of=rootfs.img bs=1M count=256</span><br><span class="line">mkfs.ext4 rootfs.img</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>挂载镜像并复制文件</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p /mnt/rootfs</span><br><span class="line"><span class="built_in">sudo</span> mount -o loop rootfs.img /mnt/rootfs</span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cp</span> -a /home/user/nfsroot/* /mnt/rootfs/</span><br><span class="line"><span class="built_in">sudo</span> umount /mnt/rootfs</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="7-2-将镜像写入目标设备">7.2 将镜像写入目标设备<a class="hlink" data-h="7-2-将镜像写入目标设备" href="#7-2-将镜像写入目标设备" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>直接写入分区</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> <span class="built_in">dd</span> <span class="keyword">if</span>=rootfs.img of=/dev/sdX bs=4M status=progress</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>使用闪存工具</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">flash_erase /dev/mtdX 0 0</span><br><span class="line">nandwrite -p /dev/mtdX rootfs.img</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="7-3-配置引导加载器使用本地存储">7.3 配置引导加载器使用本地存储<a class="hlink" data-h="7-3-配置引导加载器使用本地存储" href="#7-3-配置引导加载器使用本地存储" title="跳到本节">¶</a></h3><p>修改U-Boot环境变量以使用本地存储：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">setenv bootargs &quot;console=ttyS0,115200 root=/dev/mmcblk0p2 rootwait rw&quot;</span><br><span class="line">saveenv</span><br></pre></td></tr></table></figure>
+
+<h2 id="8-新方向：容器化、不可变基础设施与-OTA">8. 新方向：容器化、不可变基础设施与 OTA<a class="hlink" data-h="8-新方向：容器化、不可变基础设施与-OTA" href="#8-新方向：容器化、不可变基础设施与-OTA" title="跳到本节">¶</a></h2><h3 id="8-1-容器化技术">8.1 容器化技术<a class="hlink" data-h="8-1-容器化技术" href="#8-1-容器化技术" title="跳到本节">¶</a></h3><h4 id="8-1-1-基于Docker的嵌入式系统"><a href="#8-1-1-基于Docker的嵌入式系统" class="headerlink" title="8.1.1 基于Docker的嵌入式系统"></a>8.1.1 基于Docker的嵌入式系统</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建轻量级容器镜像</span></span><br><span class="line">FROM alpine:latest</span><br><span class="line">RUN apk add --no-cache busybox-extras dropbear</span><br><span class="line"></span><br><span class="line"><span class="comment"># 导出为根文件系统</span></span><br><span class="line">docker <span class="built_in">export</span> my-container &gt; rootfs.tar</span><br><span class="line">tar -xf rootfs.tar -C /path/to/rootfs</span><br></pre></td></tr></table></figure>
+
+<h4 id="8-1-2-systemd-nspawn容器"><a href="#8-1-2-systemd-nspawn容器" class="headerlink" title="8.1.2 systemd-nspawn容器"></a>8.1.2 systemd-nspawn容器</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建容器</span></span><br><span class="line"><span class="built_in">sudo</span> systemd-nspawn -D /path/to/rootfs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动系统服务</span></span><br><span class="line"><span class="built_in">sudo</span> systemd-nspawn -D /path/to/rootfs /sbin/init</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-2-不可变基础设施">8.2 不可变基础设施<a class="hlink" data-h="8-2-不可变基础设施" href="#8-2-不可变基础设施" title="跳到本节">¶</a></h3><p>采用只读根文件系统和A&#x2F;B分区的更新策略：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 设置只读根分区</span></span><br><span class="line">mount -o ro,remount /</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置临时覆盖层</span></span><br><span class="line">mount -t tmpfs tmpfs /var</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-3-远程管理与OTA更新">8.3 远程管理与OTA更新<a class="hlink" data-h="8-3-远程管理与OTA更新" href="#8-3-远程管理与OTA更新" title="跳到本节">¶</a></h3><h4 id="8-3-1-远程更新框架"><a href="#8-3-1-远程更新框架" class="headerlink" title="8.3.1 远程更新框架"></a>8.3.1 远程更新框架</h4><ul>
+<li>Mender</li>
+<li>SWUpdate</li>
+<li>RAUC (Robust Auto-Update Controller)</li>
+</ul>
+<h4 id="8-3-2-OTA更新策略"><a href="#8-3-2-OTA更新策略" class="headerlink" title="8.3.2 OTA更新策略"></a>8.3.2 OTA更新策略</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># SWUpdate示例配置</span></span><br><span class="line"><span class="built_in">cat</span> &gt; swupdate.cfg &lt;&lt;<span class="string">EOF</span></span><br><span class="line"><span class="string">globals :</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    verbose = true;</span></span><br><span class="line"><span class="string">    loglevel = 5;</span></span><br><span class="line"><span class="string">    syslog = true;</span></span><br><span class="line"><span class="string">&#125;;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">download :</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    retries = 3;</span></span><br><span class="line"><span class="string">    timeout = 30;</span></span><br><span class="line"><span class="string">&#125;;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">identify : (</span></span><br><span class="line"><span class="string">    &#123; name = &quot;hardware-compatibility&quot;; value = &quot;1.0&quot;; &#125;</span></span><br><span class="line"><span class="string">);</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="9-选型与规划：按场景挑文件系统、按分区做隔离">9. 选型与规划：按场景挑文件系统、按分区做隔离<a class="hlink" data-h="9-选型与规划：按场景挑文件系统、按分区做隔离" href="#9-选型与规划：按场景挑文件系统、按分区做隔离" title="跳到本节">¶</a></h2><h3 id="9-1-根文件系统类型选择指南">9.1 根文件系统类型选择指南<a class="hlink" data-h="9-1-根文件系统类型选择指南" href="#9-1-根文件系统类型选择指南" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>使用场景</th>
+<th>推荐文件系统</th>
+<th>优势</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>开发调试</td>
+<td>NFS</td>
+<td>快速迭代，无需重新烧录</td>
+</tr>
+<tr>
+<td>只读固件</td>
+<td>SquashFS</td>
+<td>高压缩比，完整性保护</td>
+</tr>
+<tr>
+<td>NAND Flash</td>
+<td>UBIFS</td>
+<td>支持坏块管理，写平衡</td>
+</tr>
+<tr>
+<td>NOR Flash</td>
+<td>JFFS2</td>
+<td>日志结构，掉电保护</td>
+</tr>
+<tr>
+<td>eMMC&#x2F;SD卡</td>
+<td>ext4</td>
+<td>可靠成熟，支持日志</td>
+</tr>
+<tr>
+<td>小型设备</td>
+<td>Initramfs</td>
+<td>内存加载，极速启动</td>
+</tr>
+<tr>
+<td>低端设备</td>
+<td>CRAMFS</td>
+<td>只读压缩，资源占用小</td>
+</tr>
+</tbody></table>
+<h3 id="9-2-根文件系统最佳实践">9.2 根文件系统最佳实践<a class="hlink" data-h="9-2-根文件系统最佳实践" href="#9-2-根文件系统最佳实践" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>安全考虑</strong>：</p>
+<ul>
+<li>尽量使用只读根文件系统</li>
+<li>分离系统和数据分区</li>
+<li>定期备份关键配置</li>
+</ul>
+</li>
+<li><p><strong>性能优化</strong>：</p>
+<ul>
+<li>选择适合存储介质的文件系统</li>
+<li>使用适当的挂载选项</li>
+<li>考虑文件系统缓存策略</li>
+</ul>
+</li>
+<li><p><strong>可靠性提升</strong>：</p>
+<ul>
+<li>实现A&#x2F;B分区更新机制</li>
+<li>使用日志型文件系统</li>
+<li>定期进行文件系统检查</li>
+</ul>
+</li>
+<li><p><strong>资源优化</strong>：</p>
+<ul>
+<li>移除不必要的文件和服务</li>
+<li>使用合适的压缩方法</li>
+<li>配置适当的缓存大小</li>
+</ul>
+</li>
+</ol>
+<h3 id="9-3-根文件系统规划策略">9.3 根文件系统规划策略<a class="hlink" data-h="9-3-根文件系统规划策略" href="#9-3-根文件系统规划策略" title="跳到本节">¶</a></h3><p>在设计嵌入式系统时，建议采用以下分区策略：</p>
+<ol>
+<li><strong>引导分区</strong>：包含引导加载器和内核</li>
+<li><strong>系统分区A</strong>：只读根文件系统</li>
+<li><strong>系统分区B</strong>：用于A&#x2F;B系统更新</li>
+<li><strong>配置分区</strong>：存储系统配置</li>
+<li><strong>数据分区</strong>：用户数据和应用数据</li>
+<li><strong>恢复分区</strong>：用于系统恢复</li>
+</ol>
+<p>我自己的做法是先把引导、系统 A&#x2F;B、数据这三块划出来，够用就别再切更细；分区一多，后续 OTA 和镜像管理的复杂度会成倍上升。</p>
+<h2 id="10-参考资源：文档、命令与进阶阅读">10. 参考资源：文档、命令与进阶阅读<a class="hlink" data-h="10-参考资源：文档、命令与进阶阅读" href="#10-参考资源：文档、命令与进阶阅读" title="跳到本节">¶</a></h2><h3 id="10-1-官方文档">10.1 官方文档<a class="hlink" data-h="10-1-官方文档" href="#10-1-官方文档" title="跳到本节">¶</a></h3><ul>
+<li><a target="_blank" rel="noopener" href="https://www.kernel.org/doc/html/latest/filesystems/index.html">Linux Kernel Documentation - Filesystems</a></li>
+<li><a target="_blank" rel="noopener" href="https://buildroot.org/docs.html">Buildroot Manual</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.yoctoproject.org/">Yocto Project Documentation</a></li>
+<li><a target="_blank" rel="noopener" href="http://www.linux-mtd.infradead.org/doc/ubifs.html">UBIFS Documentation</a></li>
+<li><a target="_blank" rel="noopener" href="https://nfs.sourceforge.net/nfs-howto/">Linux NFS-HOWTO</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.kernel.org/doc/html/latest/filesystems/nfs/index.html">The Linux Kernel documentation - NFS</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/u-boot/u-boot/blob/master/doc/README.nfs">U-Boot README.nfs</a></li>
+</ul>
+<h3 id="10-2-相关命令和工具">10.2 相关命令和工具<a class="hlink" data-h="10-2-相关命令和工具" href="#10-2-相关命令和工具" title="跳到本节">¶</a></h3><ul>
+<li><strong>文件系统操作</strong>：mkfs, mount, umount, fsck</li>
+<li><strong>Flash操作</strong>：mtd-utils, flash_erase, nandwrite</li>
+<li><strong>网络文件系统</strong>：exportfs, showmount, nfsstat</li>
+<li><strong>系统构建</strong>：Buildroot, Yocto Project, debootstrap</li>
+<li><strong>系统优化</strong>：strace, ltrace, perf, systemd-analyze</li>
+</ul>
+<h3 id="10-3-进阶阅读">10.3 进阶阅读<a class="hlink" data-h="10-3-进阶阅读" href="#10-3-进阶阅读" title="跳到本节">¶</a></h3><ul>
+<li><strong>嵌入式Linux文件系统设计与实现</strong></li>
+<li><strong>文件系统性能优化技术</strong></li>
+<li><strong>闪存存储技术深入解析</strong></li>
+<li><strong>可靠性嵌入式系统设计模式</strong></li>
+<li><strong>嵌入式Linux安全加固策略</strong></li>
+</ul>
+<div class="callout warning" data-callout="warning"><div class="callout-title"><span class="callout-ico">⚠️</span><span class="callout-title-inner"><br>选择根文件系统类型是嵌入式系统设计中的关键决策。务必根据实际应用场景、硬件特性和性能需求，选择最适合的根文件系统类型和配置。</span></div><div class="callout-body"></div></div>
+<h2 id="11-附录：文件系统、闪存、网络命令速查">11. 附录：文件系统、闪存、网络命令速查<a class="hlink" data-h="11-附录：文件系统、闪存、网络命令速查" href="#11-附录：文件系统、闪存、网络命令速查" title="跳到本节">¶</a></h2><h3 id="11-1-文件系统操作命令">11.1 文件系统操作命令<a class="hlink" data-h="11-1-文件系统操作命令" href="#11-1-文件系统操作命令" title="跳到本节">¶</a></h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建文件系统</span></span><br><span class="line">mkfs.ext4 /dev/sdX1</span><br><span class="line">mkfs.vfat -F 32 /dev/sdX1</span><br><span class="line">mkfs.jffs2 -r rootfs/ -o rootfs.jffs2 -e 128KiB</span><br><span class="line"></span><br><span class="line"><span class="comment"># 挂载文件系统</span></span><br><span class="line">mount -t ext4 /dev/sdX1 /mnt</span><br><span class="line">mount -t nfs server:/path /mnt</span><br><span class="line">mount -t jffs2 /dev/mtdblock0 /mnt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 文件系统检查</span></span><br><span class="line">fsck.ext4 -f /dev/sdX1</span><br><span class="line">e2fsck -fy /dev/sdX1</span><br></pre></td></tr></table></figure>
+
+<h3 id="11-2-闪存操作命令">11.2 闪存操作命令<a class="hlink" data-h="11-2-闪存操作命令" href="#11-2-闪存操作命令" title="跳到本节">¶</a></h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看闪存信息</span></span><br><span class="line"><span class="built_in">cat</span> /proc/mtd</span><br><span class="line">mtdinfo /dev/mtd0</span><br><span class="line"></span><br><span class="line"><span class="comment"># 闪存操作</span></span><br><span class="line">flash_erase /dev/mtd0 0 0</span><br><span class="line">nandwrite -p /dev/mtd0 image.bin</span><br><span class="line">nanddump -f backup.bin /dev/mtd0</span><br><span class="line"></span><br><span class="line"><span class="comment"># UBI操作</span></span><br><span class="line">ubiformat /dev/mtd0 -f ubi.img</span><br><span class="line">ubimkvol /dev/ubi0 -N rootfs -s 100MiB</span><br></pre></td></tr></table></figure>
+
+<h3 id="11-3-系统分析命令">11.3 系统分析命令<a class="hlink" data-h="11-3-系统分析命令" href="#11-3-系统分析命令" title="跳到本节">¶</a></h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 分析文件系统使用情况</span></span><br><span class="line"><span class="built_in">df</span> -h</span><br><span class="line"><span class="built_in">du</span> -h --max-depth=1 /</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查找大文件</span></span><br><span class="line">find / -<span class="built_in">type</span> f -size +10M -<span class="built_in">exec</span> <span class="built_in">ls</span> -lh &#123;&#125; \;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 分析启动性能</span></span><br><span class="line">systemd-analyze</span><br><span class="line">systemd-analyze blame</span><br><span class="line">bootchart</span><br><span class="line"></span><br><span class="line"><span class="comment"># 系统监控</span></span><br><span class="line">top</span><br><span class="line">iostat</span><br><span class="line">vmstat</span><br></pre></td></tr></table></figure>
+
+<h3 id="11-4-U-Boot-Barebox网络命令">11.4 U-Boot&#x2F;Barebox网络命令<a class="hlink" data-h="11-4-U-Boot-Barebox网络命令" href="#11-4-U-Boot-Barebox网络命令" title="跳到本节">¶</a></h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># U-Boot命令</span></span><br><span class="line"><span class="built_in">printenv</span>                          <span class="comment"># 打印环境变量</span></span><br><span class="line">setenv name value                 <span class="comment"># 设置环境变量</span></span><br><span class="line">saveenv                           <span class="comment"># 保存环境变量</span></span><br><span class="line">dhcp                              <span class="comment"># 获取IP地址</span></span><br><span class="line">tftp address filename             <span class="comment"># 下载文件到内存</span></span><br><span class="line">ping ipaddress                    <span class="comment"># 测试网络</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Barebox命令</span></span><br><span class="line">edit /env/config                  <span class="comment"># 编辑配置</span></span><br><span class="line">saveenv                           <span class="comment"># 保存环境</span></span><br><span class="line">ifup eth0                         <span class="comment"># 启动网络接口</span></span><br><span class="line">devinfo eth0                      <span class="comment"># 查看网络设备信息</span></span><br><span class="line">boot net                          <span class="comment"># 网络启动</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="11-5-NFS相关命令">11.5 NFS相关命令<a class="hlink" data-h="11-5-NFS相关命令" href="#11-5-NFS相关命令" title="跳到本节">¶</a></h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 服务器端</span></span><br><span class="line"><span class="built_in">sudo</span> service nfs-kernel-server start|stop|restart|status</span><br><span class="line"><span class="built_in">sudo</span> exportfs -ra                 <span class="comment"># 重新导出所有目录</span></span><br><span class="line"><span class="built_in">sudo</span> exportfs -v                  <span class="comment"># 查看导出详情</span></span><br><span class="line">showmount -e                      <span class="comment"># 查看导出列表</span></span><br><span class="line">showmount -a                      <span class="comment"># 查看客户端连接</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 客户端</span></span><br><span class="line">mount -t nfs server:/path /mnt    <span class="comment"># 手动挂载NFS</span></span><br><span class="line">umount /mnt                       <span class="comment"># 卸载NFS</span></span><br><span class="line">nfsstat                           <span class="comment"># 查看NFS统计信息</span></span><br></pre></td></tr></table></figure>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"05-根文件系统类型与构建方法","description":"很多人把根文件系统当成一个笼统的词，但真正动手时你会发现，它既可以指根目录 / 下那一堆目录，也可以指内存里的 initramfs、Flash 上的 UBIFS，甚至远程的 NFS。","datePublished":"2026-11-16T00:00:00+08:00","dateModified":"2026-11-16T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/3140138007.html"},"url":"https://zeek-zhao.github.io/posts/3140138007.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"操作系统与机器人","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/"},{"@type":"ListItem","position":4,"name":"Linux","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/"},{"@type":"ListItem","position":5,"name":"05-根文件系统类型与构建方法","item":"https://zeek-zhao.github.io/posts/3140138007.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#1-根文件系统基础：挂载点与核心目录的职责" data-h="1-根文件系统基础：挂载点与核心目录的职责" class="">1. 根文件系统基础：挂载点与核心目录的职责</a>
+      
+        <a href="#1-1-什么是根文件系统" data-h="1-1-什么是根文件系统" class="l2">1.1 什么是根文件系统</a>
+      
+        <a href="#1-2-文件系统类型概览" data-h="1-2-文件系统类型概览" class="l2">1.2 文件系统类型概览</a>
+      
+        <a href="#1-3-根文件系统的启动流程" data-h="1-3-根文件系统的启动流程" class="l2">1.3 根文件系统的启动流程</a>
+      
+        <a href="#2-构建方法：手动、Buildroot、Yocto-与发行版" data-h="2-构建方法：手动、Buildroot、Yocto-与发行版" class="">2. 构建方法：手动、Buildroot、Yocto 与发行版</a>
+      
+        <a href="#2-1-手动构建根文件系统" data-h="2-1-手动构建根文件系统" class="l2">2.1 手动构建根文件系统</a>
+      
+        <a href="#2-2-使用Buildroot构建根文件系统" data-h="2-2-使用Buildroot构建根文件系统" class="l2">2.2 使用Buildroot构建根文件系统</a>
+      
+        <a href="#2-3-使用Yocto-Project构建根文件系统" data-h="2-3-使用Yocto-Project构建根文件系统" class="l2">2.3 使用Yocto Project构建根文件系统</a>
+      
+        <a href="#2-4-使用发行版构建根文件系统" data-h="2-4-使用发行版构建根文件系统" class="l2">2.4 使用发行版构建根文件系统</a>
+      
+        <a href="#3-特殊类型：initramfs、闪存与网络文件系统" data-h="3-特殊类型：initramfs、闪存与网络文件系统" class="">3. 特殊类型：initramfs、闪存与网络文件系统</a>
+      
+        <a href="#3-1-initramfs详解" data-h="3-1-initramfs详解" class="l2">3.1 initramfs详解</a>
+      
+        <a href="#3-2-闪存文件系统详解" data-h="3-2-闪存文件系统详解" class="l2">3.2 闪存文件系统详解</a>
+      
+        <a href="#3-3-网络文件系统详解" data-h="3-3-网络文件系统详解" class="l2">3.3 网络文件系统详解</a>
+      
+        <a href="#3-3-1-3-NFS服务器调试" data-h="3-3-1-3-NFS服务器调试" class="l2">3.3.1.3 NFS服务器调试</a>
+      
+        <a href="#4-定制与优化：裁剪、启动、空间和安全" data-h="4-定制与优化：裁剪、启动、空间和安全" class="">4. 定制与优化：裁剪、启动、空间和安全</a>
+      
+        <a href="#4-1-系统裁剪策略" data-h="4-1-系统裁剪策略" class="l2">4.1 系统裁剪策略</a>
+      
+        <a href="#4-2-启动优化" data-h="4-2-启动优化" class="l2">4.2 启动优化</a>
+      
+        <a href="#4-3-存储空间优化" data-h="4-3-存储空间优化" class="l2">4.3 存储空间优化</a>
+      
+        <a href="#4-4-安全性优化" data-h="4-4-安全性优化" class="l2">4.4 安全性优化</a>
+      
+        <a href="#5-备份与恢复：镜像、增量与网络三种手段" data-h="5-备份与恢复：镜像、增量与网络三种手段" class="">5. 备份与恢复：镜像、增量与网络三种手段</a>
+      
+        <a href="#5-1-备份策略" data-h="5-1-备份策略" class="l2">5.1 备份策略</a>
+      
+        <a href="#5-2-恢复方法" data-h="5-2-恢复方法" class="l2">5.2 恢复方法</a>
+      
+        <a href="#6-常见问题：损坏、空间耗尽与只读挂载" data-h="6-常见问题：损坏、空间耗尽与只读挂载" class="">6. 常见问题：损坏、空间耗尽与只读挂载</a>
+      
+        <a href="#6-1-文件系统损坏" data-h="6-1-文件系统损坏" class="l2">6.1 文件系统损坏</a>
+      
+        <a href="#6-2-存储空间耗尽" data-h="6-2-存储空间耗尽" class="l2">6.2 存储空间耗尽</a>
+      
+        <a href="#6-3-只读文件系统问题" data-h="6-3-只读文件系统问题" class="l2">6.3 只读文件系统问题</a>
+      
+        <a href="#7-从网络迁移到本地：镜像制作与烧写" data-h="7-从网络迁移到本地：镜像制作与烧写" class="">7. 从网络迁移到本地：镜像制作与烧写</a>
+      
+        <a href="#7-1-创建本地根文件系统镜像" data-h="7-1-创建本地根文件系统镜像" class="l2">7.1 创建本地根文件系统镜像</a>
+      
+        <a href="#7-2-将镜像写入目标设备" data-h="7-2-将镜像写入目标设备" class="l2">7.2 将镜像写入目标设备</a>
+      
+        <a href="#7-3-配置引导加载器使用本地存储" data-h="7-3-配置引导加载器使用本地存储" class="l2">7.3 配置引导加载器使用本地存储</a>
+      
+        <a href="#8-新方向：容器化、不可变基础设施与-OTA" data-h="8-新方向：容器化、不可变基础设施与-OTA" class="">8. 新方向：容器化、不可变基础设施与 OTA</a>
+      
+        <a href="#8-1-容器化技术" data-h="8-1-容器化技术" class="l2">8.1 容器化技术</a>
+      
+        <a href="#8-2-不可变基础设施" data-h="8-2-不可变基础设施" class="l2">8.2 不可变基础设施</a>
+      
+        <a href="#8-3-远程管理与OTA更新" data-h="8-3-远程管理与OTA更新" class="l2">8.3 远程管理与OTA更新</a>
+      
+        <a href="#9-选型与规划：按场景挑文件系统、按分区做隔离" data-h="9-选型与规划：按场景挑文件系统、按分区做隔离" class="">9. 选型与规划：按场景挑文件系统、按分区做隔离</a>
+      
+        <a href="#9-1-根文件系统类型选择指南" data-h="9-1-根文件系统类型选择指南" class="l2">9.1 根文件系统类型选择指南</a>
+      
+        <a href="#9-2-根文件系统最佳实践" data-h="9-2-根文件系统最佳实践" class="l2">9.2 根文件系统最佳实践</a>
+      
+        <a href="#9-3-根文件系统规划策略" data-h="9-3-根文件系统规划策略" class="l2">9.3 根文件系统规划策略</a>
+      
+        <a href="#10-参考资源：文档、命令与进阶阅读" data-h="10-参考资源：文档、命令与进阶阅读" class="">10. 参考资源：文档、命令与进阶阅读</a>
+      
+        <a href="#10-1-官方文档" data-h="10-1-官方文档" class="l2">10.1 官方文档</a>
+      
+        <a href="#10-2-相关命令和工具" data-h="10-2-相关命令和工具" class="l2">10.2 相关命令和工具</a>
+      
+        <a href="#10-3-进阶阅读" data-h="10-3-进阶阅读" class="l2">10.3 进阶阅读</a>
+      
+        <a href="#11-附录：文件系统、闪存、网络命令速查" data-h="11-附录：文件系统、闪存、网络命令速查" class="">11. 附录：文件系统、闪存、网络命令速查</a>
+      
+        <a href="#11-1-文件系统操作命令" data-h="11-1-文件系统操作命令" class="l2">11.1 文件系统操作命令</a>
+      
+        <a href="#11-2-闪存操作命令" data-h="11-2-闪存操作命令" class="l2">11.2 闪存操作命令</a>
+      
+        <a href="#11-3-系统分析命令" data-h="11-3-系统分析命令" class="l2">11.3 系统分析命令</a>
+      
+        <a href="#11-4-U-Boot-Barebox网络命令" data-h="11-4-U-Boot-Barebox网络命令" class="l2">11.4 U-Boot&#x2F;Barebox网络命令</a>
+      
+        <a href="#11-5-NFS相关命令" data-h="11-5-NFS相关命令" class="l2">11.5 NFS相关命令</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

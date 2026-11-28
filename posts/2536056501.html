@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>19-SPI总线驱动与设备树配置 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="SPI 是嵌入式里最常见的同步串行总线，Flash、EEPROM、RTC、AD 转换器这些外设基本都走它。这篇把协议基础、Linux 驱动架构、设备树配置到测试验证这条线串起来。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/2536056501.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="19-SPI总线驱动与设备树配置">
+<meta property="og:description" content="SPI 是嵌入式里最常见的同步串行总线，Flash、EEPROM、RTC、AD 转换器这些外设基本都走它。这篇把协议基础、Linux 驱动架构、设备树配置到测试验证这条线串起来。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2536056501.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="19-SPI总线驱动与设备树配置">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-02T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="操作系统与机器人">
+          <div class="sg-head">
+            <span>🤖</span><span>操作系统与机器人</span><span class="cnt">447 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Linux">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/" class=""><span>🐧</span><span>Linux</span><span class="cnt">129</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Linux 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1681936644.html" class="">01-EC20模块4G拨号与GPS定位开发</a>
+                  
+                    <a href="/posts/4083254943.html" class="">01-Linux安全子系统访问控制与隔离</a>
+                  
+                    <a href="/posts/2415137652.html" class="">01-Linux常用命令速查</a>
+                  
+                    <a href="/posts/533232104.html" class="">01-U-Boot基础与启动流程</a>
+                  
+                    <a href="/posts/3075951192.html" class="">01-Systemd核心组件架构与功能</a>
+                  
+                    <a href="/posts/228001063.html" class="">01-基础工具排查内存泄漏</a>
+                  
+                    <a href="/posts/2735785623.html" class="">01-工业控制器软硬件测试方案</a>
+                  
+                    <a href="/posts/419018602.html" class="">01-裸机开发流程与硬件操控</a>
+                  
+                    <a href="/posts/1072254920.html" class="">02-Linux系统网络配置方法与排障</a>
+                  
+                    <a href="/posts/299621239.html" class="">02-Linux电源管理子系统架构与调优</a>
+                  
+                    <a href="/posts/1221451.html" class="">02-U-Boot新板移植适配流程</a>
+                  
+                    <a href="/posts/4128798125.html" class="">02-systemd-analyze启动性能分析</a>
+                  
+                    <a href="/posts/3888100408.html" class="">02-内核功能与模块管理命令</a>
+                  
+                    <a href="/posts/1471709349.html" class="">02-外设接口测试指南</a>
+                  
+                    <a href="/posts/609416877.html" class="">02-嵌入式开发板硬件接口速查</a>
+                  
+                    <a href="/posts/711801502.html" class="">02-磁盘与文件系统管理</a>
+                  
+                    <a href="/posts/2990991122.html" class="">03-Linux进程管理调度与IPC机制</a>
+                  
+                    <a href="/posts/2680037132.html" class="">03-U-Boot源码结构与启动流程</a>
+                  
+                    <a href="/posts/101579121.html" class="">03-mmap内存映射原理与驱动实现</a>
+                  
+                    <a href="/posts/4216171518.html" class="">03-systemd服务配置与管理</a>
+                  
+                    <a href="/posts/2319334978.html" class="">03-内核基础编译与模块开发</a>
+                  
+                    <a href="/posts/3923580784.html" class="">03-各类工具代理配置</a>
+                  
+                    <a href="/posts/3161741332.html" class="">03-开发板SSH默认端口修改与安全连接</a>
+                  
+                    <a href="/posts/3641886687.html" class="">03-网络测试指南</a>
+                  
+                    <a href="/posts/3785836924.html" class="">04-systemd核心概念与基础</a>
+                  
+                    <a href="/posts/3734120973.html" class="">04-内存管理子系统的层次与机制</a>
+                  
+                    <a href="/posts/972888713.html" class="">04-内核编译与模块功能定制</a>
+                  
+                    <a href="/posts/3751178843.html" class="">04-开发板Linux下修改MAC地址</a>
+                  
+                    <a href="/posts/1112658189.html" class="">04-根文件系统开发实践</a>
+                  
+                    <a href="/posts/1854171497.html" class="">04-芯片四大组件性能测试与选型</a>
+                  
+                    <a href="/posts/262344998.html" class="">04-驱动开发概念分类与架构流程</a>
+                  
+                    <a href="/posts/1094537113.html" class="">05-IMA完整性测量架构与配置</a>
+                  
+                    <a href="/posts/2881050404.html" class="">05-kmemleak内核内存泄漏检测</a>
+                  
+                    <a href="/posts/1992174196.html" class="">05-systemd启动流程与机制</a>
+                  
+                    <a href="/posts/3908546189.html" class="">05-内核架构与子系统协作</a>
+                  
+                    <a href="/posts/3140138007.html" class="">05-根文件系统类型与构建方法</a>
+                  
+                    <a href="/posts/2172472796.html" class="">05-音频设备测试与故障排查</a>
+                  
+                    <a href="/posts/2557508733.html" class="">05-驱动开发框架与通用子系统</a>
+                  
+                    <a href="/posts/862017958.html" class="">06-ICM20608六轴传感器驱动移植</a>
+                  
+                    <a href="/posts/4115811846.html" class="">06-Linux基础术语与核心概念</a>
+                  
+                    <a href="/posts/2015394678.html" class="">06-S3C2440时钟体系与寄存器配置</a>
+                  
+                    <a href="/posts/1758255262.html" class="">06-journald日志查询与管理</a>
+                  
+                    <a href="/posts/45575455.html" class="">06-mtrace内存泄漏分析技巧</a>
+                  
+                    <a href="/posts/3755082214.html" class="">06-内核同步机制与并发控制</a>
+                  
+                    <a href="/posts/3813382677.html" class="">07-Linux计划任务配置与选型</a>
+                  
+                    <a href="/posts/1886591968.html" class="">07-Linux设备驱动模型核心机制</a>
+                  
+                    <a href="/posts/3144201791.html" class="">07-Sanitizer内存泄漏分析</a>
+                  
+                    <a href="/posts/1893451115.html" class="">07-systemd架构与服务管理</a>
+                  
+                    <a href="/posts/992563292.html" class="">07-内核子系统总览</a>
+                  
+                    <a href="/posts/2252012541.html" class="">07-裸机点亮LED与GPIO寄存器操作</a>
+                  
+                    <a href="/posts/2494136140.html" class="">08-Linux图像设备V4L2开发</a>
+                  
+                    <a href="/posts/2551125294.html" class="">08-TCMalloc内存分配器与内存泄漏分析</a>
+                  
+                    <a href="/posts/286299626.html" class="">08-网络协议与通信原理</a>
+                  
+                    <a href="/posts/2856475980.html" class="">08-裸机交叉编译工具链与链接脚本</a>
+                  
+                    <a href="/posts/423458188.html" class="">08-设备驱动模型与开发实践</a>
+                  
+                    <a href="/posts/4014961628.html" class="">09-Linux网卡流量统计工具选型与用法</a>
+                  
+                    <a href="/posts/4142321600.html" class="">09-Ubuntu2004禁止自动休眠的几种方式</a>
+                  
+                    <a href="/posts/1114536982.html" class="">09-内存管理基础</a>
+                  
+                    <a href="/posts/1702870561.html" class="">09-时间子系统原理与实现</a>
+                  
+                    <a href="/posts/729158944.html" class="">09-设备树DTS语法与内核解析</a>
+                  
+                    <a href="/posts/1720365042.html" class="">10-GPIO三种操作方式与设备树配置</a>
+                  
+                    <a href="/posts/1524901879.html" class="">10-Valgrind内存泄漏分析实战</a>
+                  
+                    <a href="/posts/683186726.html" class="">10-内存泄漏分析与定位流程</a>
+                  
+                    <a href="/posts/1370598446.html" class="">10-图形子系统架构与渲染栈</a>
+                  
+                    <a href="/posts/1626889410.html" class="">10-设备树架构与内核处理流程</a>
+                  
+                    <a href="/posts/1631881322.html" class="">11-CAN总线SocketCAN与CANopen开发</a>
+                  
+                    <a href="/posts/3507320406.html" class="">11-内存泄漏概念检测与修复</a>
+                  
+                    <a href="/posts/2395844944.html" class="">11-网络子系统架构与数据包流程</a>
+                  
+                    <a href="/posts/3827344601.html" class="">11-设备树开发流程与驱动实践</a>
+                  
+                    <a href="/posts/2542203250.html" class="">12-Flash驱动开发与MTD测试体系</a>
+                  
+                    <a href="/posts/3601506011.html" class="">12-嵌入式设备烧录与自动烧录SD卡</a>
+                  
+                    <a href="/posts/1249611102.html" class="">12-文件系统VFS架构与调优</a>
+                  
+                    <a href="/posts/3302243246.html" class="">12-设备树语法规则与节点属性</a>
+                  
+                    <a href="/posts/4232086438.html" class="">13-I2C协议与驱动开发调试</a>
+                  
+                    <a href="/posts/1745770341.html" class="">13-系统调用接口与陷入机制</a>
+                  
+                    <a href="/posts/3541193669.html" class="">13-设备树源码与内核实现</a>
+                  
+                    <a href="/posts/1932562151.html" class="">13-软件包管理工具与依赖排障</a>
+                  
+                    <a href="/posts/3679683762.html" class="">14-kmod工具集与内核模块管理</a>
+                  
+                    <a href="/posts/204754706.html" class="">14-内核调试工具与方法</a>
+                  
+                    <a href="/posts/337401038.html" class="">14-虚拟化子系统架构与实现</a>
+                  
+                    <a href="/posts/3619291073.html" class="">14-网络编程基础与高性能实践</a>
+                  
+                    <a href="/posts/30952159.html" class="">15-PWM子系统与三种开发方式</a>
+                  
+                    <a href="/posts/3428022739.html" class="">15-内核体系结构与学习路径</a>
+                  
+                    <a href="/posts/1156349833.html" class="">15-网络调试工具与防火墙配置</a>
+                  
+                    <a href="/posts/2084393826.html" class="">15-虚拟文件系统VFS架构与缓存</a>
+                  
+                    <a href="/posts/1492466562.html" class="">16-Linux网络基础与协议栈</a>
+                  
+                    <a href="/posts/1443612112.html" class="">16-RPMSG核间通信与开发流程</a>
+                  
+                    <a href="/posts/64163175.html" class="">16-中断处理子系统与上下半部</a>
+                  
+                    <a href="/posts/1662370678.html" class="">17-Linux网络配置与故障排查</a>
+                  
+                    <a href="/posts/3499888327.html" class="">17-RTC驱动与应用开发</a>
+                  
+                    <a href="/posts/1472071864.html" class="">17-内核子系统间交互与IPC机制</a>
+                  
+                    <a href="/posts/3375308729.html" class="">18-GPIO子系统与引脚控制架构</a>
+                  
+                    <a href="/posts/413524861.html" class="">18-Linux网络驱动与收发流程</a>
+                  
+                    <a href="/posts/1787716189.html" class="">18-Socket网络编程与粘包处理</a>
+                  
+                    <a href="/posts/2536056501.html" class="active">19-SPI总线驱动与设备树配置</a>
+                  
+                    <a href="/posts/1043009254.html" class="">19-TTY子系统架构与驱动</a>
+                  
+                    <a href="/posts/2820206790.html" class="">19-以太网MAC与PHY接口</a>
+                  
+                    <a href="/posts/1783654330.html" class="">20-Linux文本处理命令与实战</a>
+                  
+                    <a href="/posts/4179949671.html" class="">20-UART串口驱动与RS485应用</a>
+                  
+                    <a href="/posts/865986603.html" class="">21-USB总线驱动框架与设备枚举</a>
+                  
+                    <a href="/posts/3847399252.html" class="">21-无线网络基础与部署排查</a>
+                  
+                    <a href="/posts/4143405040.html" class="">22-看门狗机制与软硬死锁检测</a>
+                  
+                    <a href="/posts/2990894265.html" class="">22-系统掉电保护与日志文件系统</a>
+                  
+                    <a href="/posts/3047565199.html" class="">23-Linux用户与组权限管理</a>
+                  
+                    <a href="/posts/4251339438.html" class="">23-WiFi模块PEB-WLBT-01配置与排障</a>
+                  
+                    <a href="/posts/3144456274.html" class="">24-环境变量修改与生效方法</a>
+                  
+                    <a href="/posts/2406993733.html" class="">25-ADC基础知识与工程实现</a>
+                  
+                    <a href="/posts/901317427.html" class="">26-ADB设备调试命令指南</a>
+                  
+                    <a href="/posts/970239254.html" class="">27-ARM-DSP-FPGA技术对比</a>
+                  
+                    <a href="/posts/1599150771.html" class="">28-awk文本处理与实战</a>
+                  
+                    <a href="/posts/1554852273.html" class="">29-can总线协议与编程基础</a>
+                  
+                    <a href="/posts/3987772023.html" class="">30-diff与patch补丁实战</a>
+                  
+                    <a href="/posts/663676011.html" class="">Linux 技能总览与索引</a>
+                  
+                    <a href="/posts/212295555.html" class="">31-DMA工作原理与内核API</a>
+                  
+                    <a href="/posts/2335117280.html" class="">32-eMMC嵌入式存储原理与优化</a>
+                  
+                    <a href="/posts/3281658937.html" class="">33-Flash存储器原理与编程实例</a>
+                  
+                    <a href="/posts/449212517.html" class="">34-GPIO工作模式与寄存器控制</a>
+                  
+                    <a href="/posts/2802968252.html" class="">35-I2C总线协议与驱动编程</a>
+                  
+                    <a href="/posts/646183460.html" class="">36-I2S音频总线与时钟配置</a>
+                  
+                    <a href="/posts/3921515715.html" class="">37-iMX8处理器系列与型号对比</a>
+                  
+                    <a href="/posts/3676773691.html" class="">38-KVM架构与CPU内存中断虚拟化</a>
+                  
+                    <a href="/posts/2296163704.html" class="">39-xPico240网卡配置与固件升级</a>
+                  
+                    <a href="/posts/4048648752.html" class="">40-MMU地址转换与页表管理</a>
+                  
+                    <a href="/posts/3573195005.html" class="">41-RK平台开发流程与组件</a>
+                  
+                    <a href="/posts/1368966976.html" class="">42-Shell脚本编程与实用案例</a>
+                  
+                    <a href="/posts/3800580745.html" class="">43-SPI总线原理与驱动实战</a>
+                  
+                    <a href="/posts/4029932750.html" class="">44-UART串口原理与通信实战</a>
+                  
+                    <a href="/posts/3428875847.html" class="">45-USB固件开发全流程</a>
+                  
+                    <a href="/posts/1079176846.html" class="">46-USB总线协议与驱动开发基础</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="apollo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/apollo/" class=""><span>🚗</span><span>apollo</span><span class="cnt">62</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 apollo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2818472804.html" class="">01-百度Apollo概述与生态</a>
+                  
+                    <a href="/posts/452198409.html" class="">02-版本发展与架构演进</a>
+                  
+                    <a href="/posts/1132755144.html" class="">03-自动驾驶技术基础</a>
+                  
+                    <a href="/posts/260457831.html" class="">04-开发环境搭建（Docker）</a>
+                  
+                    <a href="/posts/3892420017.html" class="">05-源码编译与部署</a>
+                  
+                    <a href="/posts/4189053877.html" class="">06-核心模块总览</a>
+                  
+                    <a href="/posts/2291656538.html" class="">07-高精地图HD Map</a>
+                  
+                    <a href="/posts/1640301657.html" class="">08-定位模块</a>
+                  
+                    <a href="/posts/2974331331.html" class="">09-传感器接入（相机激光雷达毫米波）</a>
+                  
+                    <a href="/posts/1455150168.html" class="">10-CAN总线与车辆控制接口</a>
+                  
+                    <a href="/posts/2682517011.html" class="">11-Apollo Cyber RT框架</a>
+                  
+                    <a href="/posts/1297150334.html" class="">12-Cyber消息通信与组件开发</a>
+                  
+                    <a href="/posts/3060441397.html" class="">13-Apollo配置文件与参数</a>
+                  
+                    <a href="/posts/1643555401.html" class="">14-调试与可视化工具（DreamView）</a>
+                  
+                    <a href="/posts/1298984781.html" class="">15-感知模块总览与点云感知</a>
+                  
+                    <a href="/posts/2907166516.html" class="">16-感知模块-视觉感知</a>
+                  
+                    <a href="/posts/4078895387.html" class="">17-感知模块-雷达感知</a>
+                  
+                    <a href="/posts/2013834045.html" class="">18-传感器标定与坐标转换</a>
+                  
+                    <a href="/posts/3984938707.html" class="">19-预测模块</a>
+                  
+                    <a href="/posts/1834975411.html" class="">20-规划模块</a>
+                  
+                    <a href="/posts/4019786798.html" class="">21-决策模块与场景决策</a>
+                  
+                    <a href="/posts/122258190.html" class="">22-控制模块</a>
+                  
+                    <a href="/posts/3133762148.html" class="">23-车辆动力学基础</a>
+                  
+                    <a href="/posts/1453710074.html" class="">24-仿真平台与场景数据</a>
+                  
+                    <a href="/posts/2673778811.html" class="">25-Cyber启动系统详解</a>
+                  
+                    <a href="/posts/2526415752.html" class="">26-Cyber调度系统详解</a>
+                  
+                    <a href="/posts/2588802797.html" class="">27-Cyber时间系统与定时器</a>
+                  
+                    <a href="/posts/3670574823.html" class="">28-Cyber异步调用机制</a>
+                  
+                    <a href="/posts/3931639321.html" class="">29-Cyber数据系统详解</a>
+                  
+                    <a href="/posts/2442147404.html" class="">30-Cyber网络IO详解</a>
+                  
+                    <a href="/posts/789481480.html" class="">apollo 90-资料索引指南</a>
+                  
+                    <a href="/posts/4180254357.html" class="">apollo 00-索引</a>
+                  
+                    <a href="/posts/4241092442.html" class="">31-Cyber Transform与坐标变换</a>
+                  
+                    <a href="/posts/1946355615.html" class="">32-历史版本模块演进（2.0-5.0）</a>
+                  
+                    <a href="/posts/460001587.html" class="">33-车道级导航与决策</a>
+                  
+                    <a href="/posts/2878817428.html" class="">34-红绿灯感知与通行</a>
+                  
+                    <a href="/posts/3264947560.html" class="">35-泊车场景</a>
+                  
+                    <a href="/posts/3477625335.html" class="">36-高速场景</a>
+                  
+                    <a href="/posts/2091754220.html" class="">37-城市道路场景</a>
+                  
+                    <a href="/posts/3677233744.html" class="">38-端到端自动驾驶与大模型</a>
+                  
+                    <a href="/posts/3012449597.html" class="">39-车路协同与V2X</a>
+                  
+                    <a href="/posts/2752057546.html" class="">40-安全机制与冗余设计</a>
+                  
+                    <a href="/posts/143389874.html" class="">41-性能优化与车规级部署</a>
+                  
+                    <a href="/posts/2080454184.html" class="">42-实战：搭建Demo自动驾驶演示</a>
+                  
+                    <a href="/posts/1558901718.html" class="">43-常见问题排查</a>
+                  
+                    <a href="/posts/711159921.html" class="">45-SLAM概述与开发指南</a>
+                  
+                    <a href="/posts/519418161.html" class="">44-Apollo与ROS对比及生态互通</a>
+                  
+                    <a href="/posts/1474075229.html" class="">46-激光雷达技术原理与发展</a>
+                  
+                    <a href="/posts/1848584950.html" class="">47-激光雷达算法与Lidar模块详解</a>
+                  
+                    <a href="/posts/2562893149.html" class="">48-自动驾驶数据集总览</a>
+                  
+                    <a href="/posts/1294651885.html" class="">49-KITTI与Waymo数据集实战</a>
+                  
+                    <a href="/posts/2011272759.html" class="">50-仿真平台对比与Gazebo-LGSVL实战</a>
+                  
+                    <a href="/posts/1352878638.html" class="">51-深度学习基础与CNN</a>
+                  
+                    <a href="/posts/48707843.html" class="">52-PyTorch与自动驾驶实践</a>
+                  
+                    <a href="/posts/2665165307.html" class="">53-TensorFlow与Caffe2在自动驾驶中的应用</a>
+                  
+                    <a href="/posts/2511406057.html" class="">54-自动驾驶测试方法</a>
+                  
+                    <a href="/posts/1279187638.html" class="">55-标注工具与数据闭环</a>
+                  
+                    <a href="/posts/370472885.html" class="">56-自动驾驶云服务与基础设施</a>
+                  
+                    <a href="/posts/140110120.html" class="">57-自动驾驶操作系统</a>
+                  
+                    <a href="/posts/664493653.html" class="">58-自动驾驶运行时框架对比</a>
+                  
+                    <a href="/posts/1203635596.html" class="">59-自动驾驶学习资源与链接</a>
+                  
+                    <a href="/posts/2049739451.html" class="">60-Audio模块与扩展开发</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FreeRTOS">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/FreeRTOS/" class=""><span>⏱️</span><span>FreeRTOS</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FreeRTOS 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1571422233.html" class="">01-FreeRTOS简介与内核特性</a>
+                  
+                    <a href="/posts/1616849365.html" class="">02-任务管理与调度</a>
+                  
+                    <a href="/posts/2794860845.html" class="">03-任务创建与删除</a>
+                  
+                    <a href="/posts/1110013041.html" class="">04-任务状态机</a>
+                  
+                    <a href="/posts/45138943.html" class="">05-优先级与时间片</a>
+                  
+                    <a href="/posts/586549084.html" class="">06-队列</a>
+                  
+                    <a href="/posts/129125089.html" class="">07-信号量</a>
+                  
+                    <a href="/posts/2081041408.html" class="">08-互斥量与优先级反转</a>
+                  
+                    <a href="/posts/3205967530.html" class="">09-事件组</a>
+                  
+                    <a href="/posts/1094377116.html" class="">10-任务通知</a>
+                  
+                    <a href="/posts/1628705678.html" class="">11-流缓冲与消息缓冲</a>
+                  
+                    <a href="/posts/479641272.html" class="">12-软件定时器</a>
+                  
+                    <a href="/posts/3143395966.html" class="">13-内存管理</a>
+                  
+                    <a href="/posts/359640070.html" class="">14-中断管理与临界区</a>
+                  
+                    <a href="/posts/339821033.html" class="">15-Tick与时间管理</a>
+                  
+                    <a href="/posts/224362852.html" class="">16-内核裁剪配置</a>
+                  
+                    <a href="/posts/1572534698.html" class="">17-任务栈溢出检测</a>
+                  
+                    <a href="/posts/670312188.html" class="">18-低功耗与tickless</a>
+                  
+                    <a href="/posts/544846964.html" class="">19-多核SMP</a>
+                  
+                    <a href="/posts/1505843641.html" class="">20-FreeRTOS+TCP</a>
+                  
+                    <a href="/posts/2850073665.html" class="">21-CMSIS-RTOS适配</a>
+                  
+                    <a href="/posts/2762677009.html" class="">22-常见移植实践</a>
+                  
+                    <a href="/posts/574731705.html" class="">23-调试与跟踪</a>
+                  
+                    <a href="/posts/1113963761.html" class="">24-内存保护MPU</a>
+                  
+                    <a href="/posts/1361167341.html" class="">25-FreeRTOS与C++</a>
+                  
+                    <a href="/posts/3732453393.html" class="">26-队列集与流操作</a>
+                  
+                    <a href="/posts/3895620481.html" class="">27-实战项目入门</a>
+                  
+                    <a href="/posts/2560978280.html" class="">28-常见问题排查</a>
+                  
+                    <a href="/posts/3215440781.html" class="">29-任务通知进阶</a>
+                  
+                    <a href="/posts/2405586932.html" class="">30-中断安全编程</a>
+                  
+                    <a href="/posts/3652009953.html" class="">FreeRTOS 00-索引</a>
+                  
+                    <a href="/posts/1437498579.html" class="">FreeRTOS 90-资料索引指南</a>
+                  
+                    <a href="/posts/182118895.html" class="">31-内存管理进阶</a>
+                  
+                    <a href="/posts/517617803.html" class="">32-看门狗与可靠性</a>
+                  
+                    <a href="/posts/4097610364.html" class="">33-电源管理实战</a>
+                  
+                    <a href="/posts/918463786.html" class="">34-多核任务设计</a>
+                  
+                    <a href="/posts/316568827.html" class="">35-TCP网络实战</a>
+                  
+                    <a href="/posts/944546225.html" class="">36-外设驱动集成</a>
+                  
+                    <a href="/posts/276185314.html" class="">37-系统测试与验证</a>
+                  
+                    <a href="/posts/2845406665.html" class="">38-任务间通信模式</a>
+                  
+                    <a href="/posts/271812983.html" class="">39-安全与认证</a>
+                  
+                    <a href="/posts/2988932715.html" class="">40-高级主题展望</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros1">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros1/" class=""><span>🐢</span><span>ros1</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros1 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1845556343.html" class="">01-ROS1概述与生态</a>
+                  
+                    <a href="/posts/76272331.html" class="">02-ROS1安装与环境配置</a>
+                  
+                    <a href="/posts/985253049.html" class="">03-核心概念</a>
+                  
+                    <a href="/posts/4040033312.html" class="">04-工作空间与catkin构建</a>
+                  
+                    <a href="/posts/2100167891.html" class="">05-命令行工具</a>
+                  
+                    <a href="/posts/949416713.html" class="">06-话题通信</a>
+                  
+                    <a href="/posts/735184866.html" class="">07-服务通信</a>
+                  
+                    <a href="/posts/1658567558.html" class="">08-动作通信actionlib</a>
+                  
+                    <a href="/posts/3193113578.html" class="">09-参数服务器</a>
+                  
+                    <a href="/posts/951743246.html" class="">10-roscpp编程</a>
+                  
+                    <a href="/posts/3615205173.html" class="">11-rospy编程</a>
+                  
+                    <a href="/posts/2474828684.html" class="">12-tf坐标变换</a>
+                  
+                    <a href="/posts/510479535.html" class="">13-URDF机器人建模</a>
+                  
+                    <a href="/posts/3467326343.html" class="">14-rviz可视化</a>
+                  
+                    <a href="/posts/178034368.html" class="">15-Gazebo仿真</a>
+                  
+                    <a href="/posts/1047193066.html" class="">16-launch启动文件</a>
+                  
+                    <a href="/posts/1386748878.html" class="">17-自定义消息与srv</a>
+                  
+                    <a href="/posts/78293504.html" class="">18-日志与调试</a>
+                  
+                    <a href="/posts/3580172094.html" class="">19-常用传感器驱动</a>
+                  
+                    <a href="/posts/107634443.html" class="">20-机器人运动学基础</a>
+                  
+                    <a href="/posts/1090496406.html" class="">21-导航框架move_base</a>
+                  
+                    <a href="/posts/3445109373.html" class="">22-建图</a>
+                  
+                    <a href="/posts/774536357.html" class="">23-路径规划与避障</a>
+                  
+                    <a href="/posts/2139127442.html" class="">24-AMCL定位</a>
+                  
+                    <a href="/posts/1373317896.html" class="">25-视觉处理</a>
+                  
+                    <a href="/posts/2932687442.html" class="">26-语音交互</a>
+                  
+                    <a href="/posts/1912127119.html" class="">27-MoveIt机械臂控制</a>
+                  
+                    <a href="/posts/2602875264.html" class="">28-多机器人协同</a>
+                  
+                    <a href="/posts/616282562.html" class="">29-rosbridge与Web端</a>
+                  
+                    <a href="/posts/1820681443.html" class="">30-ROS与Docker</a>
+                  
+                    <a href="/posts/1838862059.html" class="">ros1 00-索引</a>
+                  
+                    <a href="/posts/1752376526.html" class="">ros1 90-资料索引指南</a>
+                  
+                    <a href="/posts/520426601.html" class="">31-ROS与嵌入式平台</a>
+                  
+                    <a href="/posts/1774912468.html" class="">32-ROS1与ROS2对比迁移</a>
+                  
+                    <a href="/posts/3778090335.html" class="">33-仿真场景搭建</a>
+                  
+                    <a href="/posts/3561607965.html" class="">34-常见问题排查</a>
+                  
+                    <a href="/posts/1451115071.html" class="">35-性能优化</a>
+                  
+                    <a href="/posts/1856851824.html" class="">36-产品化实践</a>
+                  
+                    <a href="/posts/3405034604.html" class="">37-插件机制与自定义工具</a>
+                  
+                    <a href="/posts/3819213526.html" class="">38-ROS生态常用库</a>
+                  
+                    <a href="/posts/1488454277.html" class="">39-实战：小车自主导航</a>
+                  
+                    <a href="/posts/1504338169.html" class="">40-实战：机械臂抓取</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros2">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros2/" class=""><span>🐢</span><span>ros2</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros2 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1204306053.html" class="">01-ROS2概述与生态</a>
+                  
+                    <a href="/posts/1039368075.html" class="">02-ROS2安装与环境配置</a>
+                  
+                    <a href="/posts/3950396837.html" class="">04-工作空间与colcon构建</a>
+                  
+                    <a href="/posts/3022531917.html" class="">08-动作通信</a>
+                  
+                    <a href="/posts/3927300417.html" class="">09-参数机制</a>
+                  
+                    <a href="/posts/3825548204.html" class="">10-rclcpp编程</a>
+                  
+                    <a href="/posts/3191786011.html" class="">11-rclpy编程</a>
+                  
+                    <a href="/posts/3441056145.html" class="">12-生命周期节点</a>
+                  
+                    <a href="/posts/3898278822.html" class="">13-自定义消息接口</a>
+                  
+                    <a href="/posts/742500733.html" class="">14-执行器与回调组</a>
+                  
+                    <a href="/posts/201369509.html" class="">15-tf2坐标变换</a>
+                  
+                    <a href="/posts/1182880406.html" class="">16-URDF与xacro建模</a>
+                  
+                    <a href="/posts/1106872961.html" class="">17-rviz2可视化</a>
+                  
+                    <a href="/posts/2049131804.html" class="">18-Gazebo与Ignition仿真</a>
+                  
+                    <a href="/posts/3503988486.html" class="">19-launch系统</a>
+                  
+                    <a href="/posts/3559813711.html" class="">20-日志与调试工具</a>
+                  
+                    <a href="/posts/2378366256.html" class="">21-常用传感器驱动</a>
+                  
+                    <a href="/posts/2969019117.html" class="">22-导航2框架</a>
+                  
+                    <a href="/posts/2928992651.html" class="">23-SLAM建图</a>
+                  
+                    <a href="/posts/1486087179.html" class="">24-路径规划与避障</a>
+                  
+                    <a href="/posts/3827643133.html" class="">25-AMCL定位</a>
+                  
+                    <a href="/posts/767168211.html" class="">26-视觉处理</a>
+                  
+                    <a href="/posts/868393764.html" class="">27-语音交互</a>
+                  
+                    <a href="/posts/711846815.html" class="">28-MoveIt2机械臂控制</a>
+                  
+                    <a href="/posts/4265837254.html" class="">29-多机器人协同</a>
+                  
+                    <a href="/posts/1138612136.html" class="">30-rosbridge与Web端</a>
+                  
+                    <a href="/posts/4101548266.html" class="">ros2 00-索引</a>
+                  
+                    <a href="/posts/381645954.html" class="">ros2 03-核心概念</a>
+                  
+                    <a href="/posts/1488323843.html" class="">ros2 05-命令行工具</a>
+                  
+                    <a href="/posts/344998706.html" class="">ros2 06-话题通信</a>
+                  
+                    <a href="/posts/131381209.html" class="">ros2 07-服务通信</a>
+                  
+                    <a href="/posts/172068224.html" class="">ros2 40-实战：机械臂抓取</a>
+                  
+                    <a href="/posts/513154547.html" class="">ros2 90-资料索引指南</a>
+                  
+                    <a href="/posts/1661557767.html" class="">31-ROS2与Docker</a>
+                  
+                    <a href="/posts/1400569321.html" class="">32-ROS2与嵌入式平台</a>
+                  
+                    <a href="/posts/514195102.html" class="">33-实时性与QoS策略</a>
+                  
+                    <a href="/posts/26068340.html" class="">34-安全与权限</a>
+                  
+                    <a href="/posts/4284941043.html" class="">35-性能优化与Benchmark</a>
+                  
+                    <a href="/posts/512206225.html" class="">36-常见问题排查</a>
+                  
+                    <a href="/posts/103591067.html" class="">37-ROS2与ROS1桥接迁移</a>
+                  
+                    <a href="/posts/496626970.html" class="">38-产品化与部署实践</a>
+                  
+                    <a href="/posts/4258040718.html" class="">39-实战：自动驾驶小车</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="RT-Thread">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/RT-Thread/" class=""><span>🧵</span><span>RT-Thread</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 RT-Thread 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3906847031.html" class="">01-RT-Thread简介与生态</a>
+                  
+                    <a href="/posts/610362104.html" class="">02-内核架构</a>
+                  
+                    <a href="/posts/284852137.html" class="">03-线程管理与调度</a>
+                  
+                    <a href="/posts/1006179627.html" class="">04-线程创建与删除</a>
+                  
+                    <a href="/posts/2919135044.html" class="">05-线程状态机与优先级</a>
+                  
+                    <a href="/posts/357331050.html" class="">06-时钟与定时器</a>
+                  
+                    <a href="/posts/1414862789.html" class="">08-互斥量</a>
+                  
+                    <a href="/posts/3456321070.html" class="">09-事件集</a>
+                  
+                    <a href="/posts/2205341896.html" class="">10-邮箱</a>
+                  
+                    <a href="/posts/3843597198.html" class="">11-消息队列</a>
+                  
+                    <a href="/posts/643009288.html" class="">12-内存管理</a>
+                  
+                    <a href="/posts/2340600776.html" class="">13-内存池与内存堆</a>
+                  
+                    <a href="/posts/2027116276.html" class="">14-中断管理</a>
+                  
+                    <a href="/posts/4146654009.html" class="">15-临界区与线程同步</a>
+                  
+                    <a href="/posts/61094340.html" class="">16-设备驱动框架</a>
+                  
+                    <a href="/posts/2180335808.html" class="">17-I-O设备模型</a>
+                  
+                    <a href="/posts/3069243359.html" class="">18-FinSH控制台</a>
+                  
+                    <a href="/posts/3174840723.html" class="">19-组件与软件包</a>
+                  
+                    <a href="/posts/501684497.html" class="">20-Env与menuconfig配置</a>
+                  
+                    <a href="/posts/1358882682.html" class="">21-RT-Thread Studio</a>
+                  
+                    <a href="/posts/1974679192.html" class="">22-Scons构建</a>
+                  
+                    <a href="/posts/1558395596.html" class="">23-AT组件</a>
+                  
+                    <a href="/posts/4270916110.html" class="">24-网络组件lwIP</a>
+                  
+                    <a href="/posts/4025911074.html" class="">25-DFS文件系统</a>
+                  
+                    <a href="/posts/2437688169.html" class="">26-POSIX支持</a>
+                  
+                    <a href="/posts/1239645384.html" class="">27-动态模块加载</a>
+                  
+                    <a href="/posts/4089363247.html" class="">28-常见移植实践</a>
+                  
+                    <a href="/posts/849796471.html" class="">29-低功耗</a>
+                  
+                    <a href="/posts/47134548.html" class="">30-多核与SMP</a>
+                  
+                    <a href="/posts/2902895778.html" class="">RT-Thread 00-索引</a>
+                  
+                    <a href="/posts/4044683037.html" class="">RT-Thread 07-信号量</a>
+                  
+                    <a href="/posts/1755746755.html" class="">RT-Thread 40-高级主题展望</a>
+                  
+                    <a href="/posts/2924604793.html" class="">RT-Thread 90-资料索引指南</a>
+                  
+                    <a href="/posts/603515604.html" class="">31-微内核与混合微内核</a>
+                  
+                    <a href="/posts/1273830891.html" class="">32-调试与优化</a>
+                  
+                    <a href="/posts/2088952723.html" class="">33-安全</a>
+                  
+                    <a href="/posts/3972366794.html" class="">34-GUI组件与柿饼UI</a>
+                  
+                    <a href="/posts/4194237798.html" class="">35-传感器与驱动组件</a>
+                  
+                    <a href="/posts/1254828870.html" class="">36-实时性分析与优化</a>
+                  
+                    <a href="/posts/70811593.html" class="">37-电源管理</a>
+                  
+                    <a href="/posts/192380990.html" class="">38-实战项目入门</a>
+                  
+                    <a href="/posts/1645794736.html" class="">39-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="Zephyr">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Zephyr/" class=""><span>🍃</span><span>Zephyr</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Zephyr 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2998335701.html" class="">01-Zephyr简介与基金会</a>
+                  
+                    <a href="/posts/111570124.html" class="">02-安装与west工具</a>
+                  
+                    <a href="/posts/391350374.html" class="">03-工程结构</a>
+                  
+                    <a href="/posts/1788752700.html" class="">04-设备树Device Tree</a>
+                  
+                    <a href="/posts/2760731910.html" class="">05-Kconfig配置</a>
+                  
+                    <a href="/posts/2266609168.html" class="">06-内核与调度</a>
+                  
+                    <a href="/posts/2595343241.html" class="">07-线程管理</a>
+                  
+                    <a href="/posts/2487926311.html" class="">08-信号量</a>
+                  
+                    <a href="/posts/4159413018.html" class="">09-队列与消息</a>
+                  
+                    <a href="/posts/3342684069.html" class="">10-内存管理</a>
+                  
+                    <a href="/posts/1826938431.html" class="">11-中断处理</a>
+                  
+                    <a href="/posts/3296401581.html" class="">12-时钟与定时器</a>
+                  
+                    <a href="/posts/911217641.html" class="">13-驱动模型</a>
+                  
+                    <a href="/posts/1524886392.html" class="">14-GPIO驱动</a>
+                  
+                    <a href="/posts/497960377.html" class="">15-UART驱动</a>
+                  
+                    <a href="/posts/515235046.html" class="">16-SPI驱动</a>
+                  
+                    <a href="/posts/3496686401.html" class="">17-I2C驱动</a>
+                  
+                    <a href="/posts/2457140616.html" class="">18-ADC驱动</a>
+                  
+                    <a href="/posts/2991435572.html" class="">19-传感器子系统</a>
+                  
+                    <a href="/posts/819898526.html" class="">20-网络栈</a>
+                  
+                    <a href="/posts/551898650.html" class="">21-蓝牙BLE</a>
+                  
+                    <a href="/posts/686766330.html" class="">22-USB支持</a>
+                  
+                    <a href="/posts/4032698702.html" class="">23-文件系统</a>
+                  
+                    <a href="/posts/2833611844.html" class="">24-Shell子系统</a>
+                  
+                    <a href="/posts/2017556036.html" class="">25-日志系统</a>
+                  
+                    <a href="/posts/80085439.html" class="">26-ztest测试框架</a>
+                  
+                    <a href="/posts/3382284514.html" class="">27-twister测试</a>
+                  
+                    <a href="/posts/2853899551.html" class="">28-构建系统CMake</a>
+                  
+                    <a href="/posts/3766947609.html" class="">29-多架构支持</a>
+                  
+                    <a href="/posts/608772131.html" class="">Zephyr 00-索引</a>
+                  
+                    <a href="/posts/2374992791.html" class="">Zephyr 90-资料索引指南</a>
+                  
+                    <a href="/posts/2085179778.html" class="">30-移植新板卡</a>
+                  
+                    <a href="/posts/2023471085.html" class="">31-低功耗管理</a>
+                  
+                    <a href="/posts/447085682.html" class="">32-安全机制</a>
+                  
+                    <a href="/posts/2755005965.html" class="">33-OTA升级</a>
+                  
+                    <a href="/posts/3554942251.html" class="">34-QEMU模拟器</a>
+                  
+                    <a href="/posts/2564223040.html" class="">35-native模拟器</a>
+                  
+                    <a href="/posts/66503584.html" class="">36-调试与追踪</a>
+                  
+                    <a href="/posts/2974884396.html" class="">37-CMake模块</a>
+                  
+                    <a href="/posts/1879468777.html" class="">38-发布与版本管理</a>
+                  
+                    <a href="/posts/1364311534.html" class="">39-实战项目</a>
+                  
+                    <a href="/posts/4081303068.html" class="">40-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ubuntu24.04">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ubuntu24-04/" class=""><span>🐧</span><span>ubuntu24.04</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ubuntu24.04 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2909325257.html" class="">01-apt 与 dpkg</a>
+                  
+                    <a href="/posts/912530846.html" class="">snap</a>
+                  
+                    <a href="/posts/3939215804.html" class="">03-systemctl 与 service</a>
+                  
+                    <a href="/posts/719879336.html" class="">04-journalctl</a>
+                  
+                    <a href="/posts/3351581332.html" class="">05-htop 与 top</a>
+                  
+                    <a href="/posts/3990143705.html" class="">06-ps 与 kill</a>
+                  
+                    <a href="/posts/585076020.html" class="">07-vim 与 nano</a>
+                  
+                    <a href="/posts/1568442627.html" class="">08-grep</a>
+                  
+                    <a href="/posts/1977677039.html" class="">09-awk 与 sed</a>
+                  
+                    <a href="/posts/4049174153.html" class="">10-find 与 locate</a>
+                  
+                    <a href="/posts/3717903947.html" class="">11-tar 与 zip 与 rsync</a>
+                  
+                    <a href="/posts/2237282420.html" class="">12-ssh 与 scp</a>
+                  
+                    <a href="/posts/1707164187.html" class="">13-ufw</a>
+                  
+                    <a href="/posts/55246962.html" class="">14-cron</a>
+                  
+                    <a href="/posts/651339923.html" class="">15-systemd 定时器</a>
+                  
+                    <a href="/posts/3732393277.html" class="">16-netstat 与 ss 与 ip</a>
+                  
+                    <a href="/posts/2075061187.html" class="">17-curl 与 wget</a>
+                  
+                    <a href="/posts/321014113.html" class="">18-git</a>
+                  
+                    <a href="/posts/2822540859.html" class="">19-docker</a>
+                  
+                    <a href="/posts/3712678695.html" class="">20-python3 与 pip</a>
+                  
+                    <a href="/posts/2522287106.html" class="">21-gcc 与 make</a>
+                  
+                    <a href="/posts/635533000.html" class="">22-磁盘与日志排错工具集</a>
+                  
+                    <a href="/posts/1019958619.html" class="">ubuntu24.04 00-索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="windows">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/windows/" class=""><span>🪟</span><span>windows</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 windows 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2345133774.html" class="">01-PowerShell</a>
+                  
+                    <a href="/posts/746402433.html" class="">02-Windows Terminal</a>
+                  
+                    <a href="/posts/119374108.html" class="">03-任务管理器</a>
+                  
+                    <a href="/posts/3593758667.html" class="">04-资源监视器</a>
+                  
+                    <a href="/posts/279260672.html" class="">05-事件查看器</a>
+                  
+                    <a href="/posts/861959827.html" class="">06-注册表编辑器</a>
+                  
+                    <a href="/posts/1682198913.html" class="">07-磁盘管理</a>
+                  
+                    <a href="/posts/2304893546.html" class="">08-系统配置(msconfig)</a>
+                  
+                    <a href="/posts/143523753.html" class="">09-性能监视器</a>
+                  
+                    <a href="/posts/3851129891.html" class="">10-备份与还原</a>
+                  
+                    <a href="/posts/3417706708.html" class="">11-Windows Defender</a>
+                  
+                    <a href="/posts/2900354160.html" class="">12-Sysinternals 套件</a>
+                  
+                    <a href="/posts/569218026.html" class="">13-winget</a>
+                  
+                    <a href="/posts/1864485545.html" class="">14-PowerToys</a>
+                  
+                    <a href="/posts/1859880826.html" class="">15-剪贴板历史与截图工具</a>
+                  
+                    <a href="/posts/2173435638.html" class="">16-远程桌面</a>
+                  
+                    <a href="/posts/388811029.html" class="">17-Hyper-V</a>
+                  
+                    <a href="/posts/987941398.html" class="">18-WSL</a>
+                  
+                    <a href="/posts/2454912129.html" class="">19-BitLocker</a>
+                  
+                    <a href="/posts/2195244691.html" class="">20-任务计划程序与服务管理器</a>
+                  
+                    <a href="/posts/979849589.html" class="">21-组策略与系统还原</a>
+                  
+                    <a href="/posts/4259947464.html" class="">22-命令行工具集</a>
+                  
+                    <a href="/posts/1775093485.html" class="">windows 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/">🤖 操作系统与机器人</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/">🐧 Linux</a> / <span>19-SPI总线驱动与设备树配置</span></div>
+
+<h1>19-SPI总线驱动与设备树配置</h1>
+<div class="subtitle">SPI 是嵌入式里最常见的同步串行总线，Flash、EEPROM、RTC、AD 转换器这些外设基本都走它。这篇把协议基础、Linux 驱动架构、设备树配置到测试验证这条线串起来。</div>
+<div class="article-meta">
+  <span>📅 2026-11-02</span><span>· 更新于 2026-11-02</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 4090 字 · 约 11 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/Linux/">#Linux</a><a class="tagchip" href="/tags/%E9%85%8D%E7%BD%AE/">#配置</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/2536056501.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="SPI-总线驱动与设备树配置"><a href="#SPI-总线驱动与设备树配置" class="headerlink" title="SPI 总线驱动与设备树配置"></a>SPI 总线驱动与设备树配置</h1><p>SPI 是嵌入式里最常见的同步串行总线，Flash、EEPROM、RTC、AD 转换器这些外设基本都走它。这篇把协议基础、Linux 驱动架构、设备树配置到测试验证这条线串起来。</p>
+<p>我调 SPI 设备时最纠结的往往是两件事：四根线怎么接、四种模式怎么选。尤其模式配错的时候，设备能被识别，但读出来的数据全是乱的，排查特别费劲。</p>
+<span id="more"></span>
+
+<h2 id="1-SPI-四线同步总线，四种模式由-CPOL-和-CPHA-决定">1. SPI 四线同步总线，四种模式由 CPOL 和 CPHA 决定<a class="hlink" data-h="1-SPI-四线同步总线，四种模式由-CPOL-和-CPHA-决定" href="#1-SPI-四线同步总线，四种模式由-CPOL-和-CPHA-决定" title="跳到本节">¶</a></h2><h3 id="1-1-SPI简介">1.1 SPI简介<a class="hlink" data-h="1-1-SPI简介" href="#1-1-SPI简介" title="跳到本节">¶</a></h3><p>SPI(Serial Peripheral Interface)是一种同步串行通信总线，由Motorola公司开发，用于短距离高速数据传输。SPI接口广泛应用于EEPROM、Flash、实时时钟、AD转换器、数字信号处理器和数字信号解码器等设备。</p>
+<h3 id="1-2-四根信号线各管什么">1.2 四根信号线各管什么<a class="hlink" data-h="1-2-四根信号线各管什么" href="#1-2-四根信号线各管什么" title="跳到本节">¶</a></h3><p>SPI总线通常由四条信号线组成：</p>
+<div class="mermaid">
+graph LR
+    Master --- |SCLK| Slave
+    Master --- |MOSI| Slave
+    Master --- |MISO| Slave
+    Master --- |CS| Slave
+</div>
+
+<ul>
+<li><strong>SCLK (SCK)</strong>: 时钟信号，由主设备生成</li>
+<li><strong>MOSI (Master Out Slave In)</strong>: 主设备输出，从设备输入</li>
+<li><strong>MISO (Master In Slave Out)</strong>: 主设备输入，从设备输出</li>
+<li><strong>CS&#x2F;SS (Chip Select&#x2F;Slave Select)</strong>: 片选信号，用于选择特定的从设备</li>
+</ul>
+<h3 id="1-3-四种工作模式怎么划分">1.3 四种工作模式怎么划分<a class="hlink" data-h="1-3-四种工作模式怎么划分" href="#1-3-四种工作模式怎么划分" title="跳到本节">¶</a></h3><p>SPI有四种工作模式，由时钟极性(CPOL)和时钟相位(CPHA)决定：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>CPOL</th>
+<th>CPHA</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+<td>时钟空闲为低，第一个边沿采样</td>
+</tr>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+<td>时钟空闲为低，第二个边沿采样</td>
+</tr>
+<tr>
+<td>2</td>
+<td>1</td>
+<td>0</td>
+<td>时钟空闲为高，第一个边沿采样</td>
+</tr>
+<tr>
+<td>3</td>
+<td>1</td>
+<td>1</td>
+<td>时钟空闲为高，第二个边沿采样</td>
+</tr>
+</tbody></table>
+<div class="mermaid">
+graph TD
+    A[SPI模式设置] --&gt; B{CPOL设置}
+    B --&gt;|CPOL=0| C1[时钟空闲为低]
+    B --&gt;|CPOL=1| C2[时钟空闲为高]
+    C1 --&gt; D1{CPHA设置}
+    C2 --&gt; D2{CPHA设置}
+    D1 --&gt;|CPHA=0| E1[模式0:第一个边沿采样]
+    D1 --&gt;|CPHA=1| E2[模式1:第二个边沿采样]
+    D2 --&gt;|CPHA=0| E3[模式2:第一个边沿采样]
+    D2 --&gt;|CPHA=1| E4[模式3:第二个边沿采样]
+</div>
+
+<h3 id="1-4-SPI时序图">1.4 SPI时序图<a class="hlink" data-h="1-4-SPI时序图" href="#1-4-SPI时序图" title="跳到本节">¶</a></h3><p>以下是不同模式的SPI时序图：</p>
+<h4 id="模式0-CPOL-0-CPHA-0"><a href="#模式0-CPOL-0-CPHA-0" class="headerlink" title="模式0 (CPOL&#x3D;0, CPHA&#x3D;0):"></a>模式0 (CPOL&#x3D;0, CPHA&#x3D;0):</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">SCLK  ▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁</span><br><span class="line">      ↑   ↑   ↑   ↑   ↑   ↑   ↑</span><br><span class="line">采样点  ↑   ↑   ↑   ↑   ↑   ↑   ↑</span><br></pre></td></tr></table></figure>
+
+<h4 id="模式1-CPOL-0-CPHA-1"><a href="#模式1-CPOL-0-CPHA-1" class="headerlink" title="模式1 (CPOL&#x3D;0, CPHA&#x3D;1):"></a>模式1 (CPOL&#x3D;0, CPHA&#x3D;1):</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">SCLK  ▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁</span><br><span class="line">        ↑   ↑   ↑   ↑   ↑   ↑</span><br><span class="line">采样点    ↑   ↑   ↑   ↑   ↑   ↑</span><br></pre></td></tr></table></figure>
+
+<h4 id="模式2-CPOL-1-CPHA-0"><a href="#模式2-CPOL-1-CPHA-0" class="headerlink" title="模式2 (CPOL&#x3D;1, CPHA&#x3D;0):"></a>模式2 (CPOL&#x3D;1, CPHA&#x3D;0):</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">SCLK  ▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔</span><br><span class="line">      ↑   ↑   ↑   ↑   ↑   ↑   ↑</span><br><span class="line">采样点  ↑   ↑   ↑   ↑   ↑   ↑   ↑</span><br></pre></td></tr></table></figure>
+
+<h4 id="模式3-CPOL-1-CPHA-1"><a href="#模式3-CPOL-1-CPHA-1" class="headerlink" title="模式3 (CPOL&#x3D;1, CPHA&#x3D;1):"></a>模式3 (CPOL&#x3D;1, CPHA&#x3D;1):</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">SCLK  ▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔▁▁▁▔▔▔</span><br><span class="line">        ↑   ↑   ↑   ↑   ↑   ↑</span><br><span class="line">采样点    ↑   ↑   ↑   ↑   ↑   ↑</span><br></pre></td></tr></table></figure>
+
+<h2 id="2-内核-SPI-子系统分核心层、控制器驱动和设备驱动三层">2. 内核 SPI 子系统分核心层、控制器驱动和设备驱动三层<a class="hlink" data-h="2-内核-SPI-子系统分核心层、控制器驱动和设备驱动三层" href="#2-内核-SPI-子系统分核心层、控制器驱动和设备驱动三层" title="跳到本节">¶</a></h2><p>我读内核代码时习惯先按这三层拆开看：核心层管通用逻辑，控制器驱动管硬件时序，设备驱动管具体外设。这样拆开之后，改哪一层一目了然。</p>
+<h3 id="2-1-SPI子系统架构">2.1 SPI子系统架构<a class="hlink" data-h="2-1-SPI子系统架构" href="#2-1-SPI子系统架构" title="跳到本节">¶</a></h3><p>Linux内核中的SPI子系统由以下几个主要组件组成：</p>
+<div class="mermaid">
+flowchart TB
+    subgraph "SPI子系统"
+        A[SPI核心层] --&gt; B1[SPI主控制器驱动]
+        A --&gt; B2[SPI设备驱动]
+        B1 --&gt; C[SPI硬件控制器]
+        C --&gt; D[SPI设备]
+        B2 --&gt; D
+    end
+    E[用户空间] &lt;--&gt; B2
+</div>
+
+<ul>
+<li><strong>SPI核心层</strong>: 提供SPI总线管理、设备注册等通用功能</li>
+<li><strong>SPI主控制器驱动</strong>: 实现特定硬件控制器的驱动</li>
+<li><strong>SPI设备驱动</strong>: 实现特定SPI设备的驱动</li>
+</ul>
+<h3 id="2-2-主要数据结构">2.2 主要数据结构<a class="hlink" data-h="2-2-主要数据结构" href="#2-2-主要数据结构" title="跳到本节">¶</a></h3><h4 id="SPI主控制器结构体"><a href="#SPI主控制器结构体" class="headerlink" title="SPI主控制器结构体"></a>SPI主控制器结构体</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">spi_master</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">device</span> <span class="title">dev</span>;</span></span><br><span class="line">    u16 bus_num;</span><br><span class="line">    u16 num_chipselect;</span><br><span class="line">    u8 mode_bits;</span><br><span class="line">    <span class="comment">// ...更多成员</span></span><br><span class="line">    <span class="type">int</span> (*transfer)(<span class="keyword">struct</span> spi_device *spi, <span class="keyword">struct</span> spi_message *mesg);</span><br><span class="line">    <span class="comment">// ...更多函数指针</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h4 id="SPI设备结构体"><a href="#SPI设备结构体" class="headerlink" title="SPI设备结构体"></a>SPI设备结构体</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">spi_device</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">device</span> <span class="title">dev</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_master</span> *<span class="title">master</span>;</span></span><br><span class="line">    u32 max_speed_hz;</span><br><span class="line">    u8 chip_select;</span><br><span class="line">    u8 bits_per_word;</span><br><span class="line">    u8 mode;</span><br><span class="line">    <span class="comment">// ...更多成员</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h4 id="SPI传输消息结构体"><a href="#SPI传输消息结构体" class="headerlink" title="SPI传输消息结构体"></a>SPI传输消息结构体</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">spi_transfer</span> &#123;</span></span><br><span class="line">    <span class="type">const</span> <span class="type">void</span> *tx_buf;</span><br><span class="line">    <span class="type">void</span> *rx_buf;</span><br><span class="line">    <span class="type">unsigned</span> len;</span><br><span class="line">    <span class="type">dma_addr_t</span> tx_dma;</span><br><span class="line">    <span class="type">dma_addr_t</span> rx_dma;</span><br><span class="line">    <span class="type">unsigned</span> cs_change:<span class="number">1</span>;</span><br><span class="line">    u8 bits_per_word;</span><br><span class="line">    u16 delay_usecs;</span><br><span class="line">    u32 speed_hz;</span><br><span class="line">    <span class="comment">// ...更多成员</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">spi_message</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">transfers</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_device</span> *<span class="title">spi</span>;</span></span><br><span class="line">    <span class="comment">// ...更多成员</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h2 id="3-设备树要配控制器、设备节点和-PIN-复用三块">3. 设备树要配控制器、设备节点和 PIN 复用三块<a class="hlink" data-h="3-设备树要配控制器、设备节点和-PIN-复用三块" href="#3-设备树要配控制器、设备节点和-PIN-复用三块" title="跳到本节">¶</a></h2><p>设备树写错是 SPI 起不来的高频原因。我一般按顺序检查：控制器 status 是不是 okay、片选数量够不够、PIN 复用有没有对上硬件。</p>
+<h3 id="3-1-SPI控制器配置">3.1 SPI控制器配置<a class="hlink" data-h="3-1-SPI控制器配置" href="#3-1-SPI控制器配置" title="跳到本节">¶</a></h3><p>以IMX系列处理器为例，配置SPI控制器：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">&amp;lpspi2</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">pinctrl-names</span> <span class="operator">=</span> <span class="string">&quot;default&quot;</span><span class="punctuation">;</span></span><br><span class="line">    pinctrl<span class="number">-0</span> = <span class="params">&lt;<span class="variable">&amp;pinctrl_lpspi2</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="attr">status</span> <span class="operator">=</span> <span class="string">&quot;okay&quot;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="meta">#address-cells = &lt;1&gt;;</span></span><br><span class="line">    <span class="meta">#size-cells = &lt;0&gt;;</span></span><br><span class="line">    <span class="comment">/* DMA配置 */</span></span><br><span class="line">    <span class="attr">dma-names</span> <span class="operator">=</span> <span class="string">&quot;tx&quot;</span>, <span class="string">&quot;rx&quot;</span><span class="punctuation">;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 最多可以挂载多少片设备 */</span></span><br><span class="line">    <span class="attr">num-cs</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">2</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 如果使用GPIO做片选 */</span></span><br><span class="line">    <span class="attr">cs-gpios</span> <span class="operator">=</span> <span class="params">&lt;<span class="variable">&amp;gpio1</span> <span class="number">20</span> GPIO_ACTIVE_LOW&gt;</span>,</span><br><span class="line">              <span class="params">&lt;<span class="variable">&amp;gpio1</span> <span class="number">21</span> GPIO_ACTIVE_LOW&gt;</span><span class="punctuation">;</span></span><br><span class="line"><span class="punctuation">&#125;;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-SPI设备配置">3.2 SPI设备配置<a class="hlink" data-h="3-2-SPI设备配置" href="#3-2-SPI设备配置" title="跳到本节">¶</a></h3><p>在SPI控制器节点下添加设备节点：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">&amp;lpspi2</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="comment">/* 控制器配置 */</span></span><br><span class="line"></span><br><span class="line">    <span class="title class_">spidev@0</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;spidev&quot;</span><span class="punctuation">;</span></span><br><span class="line">        <span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">0</span>&gt;</span><span class="punctuation">;</span> <span class="comment">/* CS0 */</span></span><br><span class="line">        <span class="attr">spi-max-frequency</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">10000000</span>&gt;</span><span class="punctuation">;</span> <span class="comment">/* 10MHz */</span></span><br><span class="line">        <span class="attr">status</span> <span class="operator">=</span> <span class="string">&quot;okay&quot;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="punctuation">&#125;;</span></span><br><span class="line"></span><br><span class="line">    <span class="title class_">flash@1</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;winbond,w25q32dw&quot;</span><span class="punctuation">;</span></span><br><span class="line">        <span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">1</span>&gt;</span><span class="punctuation">;</span> <span class="comment">/* CS1 */</span></span><br><span class="line">        <span class="attr">spi-max-frequency</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">80000000</span>&gt;</span><span class="punctuation">;</span> <span class="comment">/* 80MHz */</span></span><br><span class="line">    <span class="punctuation">&#125;;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-PIN复用配置">3.3 PIN复用配置<a class="hlink" data-h="3-3-PIN复用配置" href="#3-3-PIN复用配置" title="跳到本节">¶</a></h3><p>为SPI控制器配置正确的PIN复用：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">&amp;iomuxc</span> <span class="punctuation">&#123;</span></span><br><span class="line"><span class="symbol">    pinctrl_lpspi2:</span> <span class="title class_">lpspi2grp</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">fsl,pins</span> <span class="operator">=</span> <span class="params">&lt;</span></span><br><span class="line"><span class="params">            MX8QM_USDHC1_DATA4_LPSPI2_SCK      <span class="number">0x06000021</span></span></span><br><span class="line"><span class="params">            MX8QM_USDHC1_DATA5_LPSPI2_SOUT     <span class="number">0x06000021</span></span></span><br><span class="line"><span class="params">            MX8QM_USDHC1_DATA6_LPSPI2_SIN      <span class="number">0x06000021</span></span></span><br><span class="line"><span class="params">            MX8QM_USDHC1_DATA7_LPSPI2_PCS0     <span class="number">0x06000021</span></span></span><br><span class="line"><span class="params">        &gt;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="punctuation">&#125;;</span></span><br><span class="line"><span class="punctuation">&#125;;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="4-控制器驱动厂商给，设备驱动自己写">4. 控制器驱动厂商给，设备驱动自己写<a class="hlink" data-h="4-控制器驱动厂商给，设备驱动自己写" href="#4-控制器驱动厂商给，设备驱动自己写" title="跳到本节">¶</a></h2><p>主控制器驱动通常由芯片厂商提供，真正需要我们动手的是设备驱动。实测下来，把 probe 里的初始化和 spi_sync 的收发两段写对，剩下的大多是照着数据手册填寄存器。</p>
+<h3 id="4-1-SPI主控制器驱动">4.1 SPI主控制器驱动<a class="hlink" data-h="4-1-SPI主控制器驱动" href="#4-1-SPI主控制器驱动" title="跳到本节">¶</a></h3><p>这部分通常由芯片厂商提供，如果需要自己开发，一个简化的主控制器驱动框架如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 定义SPI控制器私有数据</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">xxx_spi</span> &#123;</span></span><br><span class="line">    <span class="type">void</span> __iomem *regs;</span><br><span class="line">    <span class="type">int</span> irq;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">clk</span> *<span class="title">clk</span>;</span></span><br><span class="line">    <span class="comment">/* 其他私有数据 */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 实现传输函数</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">xxx_spi_transfer_one</span><span class="params">(<span class="keyword">struct</span> spi_master *master,</span></span><br><span class="line"><span class="params">                                <span class="keyword">struct</span> spi_device *spi,</span></span><br><span class="line"><span class="params">                                <span class="keyword">struct</span> spi_transfer *t)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xxx_spi</span> *<span class="title">xs</span> =</span> spi_master_get_devdata(master);</span><br><span class="line">    <span class="comment">/* 实现数据传输逻辑 */</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 控制器驱动probe函数</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">xxx_spi_probe</span><span class="params">(<span class="keyword">struct</span> platform_device *pdev)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_master</span> *<span class="title">master</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">xxx_spi</span> *<span class="title">xs</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 分配master</span></span><br><span class="line">    master = spi_alloc_master(&amp;pdev-&gt;dev, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> xxx_spi));</span><br><span class="line">    <span class="keyword">if</span> (!master)</span><br><span class="line">        <span class="keyword">return</span> -ENOMEM;</span><br><span class="line"></span><br><span class="line">    xs = spi_master_get_devdata(master);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置master属性</span></span><br><span class="line">    master-&gt;bus_num = <span class="number">-1</span>; <span class="comment">// 自动分配</span></span><br><span class="line">    master-&gt;num_chipselect = <span class="number">4</span>;</span><br><span class="line">    master-&gt;mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH;</span><br><span class="line">    master-&gt;bits_per_word_mask = SPI_BPW_MASK(<span class="number">8</span>);</span><br><span class="line">    master-&gt;transfer_one = xxx_spi_transfer_one;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 注册master</span></span><br><span class="line">    <span class="keyword">return</span> devm_spi_register_master(&amp;pdev-&gt;dev, master);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">platform_driver</span> <span class="title">xxx_spi_driver</span> =</span> &#123;</span><br><span class="line">    .probe = xxx_spi_probe,</span><br><span class="line">    .remove = xxx_spi_remove,</span><br><span class="line">    .driver = &#123;</span><br><span class="line">        .name = <span class="string">&quot;xxx-spi&quot;</span>,</span><br><span class="line">        .of_match_table = xxx_spi_dt_ids,</span><br><span class="line">    &#125;,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">module_platform_driver(xxx_spi_driver);</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-SPI设备驱动">4.2 SPI设备驱动<a class="hlink" data-h="4-2-SPI设备驱动" href="#4-2-SPI设备驱动" title="跳到本节">¶</a></h3><p>创建一个简单的SPI设备驱动：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 设备私有数据</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">my_spi_device</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_device</span> *<span class="title">spi</span>;</span></span><br><span class="line">    <span class="comment">/* 其他私有数据 */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 设备驱动probe函数</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">my_spi_probe</span><span class="params">(<span class="keyword">struct</span> spi_device *spi)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">my_spi_device</span> *<span class="title">my_dev</span>;</span></span><br><span class="line"></span><br><span class="line">    my_dev = devm_kzalloc(&amp;spi-&gt;dev, <span class="keyword">sizeof</span>(*my_dev), GFP_KERNEL);</span><br><span class="line">    <span class="keyword">if</span> (!my_dev)</span><br><span class="line">        <span class="keyword">return</span> -ENOMEM;</span><br><span class="line"></span><br><span class="line">    my_dev-&gt;spi = spi;</span><br><span class="line">    spi_set_drvdata(spi, my_dev);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 设备初始化代码 */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 设备驱动remove函数</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">my_spi_remove</span><span class="params">(<span class="keyword">struct</span> spi_device *spi)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">/* 设备清理代码 */</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">of_device_id</span> <span class="title">my_spi_dt_ids</span>[] =</span> &#123;</span><br><span class="line">    &#123; .compatible = <span class="string">&quot;mycompany,mydevice&quot;</span> &#125;,</span><br><span class="line">    &#123; <span class="comment">/* sentinel */</span> &#125;</span><br><span class="line">&#125;;</span><br><span class="line">MODULE_DEVICE_TABLE(of, my_spi_dt_ids);</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">spi_driver</span> <span class="title">my_spi_driver</span> =</span> &#123;</span><br><span class="line">    .driver = &#123;</span><br><span class="line">        .name = <span class="string">&quot;my-spi-device&quot;</span>,</span><br><span class="line">        .of_match_table = my_spi_dt_ids,</span><br><span class="line">    &#125;,</span><br><span class="line">    .probe = my_spi_probe,</span><br><span class="line">    .remove = my_spi_remove,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">module_spi_driver(my_spi_driver);</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-SPI通信实现">4.3 SPI通信实现<a class="hlink" data-h="4-3-SPI通信实现" href="#4-3-SPI通信实现" title="跳到本节">¶</a></h3><p>在设备驱动中实现SPI通信：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 从SPI设备读取数据</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">my_spi_read</span><span class="params">(<span class="keyword">struct</span> my_spi_device *my_dev, u8 reg, u8 *val)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_device</span> *<span class="title">spi</span> =</span> my_dev-&gt;spi;</span><br><span class="line">    u8 tx_buf[<span class="number">2</span>] = &#123;reg | <span class="number">0x80</span>, <span class="number">0</span>&#125;; <span class="comment">// 假设最高位为1表示读操作</span></span><br><span class="line">    u8 rx_buf[<span class="number">2</span>];</span><br><span class="line">    <span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_transfer</span> <span class="title">xfer</span>[] =</span> &#123;</span><br><span class="line">        &#123;</span><br><span class="line">            .tx_buf = tx_buf,</span><br><span class="line">            .rx_buf = rx_buf,</span><br><span class="line">            .len = <span class="number">2</span>,</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_message</span> <span class="title">msg</span>;</span></span><br><span class="line"></span><br><span class="line">    spi_message_init(&amp;msg);</span><br><span class="line">    spi_message_add_tail(&amp;xfer[<span class="number">0</span>], &amp;msg);</span><br><span class="line">    ret = spi_sync(spi, &amp;msg);</span><br><span class="line">    <span class="keyword">if</span> (ret)</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">    *val = rx_buf[<span class="number">1</span>];</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 向SPI设备写入数据</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">my_spi_write</span><span class="params">(<span class="keyword">struct</span> my_spi_device *my_dev, u8 reg, u8 val)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_device</span> *<span class="title">spi</span> =</span> my_dev-&gt;spi;</span><br><span class="line">    u8 tx_buf[<span class="number">2</span>] = &#123;reg &amp; <span class="number">0x7F</span>, val&#125;; <span class="comment">// 假设最高位为0表示写操作</span></span><br><span class="line">    <span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_transfer</span> <span class="title">xfer</span> =</span> &#123;</span><br><span class="line">        .tx_buf = tx_buf,</span><br><span class="line">        .len = <span class="number">2</span>,</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_message</span> <span class="title">msg</span>;</span></span><br><span class="line"></span><br><span class="line">    spi_message_init(&amp;msg);</span><br><span class="line">    spi_message_add_tail(&amp;xfer, &amp;msg);</span><br><span class="line">    <span class="keyword">return</span> spi_sync(spi, &amp;msg);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="5-spidev-或自定义程序都能验证通信">5. spidev 或自定义程序都能验证通信<a class="hlink" data-h="5-spidev-或自定义程序都能验证通信" href="#5-spidev-或自定义程序都能验证通信" title="跳到本节">¶</a></h2><p>内核自带的 spidev 是我验硬件的第一选择，不用写驱动就能从用户空间读写。等硬件确认没问题，再切回自己的设备驱动。</p>
+<h3 id="5-1-使用spidev进行测试">5.1 使用spidev进行测试<a class="hlink" data-h="5-1-使用spidev进行测试" href="#5-1-使用spidev进行测试" title="跳到本节">¶</a></h3><p>Linux内核提供了一个用户空间SPI接口驱动<code>spidev</code>，可以方便地测试SPI设备。</p>
+<h4 id="5-1-1-在设备树中配置spidev"><a href="#5-1-1-在设备树中配置spidev" class="headerlink" title="5.1.1 在设备树中配置spidev"></a>5.1.1 在设备树中配置spidev</h4><figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">&amp;lpspi2</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="comment">/* 控制器配置 */</span></span><br><span class="line"></span><br><span class="line">    <span class="title class_">spidev@0</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;spidev&quot;</span><span class="punctuation">;</span></span><br><span class="line">        <span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">0</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line">        <span class="attr">spi-max-frequency</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">10000000</span>&gt;</span><span class="punctuation">;</span> <span class="comment">/* 10MHz */</span></span><br><span class="line">        <span class="attr">status</span> <span class="operator">=</span> <span class="string">&quot;okay&quot;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="punctuation">&#125;;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="5-1-2-编译spidev测试程序"><a href="#5-1-2-编译spidev测试程序" class="headerlink" title="5.1.2 编译spidev测试程序"></a>5.1.2 编译spidev测试程序</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 初始化SDK环境，进入内核源码目录</span></span><br><span class="line"><span class="built_in">cd</span> linux/tools/spi</span><br><span class="line">make</span><br></pre></td></tr></table></figure>
+
+<p>生成的测试程序：</p>
+<ul>
+<li><code>spidev_test</code>：基本的SPI测试工具</li>
+<li><code>spidev_fdx</code>：全双工SPI测试工具</li>
+</ul>
+<h4 id="5-1-3-使用spidev-test进行测试"><a href="#5-1-3-使用spidev-test进行测试" class="headerlink" title="5.1.3 使用spidev_test进行测试"></a>5.1.3 使用spidev_test进行测试</h4><p>基本用法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./spidev_test -D /dev/spidev2.0 -v -p <span class="string">&quot;test_string&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>参数说明：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>-D</td>
+<td>指定设备节点</td>
+</tr>
+<tr>
+<td>-s</td>
+<td>设置最大速度(Hz)</td>
+</tr>
+<tr>
+<td>-d</td>
+<td>设置延迟(μs)</td>
+</tr>
+<tr>
+<td>-b</td>
+<td>设置每个字的位数</td>
+</tr>
+<tr>
+<td>-l</td>
+<td>回环模式</td>
+</tr>
+<tr>
+<td>-H</td>
+<td>设置时钟相位(CPHA)</td>
+</tr>
+<tr>
+<td>-O</td>
+<td>设置时钟极性(CPOL)</td>
+</tr>
+<tr>
+<td>-v</td>
+<td>显示发送缓冲区</td>
+</tr>
+<tr>
+<td>-p</td>
+<td>发送指定的字符串</td>
+</tr>
+</tbody></table>
+<p>发送32位数据示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建测试数据</span></span><br><span class="line"><span class="built_in">dd</span> <span class="keyword">if</span>=/dev/urandom of=test_data bs=16 count=2</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用32位字发送数据</span></span><br><span class="line">./spidev_test -D /dev/spidev2.0 -b 32 -v -i test_data</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-使用自定义程序测试">5.2 使用自定义程序测试<a class="hlink" data-h="5-2-使用自定义程序测试" href="#5-2-使用自定义程序测试" title="跳到本节">¶</a></h3><p>使用标准Linux文件操作API访问SPI设备：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;string.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdint.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;unistd.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;fcntl.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/ioctl.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;linux/spi/spidev.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">transfer</span><span class="params">(<span class="type">int</span> fd, <span class="type">uint8_t</span> <span class="type">const</span> *tx, <span class="type">uint8_t</span> *rx, <span class="type">size_t</span> len)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">spi_ioc_transfer</span> <span class="title">tr</span> =</span> &#123;</span><br><span class="line">        .tx_buf = (<span class="type">unsigned</span> <span class="type">long</span>)tx,</span><br><span class="line">        .rx_buf = (<span class="type">unsigned</span> <span class="type">long</span>)rx,</span><br><span class="line">        .len = len,</span><br><span class="line">        .speed_hz = <span class="number">1000000</span>,</span><br><span class="line">        .delay_usecs = <span class="number">0</span>,</span><br><span class="line">        .bits_per_word = <span class="number">8</span>,</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (ioctl(fd, SPI_IOC_MESSAGE(<span class="number">1</span>), &amp;tr) &lt; <span class="number">1</span>)</span><br><span class="line">        perror(<span class="string">&quot;SPI transfer failed&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span> *argv[])</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> fd;</span><br><span class="line">    <span class="type">uint8_t</span> tx[] = &#123;<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>, <span class="number">0x04</span>&#125;;</span><br><span class="line">    <span class="type">uint8_t</span> rx[<span class="keyword">sizeof</span>(tx)] = &#123;<span class="number">0</span>&#125;;</span><br><span class="line"></span><br><span class="line">    fd = open(<span class="string">&quot;/dev/spidev2.0&quot;</span>, O_RDWR);</span><br><span class="line">    <span class="keyword">if</span> (fd &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        perror(<span class="string">&quot;Can&#x27;t open device&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置SPI模式</span></span><br><span class="line">    <span class="type">uint8_t</span> mode = SPI_MODE_0;</span><br><span class="line">    <span class="keyword">if</span> (ioctl(fd, SPI_IOC_WR_MODE, &amp;mode) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        perror(<span class="string">&quot;Can&#x27;t set SPI mode&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置每个字的位数</span></span><br><span class="line">    <span class="type">uint8_t</span> bits = <span class="number">8</span>;</span><br><span class="line">    <span class="keyword">if</span> (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &amp;bits) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        perror(<span class="string">&quot;Can&#x27;t set bits per word&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置最大速度</span></span><br><span class="line">    <span class="type">uint32_t</span> speed = <span class="number">1000000</span>;</span><br><span class="line">    <span class="keyword">if</span> (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &amp;speed) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        perror(<span class="string">&quot;Can&#x27;t set max speed&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 传输数据</span></span><br><span class="line">    transfer(fd, tx, rx, <span class="keyword">sizeof</span>(tx));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 打印接收到的数据</span></span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Received: &quot;</span>);</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; <span class="keyword">sizeof</span>(rx); i++)</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;%02X &quot;</span>, rx[i]);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\n&quot;</span>);</span><br><span class="line"></span><br><span class="line">    close(fd);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="6-四类典型问题都能从设备树和模式配置入手">6. 四类典型问题都能从设备树和模式配置入手<a class="hlink" data-h="6-四类典型问题都能从设备树和模式配置入手" href="#6-四类典型问题都能从设备树和模式配置入手" title="跳到本节">¶</a></h2><p>遇到的问题看着花样多，但根子常常就那么几处：DMA 没开、片选数不够、模式不匹配、DMA 缓冲区没对齐。我一般按这四条挨个对照设备树和驱动配置。</p>
+<h3 id="6-1-SPI驱动崩溃">6.1 SPI驱动崩溃<a class="hlink" data-h="6-1-SPI驱动崩溃" href="#6-1-SPI驱动崩溃" title="跳到本节">¶</a></h3><h4 id="问题-提高SPI速度后驱动崩溃"><a href="#问题-提高SPI速度后驱动崩溃" class="headerlink" title="问题: 提高SPI速度后驱动崩溃"></a>问题: 提高SPI速度后驱动崩溃</h4><p><strong>原因</strong>: 在高速传输时，如果未启用DMA，CPU可能无法及时处理数据，导致缓冲区溢出或时序错误。</p>
+<p><strong>解决方案</strong>: 在设备树中启用DMA</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">&amp;lpspi2</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="comment">/* 控制器配置 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 启用DMA */</span></span><br><span class="line">    <span class="attr">dma-names</span> <span class="operator">=</span> <span class="string">&quot;tx&quot;</span>, <span class="string">&quot;rx&quot;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="comment">/* 不使用DMA的配置 */</span></span><br><span class="line">    <span class="comment">/* dma-names = &quot;no&quot;, &quot;no&quot;; */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 其他配置 */</span></span><br><span class="line"><span class="punctuation">&#125;;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-设备无法识别">6.2 设备无法识别<a class="hlink" data-h="6-2-设备无法识别" href="#6-2-设备无法识别" title="跳到本节">¶</a></h3><h4 id="问题-添加设备树节点后设备未出现"><a href="#问题-添加设备树节点后设备未出现" class="headerlink" title="问题: 添加设备树节点后设备未出现"></a>问题: 添加设备树节点后设备未出现</h4><p><strong>原因</strong>: 设备树中配置的设备数量超过控制器支持的最大数量。</p>
+<p><strong>解决方案</strong>: 检查并确保设备数量不超过控制器支持的最大值，通常在驱动中由<code>num_chipselect</code>或<code>num-cs</code>定义。</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">&amp;lpspi2</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="comment">/* 明确设置支持的最大片选数量 */</span></span><br><span class="line">    <span class="attr">num-cs</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">4</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 确保设备数量不超过上面设置的值 */</span></span><br><span class="line">    <span class="title class_">spidev@0</span> <span class="punctuation">&#123;</span> <span class="comment">/* ... */</span> <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="title class_">spidev@1</span> <span class="punctuation">&#123;</span> <span class="comment">/* ... */</span> <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="title class_">spidev@2</span> <span class="punctuation">&#123;</span> <span class="comment">/* ... */</span> <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="title class_">spidev@3</span> <span class="punctuation">&#123;</span> <span class="comment">/* ... */</span> <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="comment">/* 超过num-cs的设备会被忽略 */</span></span><br><span class="line"><span class="punctuation">&#125;;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-SPI传输时序错误">6.3 SPI传输时序错误<a class="hlink" data-h="6-3-SPI传输时序错误" href="#6-3-SPI传输时序错误" title="跳到本节">¶</a></h3><h4 id="问题-SPI通信不稳定或数据错误"><a href="#问题-SPI通信不稳定或数据错误" class="headerlink" title="问题: SPI通信不稳定或数据错误"></a>问题: SPI通信不稳定或数据错误</h4><p><strong>原因</strong>: SPI模式（时钟极性和相位）配置错误。</p>
+<p><strong>解决方案</strong>: 确保设备驱动中的SPI模式与设备要求匹配。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 在probe函数中设置正确的模式</span></span><br><span class="line">spi-&gt;mode = SPI_MODE_0; <span class="comment">// 或 SPI_MODE_1, SPI_MODE_2, SPI_MODE_3</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 或在设备树中配置</span></span><br><span class="line">&amp;lpspi2 &#123;</span><br><span class="line">    spidev@<span class="number">0</span> &#123;</span><br><span class="line">        compatible = <span class="string">&quot;spidev&quot;</span>;</span><br><span class="line">        reg = &lt;<span class="number">0</span>&gt;;</span><br><span class="line">        spi-max-frequency = &lt;<span class="number">10000000</span>&gt;;</span><br><span class="line">        spi-cpol; <span class="comment">// 设置CPOL=1</span></span><br><span class="line">        spi-cpha; <span class="comment">// 设置CPHA=1</span></span><br><span class="line">    &#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-4-DMA相关问题">6.4 DMA相关问题<a class="hlink" data-h="6-4-DMA相关问题" href="#6-4-DMA相关问题" title="跳到本节">¶</a></h3><h4 id="问题-使用DMA时数据传输不完整"><a href="#问题-使用DMA时数据传输不完整" class="headerlink" title="问题: 使用DMA时数据传输不完整"></a>问题: 使用DMA时数据传输不完整</h4><p><strong>原因</strong>: DMA配置不正确或DMA缓冲区对齐问题。</p>
+<p><strong>解决方案</strong>: 确保DMA缓冲区正确对齐，并配置正确的DMA通道。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 分配对齐的DMA缓冲区</span></span><br><span class="line"><span class="type">void</span> *dma_buf = dma_alloc_coherent(&amp;spi-&gt;dev, size, &amp;dma_handle, GFP_KERNEL);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 确保在设备树中配置了正确的DMA通道</span></span><br><span class="line">&amp;lpspi2 &#123;</span><br><span class="line">    dma-names = <span class="string">&quot;tx&quot;</span>, <span class="string">&quot;rx&quot;</span>;</span><br><span class="line">    dmas = &lt;&amp;sdma1 <span class="number">12</span> <span class="number">0</span> <span class="number">0</span>&gt;, &lt;&amp;sdma1 <span class="number">13</span> <span class="number">0</span> <span class="number">0</span>&gt;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="7-上-DMA、提时钟、合并传输是主要优化手段">7. 上 DMA、提时钟、合并传输是主要优化手段<a class="hlink" data-h="7-上-DMA、提时钟、合并传输是主要优化手段" href="#7-上-DMA、提时钟、合并传输是主要优化手段" title="跳到本节">¶</a></h2><p>优化我一般从 DMA 入手，大数据量时它降 CPU 开销最明显；其次是确认时钟跑在允许的最高频率，再把零散的小传输合并成一次 spi_sync。</p>
+<h3 id="7-1-提高SPI传输速度">7.1 提高SPI传输速度<a class="hlink" data-h="7-1-提高SPI传输速度" href="#7-1-提高SPI传输速度" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>使用DMA</strong>:<br>对于大量数据传输，使用DMA可以显著减少CPU开销。</p>
+</li>
+<li><p><strong>优化时钟设置</strong>:<br>确保SPI控制器时钟设置为允许的最高频率。</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">&amp;lpspi2</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">assigned-clocks</span> <span class="operator">=</span> <span class="params">&lt;<span class="variable">&amp;clk</span> IMX8QM_SPI2_CLK&gt;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="attr">assigned-clock-rates</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">120000000</span>&gt;</span><span class="punctuation">;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>增大传输块大小</strong>:<br>使用更大的传输块大小可以减少传输次数和开销。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 使用更大的缓冲区一次性传输更多数据</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> BUFFER_SIZE 4096</span></span><br><span class="line"><span class="type">uint8_t</span> tx_buf[BUFFER_SIZE] = &#123;<span class="comment">/* ... */</span>&#125;;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>最小化片选变化</strong>:<br>减少片选信号的切换次数，可以提高效率。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">spi_transfer</span> <span class="title">transfers</span>[2] =</span> &#123;</span><br><span class="line">    &#123;</span><br><span class="line">        .tx_buf = tx_buf1,</span><br><span class="line">        .rx_buf = rx_buf1,</span><br><span class="line">        .len = len1,</span><br><span class="line">        .cs_change = <span class="number">0</span>, <span class="comment">// 传输之间保持片选激活</span></span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        .tx_buf = tx_buf2,</span><br><span class="line">        .rx_buf = rx_buf2,</span><br><span class="line">        .len = len2,</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="7-2-减少CPU占用">7.2 减少CPU占用<a class="hlink" data-h="7-2-减少CPU占用" href="#7-2-减少CPU占用" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>使用中断而非轮询</strong>:<br>配置SPI控制器使用中断而不是轮询模式。</p>
+</li>
+<li><p><strong>批量传输</strong>:<br>将多个小型传输组合为一个大型传输可以减少系统调用开销。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 代替多个小型传输:</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">spi_transfer</span> <span class="title">transfers</span>[3] =</span> &#123;<span class="comment">/* ... */</span>&#125;;</span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">spi_message</span> <span class="title">msg</span>;</span></span><br><span class="line"></span><br><span class="line">spi_message_init(&amp;msg);</span><br><span class="line">spi_message_add_tail(&amp;transfers[<span class="number">0</span>], &amp;msg);</span><br><span class="line">spi_message_add_tail(&amp;transfers[<span class="number">1</span>], &amp;msg);</span><br><span class="line">spi_message_add_tail(&amp;transfers[<span class="number">2</span>], &amp;msg);</span><br><span class="line">spi_sync(spi, &amp;msg);</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="8-参考资料">8. 参考资料<a class="hlink" data-h="8-参考资料" href="#8-参考资料" title="跳到本节">¶</a></h2><ol>
+<li><a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/spi/">Linux内核文档 - SPI</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.nxp.com/docs/en/application-note/AN13048.pdf">NXP i.MX SPI应用说明</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/spi/spidev">使用spidev测试SPI设备</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.kernel.org/doc/html/latest/driver-api/spi.html">Linux SPI驱动API文档</a></li>
+</ol>
+<h2 id="9-先确认硬件链路，再谈驱动和性能优化">9. 先确认硬件链路，再谈驱动和性能优化<a class="hlink" data-h="9-先确认硬件链路，再谈驱动和性能优化" href="#9-先确认硬件链路，再谈驱动和性能优化" title="跳到本节">¶</a></h2><p>把顺序理清楚：先用 spidev 确认四线连接和模式配置没问题，再去写设备驱动的 probe 和收发，最后才考虑 DMA 和传输合并这类优化。跳过第一步直接调驱动，很容易把硬件问题当成代码 bug 查。</p>
+<div class="callout info" data-callout="info"><div class="callout-title"><span class="callout-ico">ℹ️</span><span class="callout-title-inner"><br>文档中的示例代码和设备树片段仅供参考，实际开发中需要根据具体硬件和需求进行调整。</span></div><div class="callout-body"></div></div>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"19-SPI总线驱动与设备树配置","description":"SPI 是嵌入式里最常见的同步串行总线，Flash、EEPROM、RTC、AD 转换器这些外设基本都走它。这篇把协议基础、Linux 驱动架构、设备树配置到测试验证这条线串起来。","datePublished":"2026-11-02T00:00:00+08:00","dateModified":"2026-11-02T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/2536056501.html"},"url":"https://zeek-zhao.github.io/posts/2536056501.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"操作系统与机器人","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/"},{"@type":"ListItem","position":4,"name":"Linux","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/"},{"@type":"ListItem","position":5,"name":"19-SPI总线驱动与设备树配置","item":"https://zeek-zhao.github.io/posts/2536056501.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#1-SPI-四线同步总线，四种模式由-CPOL-和-CPHA-决定" data-h="1-SPI-四线同步总线，四种模式由-CPOL-和-CPHA-决定" class="">1. SPI 四线同步总线，四种模式由 CPOL 和 CPHA 决定</a>
+      
+        <a href="#1-1-SPI简介" data-h="1-1-SPI简介" class="l2">1.1 SPI简介</a>
+      
+        <a href="#1-2-四根信号线各管什么" data-h="1-2-四根信号线各管什么" class="l2">1.2 四根信号线各管什么</a>
+      
+        <a href="#1-3-四种工作模式怎么划分" data-h="1-3-四种工作模式怎么划分" class="l2">1.3 四种工作模式怎么划分</a>
+      
+        <a href="#1-4-SPI时序图" data-h="1-4-SPI时序图" class="l2">1.4 SPI时序图</a>
+      
+        <a href="#2-内核-SPI-子系统分核心层、控制器驱动和设备驱动三层" data-h="2-内核-SPI-子系统分核心层、控制器驱动和设备驱动三层" class="">2. 内核 SPI 子系统分核心层、控制器驱动和设备驱动三层</a>
+      
+        <a href="#2-1-SPI子系统架构" data-h="2-1-SPI子系统架构" class="l2">2.1 SPI子系统架构</a>
+      
+        <a href="#2-2-主要数据结构" data-h="2-2-主要数据结构" class="l2">2.2 主要数据结构</a>
+      
+        <a href="#3-设备树要配控制器、设备节点和-PIN-复用三块" data-h="3-设备树要配控制器、设备节点和-PIN-复用三块" class="">3. 设备树要配控制器、设备节点和 PIN 复用三块</a>
+      
+        <a href="#3-1-SPI控制器配置" data-h="3-1-SPI控制器配置" class="l2">3.1 SPI控制器配置</a>
+      
+        <a href="#3-2-SPI设备配置" data-h="3-2-SPI设备配置" class="l2">3.2 SPI设备配置</a>
+      
+        <a href="#3-3-PIN复用配置" data-h="3-3-PIN复用配置" class="l2">3.3 PIN复用配置</a>
+      
+        <a href="#4-控制器驱动厂商给，设备驱动自己写" data-h="4-控制器驱动厂商给，设备驱动自己写" class="">4. 控制器驱动厂商给，设备驱动自己写</a>
+      
+        <a href="#4-1-SPI主控制器驱动" data-h="4-1-SPI主控制器驱动" class="l2">4.1 SPI主控制器驱动</a>
+      
+        <a href="#4-2-SPI设备驱动" data-h="4-2-SPI设备驱动" class="l2">4.2 SPI设备驱动</a>
+      
+        <a href="#4-3-SPI通信实现" data-h="4-3-SPI通信实现" class="l2">4.3 SPI通信实现</a>
+      
+        <a href="#5-spidev-或自定义程序都能验证通信" data-h="5-spidev-或自定义程序都能验证通信" class="">5. spidev 或自定义程序都能验证通信</a>
+      
+        <a href="#5-1-使用spidev进行测试" data-h="5-1-使用spidev进行测试" class="l2">5.1 使用spidev进行测试</a>
+      
+        <a href="#5-2-使用自定义程序测试" data-h="5-2-使用自定义程序测试" class="l2">5.2 使用自定义程序测试</a>
+      
+        <a href="#6-四类典型问题都能从设备树和模式配置入手" data-h="6-四类典型问题都能从设备树和模式配置入手" class="">6. 四类典型问题都能从设备树和模式配置入手</a>
+      
+        <a href="#6-1-SPI驱动崩溃" data-h="6-1-SPI驱动崩溃" class="l2">6.1 SPI驱动崩溃</a>
+      
+        <a href="#6-2-设备无法识别" data-h="6-2-设备无法识别" class="l2">6.2 设备无法识别</a>
+      
+        <a href="#6-3-SPI传输时序错误" data-h="6-3-SPI传输时序错误" class="l2">6.3 SPI传输时序错误</a>
+      
+        <a href="#6-4-DMA相关问题" data-h="6-4-DMA相关问题" class="l2">6.4 DMA相关问题</a>
+      
+        <a href="#7-上-DMA、提时钟、合并传输是主要优化手段" data-h="7-上-DMA、提时钟、合并传输是主要优化手段" class="">7. 上 DMA、提时钟、合并传输是主要优化手段</a>
+      
+        <a href="#7-1-提高SPI传输速度" data-h="7-1-提高SPI传输速度" class="l2">7.1 提高SPI传输速度</a>
+      
+        <a href="#7-2-减少CPU占用" data-h="7-2-减少CPU占用" class="l2">7.2 减少CPU占用</a>
+      
+        <a href="#8-参考资料" data-h="8-参考资料" class="">8. 参考资料</a>
+      
+        <a href="#9-先确认硬件链路，再谈驱动和性能优化" data-h="9-先确认硬件链路，再谈驱动和性能优化" class="">9. 先确认硬件链路，再谈驱动和性能优化</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dependency-Track 实战：把组件风险管到流水线里 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="供应链风险光靠人工盯依赖清单盯不住，我一般把 SCA 挂进 CI 流水线里卡门禁。Dependency-Track 就是我常用的那一环，装好、传 SBOM、配策略就能持续看组件漏洞。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/2352368518.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="Dependency-Track 实战：把组件风险管到流水线里">
+<meta property="og:description" content="供应链风险光靠人工盯依赖清单盯不住，我一般把 SCA 挂进 CI 流水线里卡门禁。Dependency-Track 就是我常用的那一环，装好、传 SBOM、配策略就能持续看组件漏洞。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2352368518.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="Dependency-Track 实战：把组件风险管到流水线里">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-01T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="DevOps 与 CI">
+          <div class="sg-head">
+            <span>🛠️</span><span>DevOps 与 CI</span><span class="cnt">137 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Devops">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/Devops/" class=""><span>⚙️</span><span>Devops</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Devops 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3648774256.html" class="">Readme 项目管理工具开发指南</a>
+                  
+                    <a href="/posts/80353994.html" class="">云原生详解：概念、架构与最佳实践</a>
+                  
+                    <a href="/posts/864860118.html" class="">云计算基础概念</a>
+                  
+                    <a href="/posts/3419865976.html" class="">云计算概述：从IaaS到云原生</a>
+                  
+                    <a href="/posts/3895211782.html" class="">云详解：从基础架构到云原生应用</a>
+                  
+                    <a href="/posts/161360898.html" class="">DevOps 开发指南：从环境到落地的完整路径</a>
+                  
+                    <a href="/posts/625290732.html" class="">DevOps 概述：打破开发与运维的墙</a>
+                  
+                    <a href="/posts/1892394070.html" class="">DevOps 详解：从理念到落地体系</a>
+                  
+                    <a href="/posts/1327983660.html" class="">DevOps 资源与工具链接大全</a>
+                  
+                    <a href="/posts/1303542826.html" class="">CI/CD 全面指南：从基础到实践</a>
+                  
+                    <a href="/posts/2079715886.html" class="">CI/CD 基础设施：现代交付体系的基石</a>
+                  
+                    <a href="/posts/1609493186.html" class="">CICD安全：构建安全可靠的交付管道</a>
+                  
+                    <a href="/posts/3727254957.html" class="">CICD监控系统全指南：构建可见与可控的交付链路</a>
+                  
+                    <a href="/posts/2127181799.html" class="">Jupyter 开发指南</a>
+                  
+                    <a href="/posts/938585159.html" class="">MinIO分布式对象存储系统部署方案</a>
+                  
+                    <a href="/posts/2744267937.html" class="">MinIO开发指南：从入门到精通</a>
+                  
+                    <a href="/posts/3493101813.html" class="">服务器基础环境搭建：从入门到精通</a>
+                  
+                    <a href="/posts/2247745902.html" class="">Artifactory开发指南：企业级二进制仓库</a>
+                  
+                    <a href="/posts/1702114218.html" class="">cgit 与 gitweb 开发指南</a>
+                  
+                    <a href="/posts/2352368518.html" class="active">Dependency-Track 实战：把组件风险管到流水线里</a>
+                  
+                    <a href="/posts/1015617798.html" class="">Doxygen 实战：让代码注释自动长成文档</a>
+                  
+                    <a href="/posts/467740246.html" class="">FOSSology 实战：把许可证合规做成自动扫描</a>
+                  
+                    <a href="/posts/1788589949.html" class="">SonarQube 实战：把代码质量变成可量化的门禁</a>
+                  
+                    <a href="/posts/2585977730.html" class="">DevOps 技能索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="k8s">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/k8s/" class=""><span>☸️</span><span>k8s</span><span class="cnt">19</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 k8s 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1134926849.html" class="">02-安装部署-minikube</a>
+                  
+                    <a href="/posts/2183422431.html" class="">03-安装部署-kubeadm</a>
+                  
+                    <a href="/posts/3633678241.html" class="">04-Pod基础</a>
+                  
+                    <a href="/posts/2387220081.html" class="">05-Deployment</a>
+                  
+                    <a href="/posts/2622802409.html" class="">06-Service服务发现</a>
+                  
+                    <a href="/posts/689024608.html" class="">07-Ingress</a>
+                  
+                    <a href="/posts/3220507863.html" class="">08-ConfigMap与Secret</a>
+                  
+                    <a href="/posts/3456073536.html" class="">09-存储卷Volume</a>
+                  
+                    <a href="/posts/1645162883.html" class="">10-调度与亲和性</a>
+                  
+                    <a href="/posts/3603673172.html" class="">11-健康检查与探针</a>
+                  
+                    <a href="/posts/3919659565.html" class="">12-HPA自动伸缩</a>
+                  
+                    <a href="/posts/4255836140.html" class="">13-RBAC权限控制</a>
+                  
+                    <a href="/posts/3767209492.html" class="">14-Helm包管理</a>
+                  
+                    <a href="/posts/1983604537.html" class="">15-网络原理</a>
+                  
+                    <a href="/posts/775443758.html" class="">16-故障排查</a>
+                  
+                    <a href="/posts/142920649.html" class="">17-监控体系</a>
+                  
+                    <a href="/posts/1789822815.html" class="">18-生产实践</a>
+                  
+                    <a href="/posts/3073924864.html" class="">k8s 00-索引</a>
+                  
+                    <a href="/posts/1898566884.html" class="">k8s 01-核心概念与架构</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="jenkins">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/jenkins/" class=""><span>🤵</span><span>jenkins</span><span class="cnt">18</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 jenkins 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/420401477.html" class="">02-安装部署-war与Docker</a>
+                  
+                    <a href="/posts/1400208228.html" class="">03-Freestyle Job</a>
+                  
+                    <a href="/posts/94912300.html" class="">04-Pipeline基础语法</a>
+                  
+                    <a href="/posts/478830218.html" class="">05-参数化构建与触发器</a>
+                  
+                    <a href="/posts/273190372.html" class="">06-凭据管理</a>
+                  
+                    <a href="/posts/2897964088.html" class="">07-共享库</a>
+                  
+                    <a href="/posts/2752803394.html" class="">08-多分支流水线</a>
+                  
+                    <a href="/posts/1414905208.html" class="">09-代理节点</a>
+                  
+                    <a href="/posts/313562399.html" class="">10-插件生态</a>
+                  
+                    <a href="/posts/487822753.html" class="">11-安全权限管理</a>
+                  
+                    <a href="/posts/3600282992.html" class="">12-与Git集成</a>
+                  
+                    <a href="/posts/662902205.html" class="">13-与Gerrit集成</a>
+                  
+                    <a href="/posts/3001512961.html" class="">14-容器化与Docker集成</a>
+                  
+                    <a href="/posts/4002175065.html" class="">15-备份与升级</a>
+                  
+                    <a href="/posts/2191119989.html" class="">16-性能优化</a>
+                  
+                    <a href="/posts/1010447273.html" class="">17-生产实践</a>
+                  
+                    <a href="/posts/2898301708.html" class="">jenkins 00-索引</a>
+                  
+                    <a href="/posts/3790878514.html" class="">jenkins 01-核心概念与架构</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="gerrit">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/gerrit/" class=""><span>🧾</span><span>gerrit</span><span class="cnt">17</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 gerrit 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2232575673.html" class="">01-核心概念与架构</a>
+                  
+                    <a href="/posts/3976549850.html" class="">03-SSH配置与账号</a>
+                  
+                    <a href="/posts/3593076756.html" class="">04-项目创建与manifest</a>
+                  
+                    <a href="/posts/3497379917.html" class="">05-权限与组</a>
+                  
+                    <a href="/posts/2862613567.html" class="">06-Code Review 全流程</a>
+                  
+                    <a href="/posts/2865369120.html" class="">07-Change 生命周期与 refs 规范</a>
+                  
+                    <a href="/posts/4021463634.html" class="">08-Hook与事件</a>
+                  
+                    <a href="/posts/1343788477.html" class="">09-与Jenkins集成-Trigger与验证任务</a>
+                  
+                    <a href="/posts/816024681.html" class="">10-复制与二级服务器</a>
+                  
+                    <a href="/posts/2642706326.html" class="">11-备份与升级</a>
+                  
+                    <a href="/posts/1936305604.html" class="">12-常见问题排错</a>
+                  
+                    <a href="/posts/1258388025.html" class="">13-最佳实践</a>
+                  
+                    <a href="/posts/4182984180.html" class="">14-命令行与git-review</a>
+                  
+                    <a href="/posts/793704867.html" class="">15-集成与生态</a>
+                  
+                    <a href="/posts/2044427915.html" class="">16-生产运维与监控</a>
+                  
+                    <a href="/posts/1468007543.html" class="">gerrit 00-索引</a>
+                  
+                    <a href="/posts/2215618498.html" class="">gerrit 02-安装部署</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="gitlab">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/gitlab/" class=""><span>🦊</span><span>gitlab</span><span class="cnt">17</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 gitlab 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1426464393.html" class="">GitLab 简介与架构</a>
+                  
+                    <a href="/posts/1936232740.html" class="">安装部署 - Omnibus</a>
+                  
+                    <a href="/posts/2334227366.html" class="">安装部署 - Docker</a>
+                  
+                    <a href="/posts/1982805452.html" class="">项目与组管理</a>
+                  
+                    <a href="/posts/2251597155.html" class="">CI/CD Pipeline 配置</a>
+                  
+                    <a href="/posts/3078661545.html" class="">Runner 部署</a>
+                  
+                    <a href="/posts/1626166884.html" class="">代码评审与 MR</a>
+                  
+                    <a href="/posts/1368947108.html" class="">gitlab 权限管理</a>
+                  
+                    <a href="/posts/182520488.html" class="">SSO/LDAP 集成</a>
+                  
+                    <a href="/posts/516454747.html" class="">备份恢复</a>
+                  
+                    <a href="/posts/2753512097.html" class="">升级迁移</a>
+                  
+                    <a href="/posts/3488983566.html" class="">gitlab 性能优化</a>
+                  
+                    <a href="/posts/2922775048.html" class="">gitlab 常见问题排查</a>
+                  
+                    <a href="/posts/2047574691.html" class="">生产实践与进阶技巧</a>
+                  
+                    <a href="/posts/1640138851.html" class="">GitLab 从入门到精通</a>
+                  
+                    <a href="/posts/3626636365.html" class="">gitlab 安全加固</a>
+                  
+                    <a href="/posts/2171875478.html" class="">gitlab 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="nexus3">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/nexus3/" class=""><span>📦</span><span>nexus3</span><span class="cnt">17</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 nexus3 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/794670279.html" class="">03-仓库类型详解</a>
+                  
+                    <a href="/posts/3899959073.html" class="">04-Maven仓库配置</a>
+                  
+                    <a href="/posts/2767065624.html" class="">05-npm仓库配置</a>
+                  
+                    <a href="/posts/3347927184.html" class="">06-Docker仓库配置</a>
+                  
+                    <a href="/posts/2846423677.html" class="">07-Raw与其它仓库</a>
+                  
+                    <a href="/posts/86364368.html" class="">08-Blob Store与存储</a>
+                  
+                    <a href="/posts/3737743371.html" class="">09-权限与匿名访问</a>
+                  
+                    <a href="/posts/1548438067.html" class="">10-Cleanup与任务调度</a>
+                  
+                    <a href="/posts/3425741267.html" class="">11-REST API与脚本</a>
+                  
+                    <a href="/posts/2037935480.html" class="">12-备份恢复</a>
+                  
+                    <a href="/posts/2004643250.html" class="">13-高可用与SSL</a>
+                  
+                    <a href="/posts/1877057279.html" class="">14-性能调优</a>
+                  
+                    <a href="/posts/2452425559.html" class="">15-常见问题排错</a>
+                  
+                    <a href="/posts/3483505748.html" class="">16-最佳实践</a>
+                  
+                    <a href="/posts/1021566875.html" class="">nexus3 00-索引</a>
+                  
+                    <a href="/posts/2033685543.html" class="">nexus3 01-核心概念与架构</a>
+                  
+                    <a href="/posts/1992117855.html" class="">nexus3 02-安装部署</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="opengrok">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/opengrok/" class=""><span>🔍</span><span>opengrok</span><span class="cnt">17</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 opengrok 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3401457710.html" class="">OpenGrok 概述</a>
+                  
+                    <a href="/posts/1985842816.html" class="">代码索引基础</a>
+                  
+                    <a href="/posts/1470196158.html" class="">搜索语法</a>
+                  
+                    <a href="/posts/2324947679.html" class="">浏览与导航</a>
+                  
+                    <a href="/posts/1461878170.html" class="">配置管理</a>
+                  
+                    <a href="/posts/3882920345.html" class="">增量索引与监控</a>
+                  
+                    <a href="/posts/1509875352.html" class="">权限与认证</a>
+                  
+                    <a href="/posts/2378202025.html" class="">多仓库管理</a>
+                  
+                    <a href="/posts/4036215146.html" class="">性能调优</a>
+                  
+                    <a href="/posts/360899488.html" class="">与IDE集成</a>
+                  
+                    <a href="/posts/1221139652.html" class="">与CI集成</a>
+                  
+                    <a href="/posts/2558986216.html" class="">高可用部署</a>
+                  
+                    <a href="/posts/4144580090.html" class="">opengrok 安全加固</a>
+                  
+                    <a href="/posts/982527857.html" class="">备份恢复与排错</a>
+                  
+                    <a href="/posts/1606013855.html" class="">OpenGrok 安装部署</a>
+                  
+                    <a href="/posts/1683344117.html" class="">OpenGrok 从入门到精通</a>
+                  
+                    <a href="/posts/3159535135.html" class="">OpenGrok 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="docker">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/docker/" class=""><span>🐳</span><span>docker</span><span class="cnt">8</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 docker 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3788885463.html" class="">01-什么是Docker与核心概念</a>
+                  
+                    <a href="/posts/4252111228.html" class="">02-安装与初体验</a>
+                  
+                    <a href="/posts/2204284953.html" class="">03-镜像与容器管理</a>
+                  
+                    <a href="/posts/2873424140.html" class="">04-Dockerfile与镜像构建</a>
+                  
+                    <a href="/posts/318978211.html" class="">05-数据卷与网络</a>
+                  
+                    <a href="/posts/2541770351.html" class="">06-Docker Compose</a>
+                  
+                    <a href="/posts/3471145924.html" class="">07-进阶实践与排错</a>
+                  
+                    <a href="/posts/1020738425.html" class="">docker 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/DevOps-%E4%B8%8E-CI/">🛠️ DevOps 与 CI</a> / <a href="/categories/DevOps-%E4%B8%8E-CI/Devops/">⚙️ Devops</a> / <span>Dependency-Track 实战：把组件风险管到流水线里</span></div>
+
+<h1>Dependency-Track 实战：把组件风险管到流水线里</h1>
+<div class="subtitle">供应链风险光靠人工盯依赖清单盯不住，我一般把 SCA 挂进 CI 流水线里卡门禁。Dependency-Track 就是我常用的那一环，装好、传 SBOM、配策略就能持续看组件漏洞。</div>
+<div class="article-meta">
+  <span>📅 2026-11-01</span><span>· 更新于 2026-11-01</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 11803 字 · 约 30 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/DevOps/">#DevOps</a><a class="tagchip" href="/tags/%E6%8C%87%E5%8D%97/">#指南</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/2352368518.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<p>供应链风险光靠人工盯依赖清单盯不住，我一般把 SCA 挂进 CI 流水线里卡门禁。Dependency-Track 就是我常用的那一环，装好、传 SBOM、配策略就能持续看组件漏洞。</p>
+<p><a href="/posts/1015617798.html">下一篇：Doxygen 开发指南</a></p>
+<h2 id="一、先搞清-Dependency-Track-能解决什么问题">一、先搞清 Dependency-Track 能解决什么问题<a class="hlink" data-h="一、先搞清-Dependency-Track-能解决什么问题" href="#一、先搞清-Dependency-Track-能解决什么问题" title="跳到本节">¶</a></h2><h3 id="1-1-Dependency-Track-概述">1.1 Dependency-Track 概述<a class="hlink" data-h="1-1-Dependency-Track-概述" href="#1-1-Dependency-Track-概述" title="跳到本节">¶</a></h3><p>Dependency-Track 是由 OWASP 基金会支持的开源软件成分分析 (Software Composition Analysis, SCA) 平台，专注于持续分析软件供应链中的组件风险。它跟踪所有依赖项与其潜在漏洞，帮助组织识别和减轻与第三方组件相关的风险。</p>
+<div class="mermaid">
+mindmap
+  root((Dependency-Track))
+    软件成分分析
+      漏洞识别与跟踪
+      依赖项管理
+      SBOM生成与验证
+    风险评估
+      CVE评估
+      数据流分析
+      供应链风险
+    合规管理
+      许可证合规性
+      政策执行
+      审计跟踪
+    集成能力
+      CI/CD集成
+      REST API
+      通知系统
+</div>
+
+<h3 id="1-2-核心功能与优势">1.2 核心功能与优势<a class="hlink" data-h="1-2-核心功能与优势" href="#1-2-核心功能与优势" title="跳到本节">¶</a></h3><ul>
+<li><strong>全面的漏洞分析</strong>：聚合多个漏洞数据源，包括 NVD、GitHub 顾问、Sonatype OSS Index 等</li>
+<li><strong>软件物料清单 (SBOM) 管理</strong>：支持 CycloneDX 和 SPDX 格式，实现供应链透明度</li>
+<li><strong>持续组件分析</strong>：随时跟踪新发现的漏洞，甚至在部署后</li>
+<li><strong>风险评分</strong>：基于 CVSS 提供详细的风险评分和定制化风险评估</li>
+<li><strong>策略合规</strong>：帮助自动执行组织安全策略和合规要求</li>
+<li><strong>集成能力</strong>：提供全面的 API，支持与开发工具链集成</li>
+</ul>
+<h3 id="1-3-架构与组件">1.3 架构与组件<a class="hlink" data-h="1-3-架构与组件" href="#1-3-架构与组件" title="跳到本节">¶</a></h3><p>Dependency-Track 采用现代化的微服务架构，主要由 API 服务器和前端界面组成：</p>
+<div class="mermaid">
+graph TD
+    A[用户/CI系统] --&gt; B[Dependency-Track前端]
+    A --&gt; C[REST API]
+    B --&gt; C[REST API服务器]
+    C --&gt; D[数据存储]
+    C --&gt; E[消息队列]
+    E --&gt; F[通知服务]
+    E --&gt; G[扫描器服务]
+    E --&gt; H[索引服务]
+    subgraph 外部系统
+        I[漏洞数据源]
+        J[CI/CD系统]
+        K[Issue追踪系统]
+        L[通知渠道]
+    end
+    G --&gt; I
+    C --&gt; J
+    F --&gt; K
+    F --&gt; L
+    style C fill:#bbf,stroke:#333,stroke-width:2px
+    style D fill:#bfb,stroke:#333,stroke-width:1px
+    style E fill:#fbf,stroke:#333,stroke-width:1px
+</div>
+
+<p>主要组件：</p>
+<ul>
+<li><strong>API 服务器</strong>：核心后端服务，处理所有业务逻辑和数据处理</li>
+<li><strong>前端界面</strong>：基于 Vue.js 的单页应用程序</li>
+<li><strong>数据存储</strong>：使用 H2 或 PostgreSQL 存储项目、组件和漏洞数据</li>
+<li><strong>消息队列</strong>：使用 ActiveMQ 处理异步任务，如漏洞分析和通知</li>
+<li><strong>分析引擎</strong>：处理各种格式的 SBOM，执行漏洞检测和策略执行</li>
+</ul>
+<h2 id="二、部署走-Docker-最省事，配置别漏数据源">二、部署走 Docker 最省事，配置别漏数据源<a class="hlink" data-h="二、部署走-Docker-最省事，配置别漏数据源" href="#二、部署走-Docker-最省事，配置别漏数据源" title="跳到本节">¶</a></h2><h3 id="2-1-系统要求">2.1 系统要求<a class="hlink" data-h="2-1-系统要求" href="#2-1-系统要求" title="跳到本节">¶</a></h3><div class="callout tip" data-callout="tip"><div class="callout-title"><span class="callout-ico">🔥</span><span class="callout-title-inner">生产环境我一律用 PostgreSQL，H2 只适合本地试玩；内存按 8GB 起步留余量。</span></div><div class="callout-body"></div></div>
+<p>在部署 Dependency-Track 之前，请确保满足以下系统要求：</p>
+<p><strong>最低要求</strong>:</p>
+<ul>
+<li>Java 17 或更高版本</li>
+<li>至少 4GB RAM (建议 8GB+)</li>
+<li>至少 2 CPU 核心 (建议 4+)</li>
+<li>至少 50GB 存储空间</li>
+</ul>
+<p><strong>数据库选项</strong>:</p>
+<ul>
+<li>内置 H2 数据库 (小规模部署)</li>
+<li>PostgreSQL 10.0 或更高版本 (推荐用于生产环境)</li>
+</ul>
+<p><strong>其他依赖</strong>:</p>
+<ul>
+<li>ActiveMQ (可选，用于高级功能)</li>
+<li>Nginx&#x2F;Apache (可选，作为反向代理)</li>
+</ul>
+<h3 id="2-2-部署方法">2.2 部署方法<a class="hlink" data-h="2-2-部署方法" href="#2-2-部署方法" title="跳到本节">¶</a></h3><h4 id="2-2-1-Docker-部署-推荐"><a href="#2-2-1-Docker-部署-推荐" class="headerlink" title="2.2.1 Docker 部署 (推荐)"></a>2.2.1 Docker 部署 (推荐)</h4><p>Docker 是部署 Dependency-Track 最简单的方法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建卷</span></span><br><span class="line">docker volume create --name dependency-track</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建网络</span></span><br><span class="line">docker network create dependency-track</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动API服务器</span></span><br><span class="line">docker run -d --name dependency-track-apiserver \</span><br><span class="line">    -e <span class="string">&quot;ALPINE_DATABASE_MODE=external&quot;</span> \</span><br><span class="line">    -e <span class="string">&quot;ALPINE_DATABASE_URL=jdbc:postgresql://postgres:5432/dtrack&quot;</span> \</span><br><span class="line">    -e <span class="string">&quot;ALPINE_DATABASE_DRIVER=org.postgresql.Driver&quot;</span> \</span><br><span class="line">    -e <span class="string">&quot;ALPINE_DATABASE_USERNAME=postgres&quot;</span> \</span><br><span class="line">    -e <span class="string">&quot;ALPINE_DATABASE_PASSWORD=password&quot;</span> \</span><br><span class="line">    -p 8081:8080 \</span><br><span class="line">    -v dependency-track:/data \</span><br><span class="line">    --network dependency-track \</span><br><span class="line">    --restart unless-stopped \</span><br><span class="line">    dependencytrack/apiserver</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动前端</span></span><br><span class="line">docker run -d --name dependency-track-frontend \</span><br><span class="line">    -p 8080:8080 \</span><br><span class="line">    -e <span class="string">&quot;API_BASE_URL=http://localhost:8081&quot;</span> \</span><br><span class="line">    --network dependency-track \</span><br><span class="line">    --restart unless-stopped \</span><br><span class="line">    dependencytrack/frontend</span><br></pre></td></tr></table></figure>
+
+<p><strong>通过 Docker Compose 配置</strong>:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">version:</span> <span class="string">&#x27;3.7&#x27;</span></span><br><span class="line"></span><br><span class="line"><span class="attr">services:</span></span><br><span class="line">  <span class="attr">dtrack-postgres:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">postgres:14</span></span><br><span class="line">    <span class="attr">hostname:</span> <span class="string">postgres</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">dtrack-postgres</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">POSTGRES_USER=postgres</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">POSTGRES_PASSWORD=password</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">POSTGRES_DB=dtrack</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">&quot;dtrack-postgres-data:/var/lib/postgresql/data&quot;</span></span><br><span class="line">    <span class="attr">networks:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">dtrack-net</span></span><br><span class="line"></span><br><span class="line">  <span class="attr">dtrack-apiserver:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">dependencytrack/apiserver</span></span><br><span class="line">    <span class="attr">hostname:</span> <span class="string">dtrack-apiserver</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">dtrack-apiserver</span></span><br><span class="line">    <span class="attr">depends_on:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">dtrack-postgres</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_MODE=external</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_URL=jdbc:postgresql://postgres:5432/dtrack</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_DRIVER=org.postgresql.Driver</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_USERNAME=postgres</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_PASSWORD=password</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_POOL_MAX_SIZE=20</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_POOL_MIN_IDLE=10</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">&quot;dtrack-data:/data&quot;</span></span><br><span class="line">    <span class="attr">ports:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">&quot;8081:8080&quot;</span></span><br><span class="line">    <span class="attr">restart:</span> <span class="string">unless-stopped</span></span><br><span class="line">    <span class="attr">networks:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">dtrack-net</span></span><br><span class="line"></span><br><span class="line">  <span class="attr">dtrack-frontend:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">dependencytrack/frontend</span></span><br><span class="line">    <span class="attr">hostname:</span> <span class="string">dtrack-frontend</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">dtrack-frontend</span></span><br><span class="line">    <span class="attr">depends_on:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">dtrack-apiserver</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">API_BASE_URL=http://localhost:8081</span></span><br><span class="line">    <span class="attr">ports:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">&quot;8080:8080&quot;</span></span><br><span class="line">    <span class="attr">restart:</span> <span class="string">unless-stopped</span></span><br><span class="line">    <span class="attr">networks:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">dtrack-net</span></span><br><span class="line"></span><br><span class="line"><span class="attr">volumes:</span></span><br><span class="line">  <span class="attr">dtrack-postgres-data:</span></span><br><span class="line">  <span class="attr">dtrack-data:</span></span><br><span class="line"></span><br><span class="line"><span class="attr">networks:</span></span><br><span class="line">  <span class="attr">dtrack-net:</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="2-2-2-传统部署方法"><a href="#2-2-2-传统部署方法" class="headerlink" title="2.2.2 传统部署方法"></a>2.2.2 传统部署方法</h4><p>对于非容器化环境，可以采用传统部署：</p>
+<ol>
+<li><p><strong>下载最新版本</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 下载API服务器</span></span><br><span class="line">curl -LO https://github.com/DependencyTrack/dependency-track/releases/download/x.y.z/dependency-track-apiserver.jar</span><br><span class="line"></span><br><span class="line"><span class="comment"># 下载前端</span></span><br><span class="line">curl -LO https://github.com/DependencyTrack/dependency-track-frontend/releases/download/x.y.z/dependency-track-frontend.zip</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>配置服务</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建数据目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /opt/dependency-track/data</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置系统属性</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;alpine.database.mode=external&quot;</span> &gt; /opt/dependency-track/application.properties</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;alpine.database.url=jdbc:postgresql://localhost:5432/dtrack&quot;</span> &gt;&gt; /opt/dependency-track/application.properties</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;alpine.database.driver=org.postgresql.Driver&quot;</span> &gt;&gt; /opt/dependency-track/application.properties</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;alpine.database.username=postgres&quot;</span> &gt;&gt; /opt/dependency-track/application.properties</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;alpine.database.password=password&quot;</span> &gt;&gt; /opt/dependency-track/application.properties</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>启动服务</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 启动API服务器</span></span><br><span class="line">java -Xms4G -Xmx8G -Dalpine.data.directory=/opt/dependency-track/data \</span><br><span class="line">     -jar dependency-track-apiserver.jar</span><br><span class="line"></span><br><span class="line"><span class="comment"># 部署前端到Web服务器</span></span><br><span class="line">unzip dependency-track-frontend.zip -d /var/www/html/dtrack</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="2-3-初始配置">2.3 初始配置<a class="hlink" data-h="2-3-初始配置" href="#2-3-初始配置" title="跳到本节">¶</a></h3><h4 id="2-3-1-首次访问与管理员设置"><a href="#2-3-1-首次访问与管理员设置" class="headerlink" title="2.3.1 首次访问与管理员设置"></a>2.3.1 首次访问与管理员设置</h4><ol>
+<li>访问前端界面 (默认为 <code>http://localhost:8080</code>)</li>
+<li>使用默认管理员账户登录：<ul>
+<li>用户名: <code>admin</code></li>
+<li>密码: <code>admin</code></li>
+</ul>
+</li>
+<li>首次登录后，立即更改默认密码</li>
+<li>配置系统设置：导航至 <code>Administration</code> &gt; <code>Configuration</code></li>
+</ol>
+<h4 id="2-3-2-配置外部漏洞数据源"><a href="#2-3-2-配置外部漏洞数据源" class="headerlink" title="2.3.2 配置外部漏洞数据源"></a>2.3.2 配置外部漏洞数据源</h4><p>Dependency-Track 支持多种漏洞数据源：</p>
+<div class="mermaid">
+graph LR
+    A[Dependency-Track] --&gt; B[National Vulnerability&lt;br&gt;Database (NVD)]
+    A --&gt; C[GitHub Security&lt;br&gt;Advisories]
+    A --&gt; D[OSS Index]
+    A --&gt; E[VulnDB]
+    A --&gt; F[Snyk]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+    style B fill:#bfb,stroke:#333,stroke-width:1px
+    style C fill:#bfb,stroke:#333,stroke-width:1px
+</div>
+
+<p>配置步骤：</p>
+<ol>
+<li>访问 <code>Administration</code> &gt; <code>Analyzers</code></li>
+<li>配置各数据源的 API 密钥：<ul>
+<li><strong>OSS Index</strong>: 配置免费账户的凭证</li>
+<li><strong>Snyk</strong>: 配置 API 令牌</li>
+<li><strong>NVD</strong>: 配置 API 密钥 (可选但推荐)</li>
+</ul>
+</li>
+</ol>
+<h4 id="2-3-3-配置通知服务"><a href="#2-3-3-配置通知服务" class="headerlink" title="2.3.3 配置通知服务"></a>2.3.3 配置通知服务</h4><p>设置漏洞通知系统：</p>
+<ol>
+<li>导航至 <code>Administration</code> &gt; <code>Notifications</code> &gt; <code>Publishers</code></li>
+<li>启用并配置所需通知渠道：<ul>
+<li>Slack</li>
+<li>Microsoft Teams</li>
+<li>Webhook</li>
+<li>Email</li>
+<li>Jira</li>
+</ul>
+</li>
+</ol>
+<p>示例 Webhook 配置：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;destination&quot;</span><span class="punctuation">:</span> <span class="string">&quot;https://example.com/hooks/dependency-track&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;enabled&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Development Team&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;publisherClass&quot;</span><span class="punctuation">:</span> <span class="string">&quot;org.dependencytrack.notification.publisher.WebhookPublisher&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;scope&quot;</span><span class="punctuation">:</span> <span class="string">&quot;PORTFOLIO&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;level&quot;</span><span class="punctuation">:</span> <span class="string">&quot;INFORMATIONAL&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;uuid&quot;</span><span class="punctuation">:</span> <span class="string">&quot;uuid-of-the-notification-publisher&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="三、数据模型就围着项目、组件、漏洞和-SBOM-转">三、数据模型就围着项目、组件、漏洞和 SBOM 转<a class="hlink" data-h="三、数据模型就围着项目、组件、漏洞和-SBOM-转" href="#三、数据模型就围着项目、组件、漏洞和-SBOM-转" title="跳到本节">¶</a></h2><h3 id="3-1-数据模型概览">3.1 数据模型概览<a class="hlink" data-h="3-1-数据模型概览" href="#3-1-数据模型概览" title="跳到本节">¶</a></h3><p>Dependency-Track 的核心数据模型围绕项目、组件、漏洞和 SBOM 展开：</p>
+<div class="mermaid">
+erDiagram
+    PORTFOLIO ||--o{ PROJECT : contains
+    PROJECT ||--o{ COMPONENT : includes
+    COMPONENT ||--o{ VULNERABILITY : affected_by
+    PROJECT ||--o{ BOM : generates
+    BOM }|--|| COMPONENT : describes
+    PROJECT {
+        uuid id
+        string name
+        string version
+        object tags
+    }
+    COMPONENT {
+        uuid id
+        string group
+        string name
+        string version
+        string purl
+        string cpe
+    }
+    VULNERABILITY {
+        uuid id
+        string vulnId
+        string title
+        string description
+        decimal cvssScore
+        string severity
+    }
+    PORTFOLIO {
+        uuid id
+        string name
+        string description
+    }
+    BOM {
+        uuid id
+        string format
+        string specVersion
+    }
+</div>
+
+<h3 id="3-2-项目与组合">3.2 项目与组合<a class="hlink" data-h="3-2-项目与组合" href="#3-2-项目与组合" title="跳到本节">¶</a></h3><p><strong>Portfolio (组合)</strong>:</p>
+<ul>
+<li>最高级别的逻辑组织单元</li>
+<li>可以包含多个项目</li>
+<li>用于组织具有相似特性的项目组</li>
+</ul>
+<p><strong>Project (项目)</strong>:</p>
+<ul>
+<li>代表一个应用程序或库</li>
+<li>包含组件、依赖和元数据</li>
+<li>可以有多个版本和标签</li>
+</ul>
+<h3 id="3-3-组件与依赖">3.3 组件与依赖<a class="hlink" data-h="3-3-组件与依赖" href="#3-3-组件与依赖" title="跳到本节">¶</a></h3><p><strong>Component (组件)</strong>:</p>
+<ul>
+<li>项目中的第三方依赖项</li>
+<li>通过包URL (PURL) 或 CPE 唯一标识</li>
+<li>包含名称、版本和供应商信息</li>
+</ul>
+<p><strong>依赖关系类型</strong>:</p>
+<ul>
+<li>直接依赖：项目直接引用的库</li>
+<li>传递依赖：由直接依赖引入的间接依赖项</li>
+<li>开发依赖：仅在开发阶段使用的依赖</li>
+</ul>
+<h3 id="3-4-漏洞模型">3.4 漏洞模型<a class="hlink" data-h="3-4-漏洞模型" href="#3-4-漏洞模型" title="跳到本节">¶</a></h3><p>Dependency-Track 跟踪多种漏洞类型：</p>
+<div class="mermaid">
+mindmap
+  root((漏洞类型))
+    CVE
+      国家漏洞数据库(NVD)
+      通用漏洞评分系统(CVSS)
+      通用漏洞披露(CVD)
+    GHSA
+      GitHub安全公告
+      GitHub依赖警报
+    INTERNAL
+      内部发现漏洞
+      组织特定问题
+    OSSINDEX
+      Sonatype OSS Index
+    SNYK
+      Snyk漏洞DB
+    VULNDB
+      商业漏洞数据库
+</div>
+
+<p><strong>漏洞详细信息</strong>:</p>
+<ul>
+<li>漏洞标识符 (如 CVE ID)</li>
+<li>CVSS 详情和评分</li>
+<li>受影响版本范围</li>
+<li>补丁信息和缓解措施</li>
+</ul>
+<h3 id="3-5-软件物料清单-SBOM">3.5 软件物料清单 (SBOM)<a class="hlink" data-h="3-5-软件物料清单-SBOM" href="#3-5-软件物料清单-SBOM" title="跳到本节">¶</a></h3><p>SBOM 是组件、库和依赖项的完整清单：</p>
+<div class="mermaid">
+graph TD
+    A[SBOM格式] --&gt; B[CycloneDX]
+    A --&gt; C[SPDX]
+    A --&gt; D[其他格式]
+    B --&gt; B1[最佳选择]
+    B --&gt; B2[支持成熟]
+    B --&gt; B3[广泛采用]
+    B --&gt; B4[安全上下文丰富]
+    C --&gt; C1[开放标准]
+    C --&gt; C2[主要针对许可信息]
+    C --&gt; C3[不太关注安全属性]
+    D --&gt; D1[有限支持]
+    D --&gt; D2[可能需要转换]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+    style B fill:#fbf,stroke:#333,stroke-width:2px
+</div>
+
+<p>Dependency-Track 最佳支持 CycloneDX 格式，建议使用此格式来生成和管理 SBOM。</p>
+<h2 id="四、把-SBOM-上传和漏洞检查塞进流水线">四、把 SBOM 上传和漏洞检查塞进流水线<a class="hlink" data-h="四、把-SBOM-上传和漏洞检查塞进流水线" href="#四、把-SBOM-上传和漏洞检查塞进流水线" title="跳到本节">¶</a></h2><h3 id="4-1-CI-CD-集成">4.1 CI&#x2F;CD 集成<a class="hlink" data-h="4-1-CI-CD-集成" href="#4-1-CI-CD-集成" title="跳到本节">¶</a></h3><p>将 Dependency-Track 集成到 CI&#x2F;CD 流水线可以实现漏洞的早期检测和持续监控。</p>
+<div class="mermaid">
+graph LR
+    A[代码提交] --&gt; B[构建应用]
+    B --&gt; C[生成SBOM]
+    C --&gt; D[上传到DTrack]
+    D --&gt; E[漏洞分析]
+    E --&gt; F[策略验证]
+    F -- 通过 --&gt; G[部署]
+    F -- 失败 --&gt; H[失败构建]
+    style D fill:#bbf,stroke:#333,stroke-width:2px
+    style E fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<h4 id="4-1-1-Jenkins-集成示例"><a href="#4-1-1-Jenkins-集成示例" class="headerlink" title="4.1.1 Jenkins 集成示例"></a>4.1.1 Jenkins 集成示例</h4><figure class="highlight groovy"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line">pipeline &#123;</span><br><span class="line">    agent any</span><br><span class="line"></span><br><span class="line">    tools &#123;</span><br><span class="line">        maven <span class="string">&#x27;Maven 3.8.4&#x27;</span></span><br><span class="line">        jdk <span class="string">&#x27;JDK 17&#x27;</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    stages &#123;</span><br><span class="line">        stage(<span class="string">&#x27;Build&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                sh <span class="string">&#x27;mvn clean package&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;Generate SBOM&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                sh <span class="string">&#x27;&#x27;&#x27;</span></span><br><span class="line"><span class="string">                mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom \</span></span><br><span class="line"><span class="string">                    -DincludeRuntimeScope=true \</span></span><br><span class="line"><span class="string">                    -DincludeCompileScope=true \</span></span><br><span class="line"><span class="string">                    -DincludeDevelopmentScope=false \</span></span><br><span class="line"><span class="string">                    -DincludeSystemScope=true \</span></span><br><span class="line"><span class="string">                    -DincludeProvidedScope=true \</span></span><br><span class="line"><span class="string">                    -DincludeTestScope=false \</span></span><br><span class="line"><span class="string">                    -DoutputFormat=json \</span></span><br><span class="line"><span class="string">                    -DoutputName=bom</span></span><br><span class="line"><span class="string">                &#x27;&#x27;&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;Upload to Dependency-Track&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                sh <span class="string">&#x27;&#x27;&#x27;</span></span><br><span class="line"><span class="string">                curl -X &quot;PUT&quot; \</span></span><br><span class="line"><span class="string">                  &quot;http://dependency-track:8080/api/v1/bom&quot; \</span></span><br><span class="line"><span class="string">                  -H &#x27;Content-Type: multipart/form-data&#x27; \</span></span><br><span class="line"><span class="string">                  -H &quot;X-API-Key: $&#123;DTRACK_API_KEY&#125;&quot; \</span></span><br><span class="line"><span class="string">                  -F &quot;project=$&#123;PROJECT_UUID&#125;&quot; \</span></span><br><span class="line"><span class="string">                  -F &quot;bom=@target/bom.json&quot;</span></span><br><span class="line"><span class="string">                &#x27;&#x27;&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;Check Vulnerabilities&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                script &#123;</span><br><span class="line">                    <span class="keyword">def</span> response = sh(<span class="attr">script:</span> <span class="string">&#x27;&#x27;&#x27;</span></span><br><span class="line"><span class="string">                        curl -s \</span></span><br><span class="line"><span class="string">                          &quot;http://dependency-track:8080/api/v1/metrics/project/$&#123;PROJECT_UUID&#125;/current&quot; \</span></span><br><span class="line"><span class="string">                          -H &quot;X-API-Key: $&#123;DTRACK_API_KEY&#125;&quot;</span></span><br><span class="line"><span class="string">                    &#x27;&#x27;&#x27;</span>, <span class="attr">returnStdout:</span> <span class="literal">true</span>)</span><br><span class="line"></span><br><span class="line">                    <span class="keyword">def</span> metrics = readJSON <span class="attr">text:</span> response</span><br><span class="line"></span><br><span class="line">                    <span class="keyword">if</span> (metrics.critical &gt; <span class="number">0</span> || metrics.high &gt; <span class="number">0</span>) &#123;</span><br><span class="line">                        error <span class="string">&quot;Critical or high vulnerabilities detected!&quot;</span></span><br><span class="line">                    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                        echo <span class="string">&quot;No critical or high vulnerabilities found&quot;</span></span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="4-1-2-GitHub-Actions-集成示例"><a href="#4-1-2-GitHub-Actions-集成示例" class="headerlink" title="4.1.2 GitHub Actions 集成示例"></a>4.1.2 GitHub Actions 集成示例</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">name:</span> <span class="string">Dependency-Track</span> <span class="string">Scan</span></span><br><span class="line"></span><br><span class="line"><span class="attr">on:</span></span><br><span class="line">  <span class="attr">push:</span></span><br><span class="line">    <span class="attr">branches:</span> [ <span class="string">main</span> ]</span><br><span class="line">  <span class="attr">pull_request:</span></span><br><span class="line">    <span class="attr">branches:</span> [ <span class="string">main</span> ]</span><br><span class="line"></span><br><span class="line"><span class="attr">jobs:</span></span><br><span class="line">  <span class="attr">security:</span></span><br><span class="line">    <span class="attr">runs-on:</span> <span class="string">ubuntu-latest</span></span><br><span class="line"></span><br><span class="line">    <span class="attr">steps:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">uses:</span> <span class="string">actions/checkout@v3</span></span><br><span class="line"></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">Set</span> <span class="string">up</span> <span class="string">JDK</span></span><br><span class="line">      <span class="attr">uses:</span> <span class="string">actions/setup-java@v3</span></span><br><span class="line">      <span class="attr">with:</span></span><br><span class="line">        <span class="attr">java-version:</span> <span class="string">&#x27;17&#x27;</span></span><br><span class="line">        <span class="attr">distribution:</span> <span class="string">&#x27;temurin&#x27;</span></span><br><span class="line"></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">Build</span> <span class="string">with</span> <span class="string">Maven</span></span><br><span class="line">      <span class="attr">run:</span> <span class="string">mvn</span> <span class="string">-B</span> <span class="string">package</span></span><br><span class="line"></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">Generate</span> <span class="string">CycloneDX</span> <span class="string">SBOM</span></span><br><span class="line">      <span class="attr">run:</span> <span class="string">|</span></span><br><span class="line"><span class="string">        mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom \</span></span><br><span class="line"><span class="string">          -DincludeRuntimeScope=true \</span></span><br><span class="line"><span class="string">          -DincludeCompileScope=true \</span></span><br><span class="line"><span class="string">          -DincludeDevelopmentScope=false \</span></span><br><span class="line"><span class="string">          -DoutputFormat=json</span></span><br><span class="line"><span class="string"></span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">Upload</span> <span class="string">to</span> <span class="string">Dependency-Track</span></span><br><span class="line">      <span class="attr">run:</span> <span class="string">|</span></span><br><span class="line"><span class="string">        curl -X &quot;PUT&quot; \</span></span><br><span class="line"><span class="string">          &quot;$&#123;&#123; secrets.DTRACK_URL &#125;&#125;/api/v1/bom&quot; \</span></span><br><span class="line"><span class="string">          -H &#x27;Content-Type: multipart/form-data&#x27; \</span></span><br><span class="line"><span class="string">          -H &quot;X-API-Key: $&#123;&#123; secrets.DTRACK_API_KEY &#125;&#125;&quot; \</span></span><br><span class="line"><span class="string">          -F &quot;project=$&#123;&#123; secrets.PROJECT_UUID &#125;&#125;&quot; \</span></span><br><span class="line"><span class="string">          -F &quot;bom=@target/bom.json&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-API-集成">4.2 API 集成<a class="hlink" data-h="4-2-API-集成" href="#4-2-API-集成" title="跳到本节">¶</a></h3><p>Dependency-Track 提供全面的 REST API，使其与各种开发工具和流程集成变得简单。</p>
+<h4 id="4-2-1-API-密钥管理"><a href="#4-2-1-API-密钥管理" class="headerlink" title="4.2.1 API 密钥管理"></a>4.2.1 API 密钥管理</h4><ol>
+<li><p>生成 API 密钥：</p>
+<ul>
+<li>团队 API 密钥：<code>Administration</code> &gt; <code>Access Management</code> &gt; <code>Teams</code></li>
+<li>个人 API 密钥：<code>Account</code> &gt; <code>API Keys</code></li>
+</ul>
+</li>
+<li><p>权限级别</p>
+<ul>
+<li><strong>READ_ONLY</strong>: 仅查看信息</li>
+<li><strong>PROJECT_CREATION_UPLOAD</strong>: 可创建项目和上传 SBOM</li>
+<li><strong>VULNERABILITY_ANALYSIS</strong>: 可分析漏洞</li>
+<li><strong>PORTFOLIO_MANAGEMENT</strong>: 管理组合</li>
+<li><strong>SYSTEM_CONFIGURATION</strong>: 系统配置</li>
+<li><strong>POLICY_MANAGEMENT</strong>: 策略管理</li>
+</ul>
+</li>
+</ol>
+<h4 id="4-2-2-常用-API-端点"><a href="#4-2-2-常用-API-端点" class="headerlink" title="4.2.2 常用 API 端点"></a>4.2.2 常用 API 端点</h4><div class="mermaid">
+graph TD
+    A[Dependency-Track API] --&gt; B[项目管理]
+    A --&gt; C[组件管理]
+    A --&gt; D[漏洞管理]
+    A --&gt; E[SBOM管理]
+    A --&gt; F[策略管理]
+    A --&gt; G[分析与报告]
+    B --&gt; B1[/api/v1/project]
+    B1 --&gt; B1a[GET: 获取项目]
+    B1 --&gt; B1b[PUT: 创建/更新项目]
+    B1 --&gt; B1c[DELETE: 删除项目]
+    C --&gt; C1[/api/v1/component]
+    D --&gt; D1[/api/v1/vulnerability]
+    E --&gt; E1[/api/v1/bom]
+    E1 --&gt; E1a[PUT: 上传SBOM]
+    F --&gt; F1[/api/v1/policy]
+    G --&gt; G1[/api/v1/metrics]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<p><strong>常用 API 操作示例</strong>:</p>
+<p><strong>创建项目</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">curl -X <span class="string">&quot;PUT&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/project&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: API_KEY&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    &quot;name&quot;: &quot;示例项目&quot;,</span></span><br><span class="line"><span class="string">    &quot;version&quot;: &quot;1.0.0&quot;,</span></span><br><span class="line"><span class="string">    &quot;classifier&quot;: &quot;APPLICATION&quot;,</span></span><br><span class="line"><span class="string">    &quot;tags&quot;: [&quot;java&quot;, &quot;web&quot;]</span></span><br><span class="line"><span class="string">  &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>上传 SBOM</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">curl -X <span class="string">&quot;PUT&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/bom&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: multipart/form-data&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: API_KEY&quot;</span> \</span><br><span class="line">  -F <span class="string">&quot;project=PROJECT_UUID&quot;</span> \</span><br><span class="line">  -F <span class="string">&quot;bom=@/path/to/bom.json&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>获取项目漏洞</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">curl -X <span class="string">&quot;GET&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/vulnerability/project/PROJECT_UUID&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: API_KEY&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-工具整合">4.3 工具整合<a class="hlink" data-h="4-3-工具整合" href="#4-3-工具整合" title="跳到本节">¶</a></h3><h4 id="4-3-1-SBOM-生成工具"><a href="#4-3-1-SBOM-生成工具" class="headerlink" title="4.3.1 SBOM 生成工具"></a>4.3.1 SBOM 生成工具</h4><p>为不同技术栈生成 SBOM 的工具：</p>
+<div class="mermaid">
+mindmap
+  root((SBOM生成工具))
+    Maven项目
+      cyclonedx-maven-plugin
+      dependency-track-maven-plugin
+    Gradle项目
+      CycloneDX Gradle插件
+    JavaScript/Node.js
+      @cyclonedx/cyclonedx-npm
+      dependency-track-node-module
+    Python
+      cyclonedx-py
+      cyclonedx-bom
+    Docker/容器
+      Syft
+      Anchore
+    .NET
+      CycloneDX .NET插件
+</div>
+
+<p><strong>Maven 配置示例</strong>:</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">plugin</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.cyclonedx<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>cyclonedx-maven-plugin<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>2.7.4<span class="tag">&lt;/<span class="name">version</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">configuration</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">projectType</span>&gt;</span>application<span class="tag">&lt;/<span class="name">projectType</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">schemaVersion</span>&gt;</span>1.4<span class="tag">&lt;/<span class="name">schemaVersion</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">includeBomSerialNumber</span>&gt;</span>true<span class="tag">&lt;/<span class="name">includeBomSerialNumber</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">includeCompileScope</span>&gt;</span>true<span class="tag">&lt;/<span class="name">includeCompileScope</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">includeRuntimeScope</span>&gt;</span>true<span class="tag">&lt;/<span class="name">includeRuntimeScope</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">includeProvidedScope</span>&gt;</span>true<span class="tag">&lt;/<span class="name">includeProvidedScope</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">includeSystemScope</span>&gt;</span>true<span class="tag">&lt;/<span class="name">includeSystemScope</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">includeTestScope</span>&gt;</span>false<span class="tag">&lt;/<span class="name">includeTestScope</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">includeLicenseText</span>&gt;</span>false<span class="tag">&lt;/<span class="name">includeLicenseText</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">outputFormat</span>&gt;</span>json<span class="tag">&lt;/<span class="name">outputFormat</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">outputName</span>&gt;</span>bom<span class="tag">&lt;/<span class="name">outputName</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">configuration</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">plugin</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>NPM 配置示例</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">npm install @cyclonedx/cyclonedx-npm -g</span><br><span class="line">cyclonedx-npm --output-file bom.json</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、漏洞按严重性和范围排优先级，别一锅端">五、漏洞按严重性和范围排优先级，别一锅端<a class="hlink" data-h="五、漏洞按严重性和范围排优先级，别一锅端" href="#五、漏洞按严重性和范围排优先级，别一锅端" title="跳到本节">¶</a></h2><h3 id="5-1-漏洞分类与优先级">5.1 漏洞分类与优先级<a class="hlink" data-h="5-1-漏洞分类与优先级" href="#5-1-漏洞分类与优先级" title="跳到本节">¶</a></h3><div class="callout tip" data-callout="tip"><div class="callout-title"><span class="callout-ico">🔥</span><span class="callout-title-inner">P0 立即修、P1 24 小时内修，矩阵只是起点，还得结合业务暴露面。</span></div><div class="callout-body"></div></div>
+<p>根据严重程度和漏洞特征对安全问题进行分类，有助于团队高效地处理风险：</p>
+<div class="mermaid">
+graph TD
+    A[漏洞分类] --&gt; B[严重性级别]
+    A --&gt; C[可利用性]
+    A --&gt; D[受影响范围]
+    A --&gt; E[修复可行性]
+    B --&gt; B1[Critical]
+    B --&gt; B2[High]
+    B --&gt; B3[Medium]
+    B --&gt; B4[Low]
+    C --&gt; C1[已知利用]
+    C --&gt; C2[概念验证存在]
+    C --&gt; C3[理论可能]
+    D --&gt; D1[生产组件]
+    D --&gt; D2[开发组件]
+    D --&gt; D3[测试依赖]
+    E --&gt; E1[补丁可用]
+    E --&gt; E2[临时解决方案]
+    E --&gt; E3[无修复]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<p><strong>优先级矩阵示例</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>严重性&#x2F;范围</th>
+<th>生产组件</th>
+<th>开发组件</th>
+<th>测试依赖</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>严重</td>
+<td>P0</td>
+<td>P1</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>高</td>
+<td>P1</td>
+<td>P2</td>
+<td>P3</td>
+</tr>
+<tr>
+<td>中</td>
+<td>P2</td>
+<td>P3</td>
+<td>P4</td>
+</tr>
+<tr>
+<td>低</td>
+<td>P3</td>
+<td>P4</td>
+<td>P5</td>
+</tr>
+</tbody></table>
+<p>P0 &#x3D; 立即修复，P1 &#x3D; 24小时内修复，P2 &#x3D; 一周内修复，依此类推。</p>
+<h3 id="5-2-漏洞响应流程">5.2 漏洞响应流程<a class="hlink" data-h="5-2-漏洞响应流程" href="#5-2-漏洞响应流程" title="跳到本节">¶</a></h3><p>建立清晰的漏洞响应流程，确保团队能够一致、高效地处理安全问题：</p>
+<div class="mermaid">
+flowchart TD
+    A[漏洞发现] --&gt; B{评估严重性}
+    B --&gt;|严重/高| C[立即响应]
+    B --&gt;|中| D[计划修复]
+    B --&gt;|低| E[监控]
+    C --&gt; F[制定修复方案]
+    D --&gt; F
+    E --&gt; G[记录与跟踪]
+    F --&gt; H{是否有补丁?}
+    H --&gt;|是| I[应用补丁]
+    H --&gt;|否| J[制定缓解策略]
+    I --&gt; K[验证修复]
+    J --&gt; K
+    K --&gt; L[更新SBOM]
+    L --&gt; M[关闭漏洞]
+    G --&gt; N[定期审查]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+    style K fill:#fbf,stroke:#333,stroke-width:1px
+</div>
+
+<h3 id="5-3-漏洞抑制策略">5.3 漏洞抑制策略<a class="hlink" data-h="5-3-漏洞抑制策略" href="#5-3-漏洞抑制策略" title="跳到本节">¶</a></h3><p>Dependency-Track 允许抑制特定漏洞，这在某些场景下非常有用：</p>
+<p><strong>抑制合理场景</strong>:</p>
+<ul>
+<li>误报：确认漏洞不适用于当前环境</li>
+<li>不可利用：漏洞理论上存在但无法在实际环境中被利用</li>
+<li>风险接受：业务决定接受特定风险</li>
+<li>临时抑制：等待计划中的修复或升级</li>
+</ul>
+<p><strong>抑制配置</strong>:</p>
+<ol>
+<li>导航到组件的漏洞详情页面</li>
+<li>选择要抑制的漏洞</li>
+<li>点击”Suppress”按钮</li>
+<li>提供抑制理由和评论</li>
+<li>设置抑制到期日期（推荐）</li>
+</ol>
+<div class="mermaid">
+graph LR
+    A[组件漏洞] --&gt; B{需要抑制?}
+    B --&gt;|是| C[创建抑制]
+    B --&gt;|否| D[正常处理]
+    C --&gt; E[记录抑制理由]
+    C --&gt; F[设置抑制期限]
+    C --&gt; G[获取审批]
+    E --&gt; H[定期审查抑制]
+    F --&gt; H
+    G --&gt; H
+    style B fill:#fbf,stroke:#333,stroke-width:1px
+    style H fill:#fbf,stroke:#333,stroke-width:1px
+</div>
+
+<p><strong>抑制API示例</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">curl -X <span class="string">&quot;PUT&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/vulnerability/PROJECT_UUID/COMPONENT_UUID/VULNERABILITY_UUID/analysis&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: API_KEY&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    &quot;analysisState&quot;: &quot;FALSE_POSITIVE&quot;,</span></span><br><span class="line"><span class="string">    &quot;analysisJustification&quot;: &quot;NOT_EXPLOITABLE&quot;,</span></span><br><span class="line"><span class="string">    &quot;analysisResponse&quot;: &quot;ACCEPTED&quot;,</span></span><br><span class="line"><span class="string">    &quot;analysisDetails&quot;: &quot;此漏洞不适用于我们的部署方式，因为相关功能未启用。&quot;,</span></span><br><span class="line"><span class="string">    &quot;suppressUntil&quot;: &quot;2023-12-31&quot;</span></span><br><span class="line"><span class="string">  &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="六、用策略引擎把安全要求自动执行起来">六、用策略引擎把安全要求自动执行起来<a class="hlink" data-h="六、用策略引擎把安全要求自动执行起来" href="#六、用策略引擎把安全要求自动执行起来" title="跳到本节">¶</a></h2><h3 id="6-1-策略框架">6.1 策略框架<a class="hlink" data-h="6-1-策略框架" href="#6-1-策略框架" title="跳到本节">¶</a></h3><p>Dependency-Track 提供了强大的策略引擎，用于自动执行组织的安全和合规要求。</p>
+<div class="mermaid">
+graph TD
+    A[策略类型] --&gt; B[漏洞策略]
+    A --&gt; C[许可证策略]
+    A --&gt; D[组件策略]
+    A --&gt; E[SBOM格式策略]
+    B --&gt; B1[严重性阈值]
+    B --&gt; B2[特定CVE]
+    C --&gt; C1[禁止许可证]
+    C --&gt; C2[需要批准]
+    D --&gt; D1[未维护组件]
+    D --&gt; D2[组件年龄]
+    E --&gt; E1[需要CycloneDX]
+    E --&gt; E2[最低规范版本]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<h3 id="6-2-创建和管理策略">6.2 创建和管理策略<a class="hlink" data-h="6-2-创建和管理策略" href="#6-2-创建和管理策略" title="跳到本节">¶</a></h3><p><strong>策略示例</strong>:</p>
+<ol>
+<li><p><strong>漏洞严重性策略</strong>:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;禁止严重漏洞&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;operator&quot;</span><span class="punctuation">:</span> <span class="string">&quot;ANY&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;violationState&quot;</span><span class="punctuation">:</span> <span class="string">&quot;FAIL&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;conditions&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;subject&quot;</span><span class="punctuation">:</span> <span class="string">&quot;SEVERITY&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;operator&quot;</span><span class="punctuation">:</span> <span class="string">&quot;IS&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="string">&quot;CRITICAL&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>许可证合规策略</strong>:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;GPL合规&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;operator&quot;</span><span class="punctuation">:</span> <span class="string">&quot;ANY&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;violationState&quot;</span><span class="punctuation">:</span> <span class="string">&quot;WARN&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;conditions&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;subject&quot;</span><span class="punctuation">:</span> <span class="string">&quot;LICENSE&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;operator&quot;</span><span class="punctuation">:</span> <span class="string">&quot;IS_ANY_OF&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="string">&quot;GPL-1.0-only,GPL-2.0-only,GPL-3.0-only&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>组件元数据策略</strong>:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;要求完整元数据&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;operator&quot;</span><span class="punctuation">:</span> <span class="string">&quot;ALL&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;violationState&quot;</span><span class="punctuation">:</span> <span class="string">&quot;WARN&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;conditions&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;subject&quot;</span><span class="punctuation">:</span> <span class="string">&quot;COORDINATES&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;operator&quot;</span><span class="punctuation">:</span> <span class="string">&quot;IS_MISSING&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="string">&quot;GROUP&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;subject&quot;</span><span class="punctuation">:</span> <span class="string">&quot;COORDINATES&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;operator&quot;</span><span class="punctuation">:</span> <span class="string">&quot;IS_MISSING&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="string">&quot;VERSION&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="6-3-项目治理与合规">6.3 项目治理与合规<a class="hlink" data-h="6-3-项目治理与合规" href="#6-3-项目治理与合规" title="跳到本节">¶</a></h3><p><strong>合规审计流程</strong>:</p>
+<div class="mermaid">
+flowchart TD
+    A[项目合规需求] --&gt; B[定义策略集]
+    B --&gt; C{策略自动检查}
+    C --&gt; D[违反漏洞策略]
+    C --&gt; E[违反许可证策略]
+    C --&gt; F[违反元数据策略]
+    C --&gt; G[合规]
+    D --&gt; H[生成违规报告]
+    E --&gt; H
+    F --&gt; H
+    H --&gt; I{是否阻断?}
+    I --&gt;|是| J[阻止部署]
+    I --&gt;|否| K[标记警告]
+    G --&gt; L[批准部署]
+    K --&gt; L
+    J --&gt; M[修复问题]
+    M --&gt; C
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+    style C fill:#fbf,stroke:#333,stroke-width:2px
+</div>
+
+<p><strong>合规检查示例代码</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 获取项目策略违规情况</span></span><br><span class="line">POLICY_VIOLATIONS=$(curl -s -X <span class="string">&quot;GET&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/violation/project/PROJECT_UUID&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: <span class="variable">$API_KEY</span>&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查是否存在FAIL级别的违规</span></span><br><span class="line">FAIL_COUNT=$(<span class="built_in">echo</span> <span class="variable">$POLICY_VIOLATIONS</span> | jq <span class="string">&#x27;[.[] | select(.type==&quot;FAIL&quot;)] | length&#x27;</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> [ <span class="string">&quot;<span class="variable">$FAIL_COUNT</span>&quot;</span> -gt <span class="string">&quot;0&quot;</span> ]; <span class="keyword">then</span></span><br><span class="line">  <span class="built_in">echo</span> <span class="string">&quot;发现 <span class="variable">$FAIL_COUNT</span> 个阻断性策略违规，无法继续部署&quot;</span></span><br><span class="line">  <span class="built_in">echo</span> <span class="variable">$POLICY_VIOLATIONS</span> | jq <span class="string">&#x27;.[] | select(.type==&quot;FAIL&quot;) | &#123;name: .policyName, component: .component.name&#125;&#x27;</span></span><br><span class="line">  <span class="built_in">exit</span> 1</span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">  <span class="comment"># 检查警告级别的违规</span></span><br><span class="line">  WARN_COUNT=$(<span class="built_in">echo</span> <span class="variable">$POLICY_VIOLATIONS</span> | jq <span class="string">&#x27;[.[] | select(.type==&quot;WARN&quot;)] | length&#x27;</span>)</span><br><span class="line">  <span class="keyword">if</span> [ <span class="string">&quot;<span class="variable">$WARN_COUNT</span>&quot;</span> -gt <span class="string">&quot;0&quot;</span> ]; <span class="keyword">then</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;发现 <span class="variable">$WARN_COUNT</span> 个警告性策略违规，请注意审查&quot;</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="variable">$POLICY_VIOLATIONS</span> | jq <span class="string">&#x27;.[] | select(.type==&quot;WARN&quot;) | &#123;name: .policyName, component: .component.name&#125;&#x27;</span></span><br><span class="line">  <span class="keyword">fi</span></span><br><span class="line">  <span class="built_in">echo</span> <span class="string">&quot;合规检查通过&quot;</span></span><br><span class="line">  <span class="built_in">exit</span> 0</span><br><span class="line"><span class="keyword">fi</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="七、指标要能取出来，报告才有意义">七、指标要能取出来，报告才有意义<a class="hlink" data-h="七、指标要能取出来，报告才有意义" href="#七、指标要能取出来，报告才有意义" title="跳到本节">¶</a></h2><h3 id="7-1-内置报告">7.1 内置报告<a class="hlink" data-h="7-1-内置报告" href="#7-1-内置报告" title="跳到本节">¶</a></h3><p>Dependency-Track 提供多种内置报告，用于可视化和分析安全状态：</p>
+<div class="mermaid">
+graph TD
+    A[报告类型] --&gt; B[项目报告]
+    A --&gt; C[组合报告]
+    A --&gt; D[组件报告]
+    A --&gt; E[漏洞报告]
+    A --&gt; F[许可证报告]
+    B --&gt; B1[项目安全健康]
+    B --&gt; B2[风险趋势]
+    B --&gt; B3[漏洞分布]
+    C --&gt; C1[组合风险摘要]
+    C --&gt; C2[跨项目比较]
+    D --&gt; D1[组件使用频率]
+    D --&gt; D2[组件风险评估]
+    E --&gt; E1[漏洞年龄分析]
+    E --&gt; E2[漏洞来源分布]
+    F --&gt; F1[许可证合规摘要]
+    F --&gt; F2[许可证风险分布]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<h3 id="7-2-自定义指标与-KPI">7.2 自定义指标与 KPI<a class="hlink" data-h="7-2-自定义指标与-KPI" href="#7-2-自定义指标与-KPI" title="跳到本节">¶</a></h3><p>创建安全度量和关键性能指标 (KPI) 来跟踪安全状况：</p>
+<p><strong>推荐的安全 KPI</strong>:</p>
+<ol>
+<li>**漏洞修复时间 (MTTR)**：修复漏洞的平均时间</li>
+<li><strong>风险密度</strong>：每千行代码的高风险漏洞数</li>
+<li><strong>风险接受率</strong>：被接受（不修复）的漏洞百分比</li>
+<li><strong>SBOM 覆盖率</strong>：拥有完整 SBOM 的项目百分比</li>
+<li><strong>合规率</strong>：符合安全策略的项目百分比</li>
+</ol>
+<p><strong>使用 API 获取指标数据</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 获取项目当前指标</span></span><br><span class="line">curl -X <span class="string">&quot;GET&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/metrics/project/PROJECT_UUID/current&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: API_KEY&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 获取项目风险趋势</span></span><br><span class="line">curl -X <span class="string">&quot;GET&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/metrics/project/PROJECT_UUID/history/30&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: API_KEY&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-3-高级报告与集成">7.3 高级报告与集成<a class="hlink" data-h="7-3-高级报告与集成" href="#7-3-高级报告与集成" title="跳到本节">¶</a></h3><p>将 Dependency-Track 数据集成到仪表板和 BI 工具，为安全状态提供全面视图：</p>
+<div class="mermaid">
+graph LR
+    A[Dependency-Track] --&gt; B[API数据提取]
+    B --&gt; C[数据处理层]
+    C --&gt; D[可视化平台]
+    D --&gt; E[Grafana]
+    D --&gt; F[Elasticsearch&lt;br&gt;+ Kibana]
+    D --&gt; G[PowerBI]
+    D --&gt; H[自定义仪表板]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+    style D fill:#fbf,stroke:#333,stroke-width:1px
+</div>
+
+<p><strong>Grafana 集成示例</strong>:</p>
+<ol>
+<li><p>设置数据源：</p>
+<ul>
+<li>使用 Grafana JSON API 数据源插件</li>
+<li>配置对 Dependency-Track API 的访问</li>
+</ul>
+</li>
+<li><p>创建仪表板范例：</p>
+<ul>
+<li>组合风险概览面板</li>
+<li>严重性分布饼图</li>
+<li>漏洞趋势线图</li>
+<li>策略合规状态</li>
+</ul>
+</li>
+</ol>
+<p><strong>日志集成示例</strong>:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Logstash配置示例</span></span><br><span class="line"><span class="string">input</span> &#123;</span><br><span class="line">  <span class="string">http_poller</span> &#123;</span><br><span class="line">    <span class="string">urls</span> <span class="string">=&gt;</span> &#123;</span><br><span class="line">      <span class="string">dtrack_portfolio</span> <span class="string">=&gt;</span> &#123;</span><br><span class="line">        <span class="string">method</span> <span class="string">=&gt;</span> <span class="string">get</span></span><br><span class="line">        <span class="string">url</span> <span class="string">=&gt;</span> <span class="string">&quot;http://dependency-track:8080/api/v1/metrics/portfolio/current&quot;</span></span><br><span class="line">        <span class="string">headers</span> <span class="string">=&gt;</span> &#123;</span><br><span class="line">          <span class="string">&quot;X-API-Key&quot;</span> <span class="string">=&gt;</span> <span class="string">&quot;API_KEY&quot;</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="string">schedule</span> <span class="string">=&gt;</span> &#123; <span class="string">cron</span> <span class="string">=&gt;</span> <span class="string">&quot;0 * * * *&quot;</span> &#125;  <span class="comment"># 每小时</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="string">codec</span> <span class="string">=&gt;</span> <span class="string">&quot;json&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="string">filter</span> &#123;</span><br><span class="line">  <span class="comment"># 处理数据</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="string">output</span> &#123;</span><br><span class="line">  <span class="string">elasticsearch</span> &#123;</span><br><span class="line">    <span class="string">hosts</span> <span class="string">=&gt;</span> [<span class="string">&quot;elasticsearch:9200&quot;</span>]</span><br><span class="line">    <span class="string">index</span> <span class="string">=&gt;</span> <span class="string">&quot;dtrack-metrics-<span class="template-variable">%&#123;+YYYY.MM&#125;</span>&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="八、性能调优、备份和升级都得提前规划">八、性能调优、备份和升级都得提前规划<a class="hlink" data-h="八、性能调优、备份和升级都得提前规划" href="#八、性能调优、备份和升级都得提前规划" title="跳到本节">¶</a></h2><h3 id="8-1-系统调优">8.1 系统调优<a class="hlink" data-h="8-1-系统调优" href="#8-1-系统调优" title="跳到本节">¶</a></h3><p>优化 Dependency-Track 以提高性能和稳定性：</p>
+<div class="mermaid">
+graph TD
+    A[系统调优] --&gt; B[JVM优化]
+    A --&gt; C[数据库优化]
+    A --&gt; D[缓存优化]
+    A --&gt; E[网络优化]
+    B --&gt; B1[增加堆内存]
+    B --&gt; B2[调整GC参数]
+    C --&gt; C1[索引优化]
+    C --&gt; C2[查询优化]
+    C --&gt; C3[连接池配置]
+    D --&gt; D1[结果缓存]
+    D --&gt; D2[组件缓存]
+    E --&gt; E1[HTTP超时配置]
+    E --&gt; E2[反向代理]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<p><strong>Docker 环境优化</strong>:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">version:</span> <span class="string">&#x27;3&#x27;</span></span><br><span class="line"><span class="attr">services:</span></span><br><span class="line">  <span class="attr">dtrack-apiserver:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">dependencytrack/apiserver</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_MINIMUM_JVM_MEMORY=4G</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_MAXIMUM_JVM_MEMORY=8G</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">JAVA_TOOL_OPTIONS=&quot;-XX:+UseG1GC</span> <span class="string">-XX:MaxGCPauseMillis=200&quot;</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_POOL_MAX_SIZE=20</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_DATABASE_POOL_MIN_IDLE=10</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">ALPINE_HTTP_CLIENT_TIMEOUT=30</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>PostgreSQL 优化</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># postgresql.conf</span></span><br><span class="line">shared_buffers = 2GB                  <span class="comment"># 为共享缓冲区分配更多内存</span></span><br><span class="line">work_mem = 16MB                       <span class="comment"># 为排序操作分配更多内存</span></span><br><span class="line">maintenance_work_mem = 256MB          <span class="comment"># 为维护操作分配更多内存</span></span><br><span class="line">effective_cache_size = 6GB            <span class="comment"># 估计操作系统缓存大小</span></span><br><span class="line">max_connections = 100                 <span class="comment"># 最大连接数</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="8-2-备份与恢复">8.2 备份与恢复<a class="hlink" data-h="8-2-备份与恢复" href="#8-2-备份与恢复" title="跳到本节">¶</a></h3><div class="callout tip" data-callout="tip"><div class="callout-title"><span class="callout-ico">🔥</span><span class="callout-title-inner">升级前先跑备份脚本，数据库和配置都要留快照，回滚才不慌。</span></div><div class="callout-body"></div></div>
+<p>制定全面的备份策略，确保数据安全：</p>
+<div class="mermaid">
+graph LR
+    A[备份策略] --&gt; B[数据库备份]
+    A --&gt; C[配置备份]
+    A --&gt; D[索引备份]
+    B --&gt; B1[定期自动备份]
+    B --&gt; B2[备份验证]
+    C --&gt; C1[系统配置]
+    C --&gt; C2[自定义设置]
+    D --&gt; D1[索引数据]
+    D --&gt; D2[分析结果]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<p><strong>备份脚本示例</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># dtrack-backup.sh</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置</span></span><br><span class="line">BACKUP_DIR=<span class="string">&quot;/backups/dependency-track&quot;</span></span><br><span class="line">DATE=$(<span class="built_in">date</span> +%Y%m%d_%H%M%S)</span><br><span class="line">DB_CONTAINER=<span class="string">&quot;dtrack-postgres&quot;</span></span><br><span class="line">API_CONTAINER=<span class="string">&quot;dtrack-apiserver&quot;</span></span><br><span class="line">RETENTION_DAYS=14</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建备份目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p <span class="variable">$BACKUP_DIR</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 备份PostgreSQL数据库</span></span><br><span class="line">docker <span class="built_in">exec</span> <span class="variable">$DB_CONTAINER</span> pg_dump -U postgres -d dtrack -F c &gt; <span class="variable">$BACKUP_DIR</span>/dtrack-db-<span class="variable">$DATE</span>.dump</span><br><span class="line"></span><br><span class="line"><span class="comment"># 备份配置数据</span></span><br><span class="line">docker <span class="built_in">exec</span> <span class="variable">$API_CONTAINER</span> <span class="built_in">cat</span> /data/application.properties &gt; <span class="variable">$BACKUP_DIR</span>/application.properties.<span class="variable">$DATE</span></span><br><span class="line">docker <span class="built_in">exec</span> <span class="variable">$API_CONTAINER</span> tar -czf - -C /data config | <span class="built_in">cat</span> &gt; <span class="variable">$BACKUP_DIR</span>/dtrack-config-<span class="variable">$DATE</span>.tar.gz</span><br><span class="line"></span><br><span class="line"><span class="comment"># 清理旧备份</span></span><br><span class="line">find <span class="variable">$BACKUP_DIR</span> -name <span class="string">&quot;dtrack-db-*.dump&quot;</span> -<span class="built_in">type</span> f -mtime +<span class="variable">$RETENTION_DAYS</span> -delete</span><br><span class="line">find <span class="variable">$BACKUP_DIR</span> -name <span class="string">&quot;application.properties.*&quot;</span> -<span class="built_in">type</span> f -mtime +<span class="variable">$RETENTION_DAYS</span> -delete</span><br><span class="line">find <span class="variable">$BACKUP_DIR</span> -name <span class="string">&quot;dtrack-config-*.tar.gz&quot;</span> -<span class="built_in">type</span> f -mtime +<span class="variable">$RETENTION_DAYS</span> -delete</span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;Backup completed: <span class="variable">$DATE</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>恢复步骤</strong>:</p>
+<ol>
+<li><p>停止服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker-compose stop dtrack-apiserver</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>恢复数据库：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> -i dtrack-postgres pg_restore -U postgres -d dtrack --clean &lt; dtrack-db-backup.dump</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>恢复配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">cp</span> application.properties dtrack-apiserver:/data/</span><br><span class="line">docker <span class="built_in">cp</span> config-backup.tar.gz dtrack-apiserver:/tmp/</span><br><span class="line">docker <span class="built_in">exec</span> -i dtrack-apiserver tar -xzf /tmp/config-backup.tar.gz -C /data</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>启动服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker-compose start dtrack-apiserver</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="8-3-升级策略">8.3 升级策略<a class="hlink" data-h="8-3-升级策略" href="#8-3-升级策略" title="跳到本节">¶</a></h3><p>安全有序地进行系统升级：</p>
+<div class="mermaid">
+flowchart TD
+    A[升级计划] --&gt; B[备份当前环境]
+    B --&gt; C[检查升级注意事项]
+    C --&gt; D[创建测试环境]
+    D --&gt; E[在测试环境升级]
+    E --&gt; F{测试成功?}
+    F --&gt;|是| G[计划生产升级]
+    F --&gt;|否| H[解决问题]
+    H --&gt; E
+    G --&gt; I[生产环境备份]
+    I --&gt; J[执行生产升级]
+    J --&gt; K[验证功能]
+    K --&gt; L[监控稳定性]
+    L --&gt; M[回顾与文档]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+    style F fill:#fbf,stroke:#333,stroke-width:1px
+    style J fill:#fbf,stroke:#333,stroke-width:1px
+</div>
+
+<p><strong>Docker 环境升级步骤</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 备份数据</span></span><br><span class="line">./dtrack-backup.sh</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 停止并移除当前容器（保留卷）</span></span><br><span class="line">docker-compose down</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 更新 docker-compose.yml 中的版本</span></span><br><span class="line"><span class="comment"># 从: image: dependencytrack/apiserver:4.2.2</span></span><br><span class="line"><span class="comment"># 到: image: dependencytrack/apiserver:4.3.0</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 启动新版本</span></span><br><span class="line">docker-compose up -d</span><br><span class="line"></span><br><span class="line"><span class="comment"># 5. 监控日志检查升级过程</span></span><br><span class="line">docker-compose logs -f</span><br></pre></td></tr></table></figure>
+
+<h2 id="九、大规模部署和多租户隔离怎么选">九、大规模部署和多租户隔离怎么选<a class="hlink" data-h="九、大规模部署和多租户隔离怎么选" href="#九、大规模部署和多租户隔离怎么选" title="跳到本节">¶</a></h2><h3 id="9-1-大规模部署">9.1 大规模部署<a class="hlink" data-h="9-1-大规模部署" href="#9-1-大规模部署" title="跳到本节">¶</a></h3><p>对于大型组织和企业级部署，可以采用更复杂的架构：</p>
+<div class="mermaid">
+graph TD
+    A[企业级部署] --&gt; B[负载均衡]
+    B --&gt; C1[API服务器实例1]
+    B --&gt; C2[API服务器实例2]
+    B --&gt; C3[API服务器实例n]
+    C1 --&gt; D[PostgreSQL主库]
+    C2 --&gt; D
+    C3 --&gt; D
+    D --&gt; E1[PostgreSQL从库1]
+    D --&gt; E2[PostgreSQL从库2]
+    F[消息队列集群]
+    C1 --&gt; F
+    C2 --&gt; F
+    C3 --&gt; F
+    F --&gt; G1[分析工作节点1]
+    F --&gt; G2[分析工作节点2]
+    F --&gt; G3[分析工作节点n]
+    H[前端负载均衡]
+    H --&gt; I1[前端实例1]
+    H --&gt; I2[前端实例2]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+    style B fill:#fbf,stroke:#333,stroke-width:1px
+    style F fill:#fbf,stroke:#333,stroke-width:1px
+</div>
+
+<p><strong>大规模部署建议</strong>:</p>
+<ul>
+<li>使用 PostgreSQL 而非内置 H2 数据库</li>
+<li>配置 PostgreSQL 读写分离</li>
+<li>使用 Redis 或其他分布式缓存</li>
+<li>实施水平扩展部署 API 服务器</li>
+<li>使用容器编排（Kubernetes）实现自动扩展</li>
+<li>配置监控和警报系统</li>
+<li>实施灾难恢复方案</li>
+</ul>
+<h3 id="9-2-多组织与隔离环境">9.2 多组织与隔离环境<a class="hlink" data-h="9-2-多组织与隔离环境" href="#9-2-多组织与隔离环境" title="跳到本节">¶</a></h3><p>对于需要隔离不同业务部门或客户数据的场景：</p>
+<div class="mermaid">
+graph TB
+    A[多租户架构] --&gt; B[共享基础设施]
+    A --&gt; C[数据隔离]
+    A --&gt; D[访问控制]
+    B --&gt; B1[共享数据库/模式]
+    B --&gt; B2[共享服务实例]
+    C --&gt; C1[团队级隔离]
+    C --&gt; C2[项目级权限]
+    D --&gt; D1[基于团队的访问]
+    D --&gt; D2[自定义API密钥]
+    D --&gt; D3[单点登录集成]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<p><strong>配置多租户环境</strong>:</p>
+<ol>
+<li>创建基于组织的团队结构</li>
+<li>为每个团队分配特定的项目集</li>
+<li>配置精细的访问控制</li>
+<li>使用 API 密钥进行集成隔离</li>
+<li>实施数据导出&#x2F;导入限制</li>
+</ol>
+<h3 id="9-3-完整-DevSecOps-集成">9.3 完整 DevSecOps 集成<a class="hlink" data-h="9-3-完整-DevSecOps-集成" href="#9-3-完整-DevSecOps-集成" title="跳到本节">¶</a></h3><p>将 Dependency-Track 作为 DevSecOps 工具链的一部分：</p>
+<div class="mermaid">
+graph TD
+    A[DevSecOps工具链] --&gt; B[代码仓库&lt;br&gt;GitHub/GitLab]
+    A --&gt; C[CI/CD&lt;br&gt;Jenkins/Actions]
+    A --&gt; D[SCA&lt;br&gt;Dependency-Track]
+    A --&gt; E[SAST&lt;br&gt;静态代码分析]
+    A --&gt; F[DAST&lt;br&gt;动态测试]
+    A --&gt; G[Secrets扫描&lt;br&gt;GitLeaks]
+    A --&gt; H[容器扫描&lt;br&gt;Trivy]
+    A --&gt; I[IaC扫描&lt;br&gt;Checkov/tfsec]
+    B --&gt; C
+    C --&gt; D
+    C --&gt; E
+    C --&gt; G
+    C --&gt; H
+    C --&gt; I
+    D --&gt; J[安全门禁]
+    E --&gt; J
+    F --&gt; J
+    G --&gt; J
+    H --&gt; J
+    I --&gt; J
+    J --&gt; K[部署流程]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+    style D fill:#f96,stroke:#333,stroke-width:2px
+</div>
+
+<p><strong>集成 Jenkins Pipeline 示例</strong>:</p>
+<figure class="highlight groovy"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br></pre></td><td class="code"><pre><span class="line">pipeline &#123;</span><br><span class="line">    agent any</span><br><span class="line"></span><br><span class="line">    environment &#123;</span><br><span class="line">        DTRACK_URL = <span class="string">&quot;http://dependency-track:8080&quot;</span></span><br><span class="line">        DTRACK_API_KEY = credentials(<span class="string">&#x27;dtrack-api-key&#x27;</span>)</span><br><span class="line">        PROJECT_UUID = <span class="string">&quot;$&#123;params.PROJECT_UUID&#125;&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    stages &#123;</span><br><span class="line">        stage(<span class="string">&#x27;源代码检出&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                checkout scm</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;构建&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                sh <span class="string">&#x27;mvn clean package&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;单元测试&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                sh <span class="string">&#x27;mvn test&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;静态代码分析&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                sh <span class="string">&#x27;sonar-scanner&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;生成SBOM&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                sh <span class="string">&#x27;mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;上传SBOM到Dependency-Track&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                sh <span class="string">&#x27;&#x27;&#x27;</span></span><br><span class="line"><span class="string">                curl -X &quot;PUT&quot; \</span></span><br><span class="line"><span class="string">                  &quot;$&#123;DTRACK_URL&#125;/api/v1/bom&quot; \</span></span><br><span class="line"><span class="string">                  -H &quot;X-API-Key: $&#123;DTRACK_API_KEY&#125;&quot; \</span></span><br><span class="line"><span class="string">                  -F &quot;project=$&#123;PROJECT_UUID&#125;&quot; \</span></span><br><span class="line"><span class="string">                  -F &quot;bom=@target/bom.json&quot;</span></span><br><span class="line"><span class="string">                &#x27;&#x27;&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;等待漏洞分析&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                script &#123;</span><br><span class="line">                    <span class="keyword">def</span> analysisComplete = <span class="literal">false</span></span><br><span class="line">                    <span class="keyword">def</span> retryCount = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">                    <span class="keyword">while</span> (!analysisComplete &amp;&amp; retryCount &lt; <span class="number">10</span>) &#123;</span><br><span class="line">                        sleep <span class="number">10</span> <span class="comment">// 等待10秒</span></span><br><span class="line"></span><br><span class="line">                        <span class="keyword">def</span> response = sh(<span class="attr">script:</span> <span class="string">&#x27;&#x27;&#x27;</span></span><br><span class="line"><span class="string">                            curl -s -X &quot;GET&quot; \</span></span><br><span class="line"><span class="string">                              &quot;$&#123;DTRACK_URL&#125;/api/v1/metrics/project/$&#123;PROJECT_UUID&#125;/current&quot; \</span></span><br><span class="line"><span class="string">                              -H &quot;X-API-Key: $&#123;DTRACK_API_KEY&#125;&quot;</span></span><br><span class="line"><span class="string">                        &#x27;&#x27;&#x27;</span>, <span class="attr">returnStdout:</span> <span class="literal">true</span>).trim()</span><br><span class="line"></span><br><span class="line">                        <span class="keyword">if</span> (response.contains(<span class="string">&quot;lastOccurrence&quot;</span>)) &#123;</span><br><span class="line">                            analysisComplete = <span class="literal">true</span></span><br><span class="line">                        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                            retryCount++</span><br><span class="line">                        &#125;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;检查安全违规&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                script &#123;</span><br><span class="line">                    <span class="keyword">def</span> response = sh(<span class="attr">script:</span> <span class="string">&#x27;&#x27;&#x27;</span></span><br><span class="line"><span class="string">                        curl -s -X &quot;GET&quot; \</span></span><br><span class="line"><span class="string">                          &quot;$&#123;DTRACK_URL&#125;/api/v1/violation/project/$&#123;PROJECT_UUID&#125;&quot; \</span></span><br><span class="line"><span class="string">                          -H &quot;X-API-Key: $&#123;DTRACK_API_KEY&#125;&quot;</span></span><br><span class="line"><span class="string">                    &#x27;&#x27;&#x27;</span>, <span class="attr">returnStdout:</span> <span class="literal">true</span>)</span><br><span class="line"></span><br><span class="line">                    <span class="keyword">def</span> violations = readJSON <span class="attr">text:</span> response</span><br><span class="line">                    <span class="keyword">def</span> failViolations = violations.findAll &#123; it.type == <span class="string">&quot;FAIL&quot;</span> &#125;</span><br><span class="line"></span><br><span class="line">                    <span class="keyword">if</span> (failViolations.size() &gt; <span class="number">0</span>) &#123;</span><br><span class="line">                        echo <span class="string">&quot;发现$&#123;failViolations.size()&#125;个阻断性安全违规&quot;</span></span><br><span class="line">                        failViolations.each &#123; violation -&gt;</span><br><span class="line">                            echo <span class="string">&quot;违规: $&#123;violation.policyName&#125; - $&#123;violation.component.name&#125;&quot;</span></span><br><span class="line">                        &#125;</span><br><span class="line">                        error <span class="string">&quot;安全门禁检查失败&quot;</span></span><br><span class="line">                    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                        echo <span class="string">&quot;安全检查通过&quot;</span></span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        stage(<span class="string">&#x27;部署&#x27;</span>) &#123;</span><br><span class="line">            steps &#123;</span><br><span class="line">                echo <span class="string">&#x27;部署到目标环境&#x27;</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    post &#123;</span><br><span class="line">        always &#123;</span><br><span class="line">            archiveArtifacts <span class="attr">artifacts:</span> <span class="string">&#x27;target/bom.json&#x27;</span>, <span class="attr">fingerprint:</span> <span class="literal">true</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="十、出问题先看日志、状态和连接三件事">十、出问题先看日志、状态和连接三件事<a class="hlink" data-h="十、出问题先看日志、状态和连接三件事" href="#十、出问题先看日志、状态和连接三件事" title="跳到本节">¶</a></h2><h3 id="10-1-常见问题解决方案">10.1 常见问题解决方案<a class="hlink" data-h="10-1-常见问题解决方案" href="#10-1-常见问题解决方案" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[常见问题] --&gt; B[API服务器问题]
+    A --&gt; C[前端问题]
+    A --&gt; D[集成问题]
+    A --&gt; E[性能问题]
+    A --&gt; F[数据问题]
+    B --&gt; B1[服务无法启动]
+    B --&gt; B2[API超时]
+    B --&gt; B3[服务崩溃]
+    C --&gt; C1[无法登录]
+    C --&gt; C2[界面不响应]
+    C --&gt; C3[数据不显示]
+    D --&gt; D1[SBOM上传失败]
+    D --&gt; D2[集成环节超时]
+    D --&gt; D3[API密钥无效]
+    E --&gt; E1[扫描性能差]
+    E --&gt; E2[页面加载慢]
+    E --&gt; E3[内存消耗高]
+    F --&gt; F1[数据不一致]
+    F --&gt; F2[缺少漏洞信息]
+    F --&gt; F3[重复组件]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<h3 id="10-2-问题排查方法">10.2 问题排查方法<a class="hlink" data-h="10-2-问题排查方法" href="#10-2-问题排查方法" title="跳到本节">¶</a></h3><p><strong>系统问题排查流程</strong>:</p>
+<ol>
+<li><p><strong>检查日志</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker logs dtrack-apiserver --<span class="built_in">tail</span> 100</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>检查系统状态</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">curl -X <span class="string">&quot;GET&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/version&quot;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>检查数据库连接</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> -it dtrack-postgres psql -U postgres -d dtrack -c <span class="string">&quot;\l&quot;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>检查内存使用情况</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker stats dtrack-apiserver</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>刷新缓存</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">curl -X <span class="string">&quot;GET&quot;</span> \</span><br><span class="line">  <span class="string">&quot;http://dependency-track:8080/api/v1/admin/cache&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: API_KEY&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;&quot;action&quot;:&quot;clearAll&quot;&#125;&#x27;</span></span><br></pre></td></tr></table></figure></li>
+</ol>
+<p><strong>常见问题与解决方案表</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>可能原因</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>服务无法启动</td>
+<td>内存配置不当</td>
+<td>增加分配的内存，至少4GB</td>
+</tr>
+<tr>
+<td></td>
+<td>数据库连接问题</td>
+<td>验证数据库连接参数和权限</td>
+</tr>
+<tr>
+<td></td>
+<td>权限问题</td>
+<td>检查数据目录和文件权限</td>
+</tr>
+<tr>
+<td>上传BOM失败</td>
+<td>BOM格式错误</td>
+<td>验证BOM符合CycloneDX或SPDX规范</td>
+</tr>
+<tr>
+<td></td>
+<td>API密钥权限不足</td>
+<td>使用具有BOM_UPLOAD权限的API密钥</td>
+</tr>
+<tr>
+<td></td>
+<td>请求超时</td>
+<td>增加请求超时时间或减小BOM文件大小</td>
+</tr>
+<tr>
+<td>缺少漏洞数据</td>
+<td>漏洞数据源未配置</td>
+<td>配置并验证漏洞数据源连接</td>
+</tr>
+<tr>
+<td></td>
+<td>分析器未运行</td>
+<td>检查分析器状态和日志</td>
+</tr>
+<tr>
+<td></td>
+<td>组件标识符不正确</td>
+<td>确保组件有正确的PURL或CPE</td>
+</tr>
+<tr>
+<td>性能问题</td>
+<td>数据库性能</td>
+<td>优化数据库索引和查询</td>
+</tr>
+<tr>
+<td></td>
+<td>缓存设置</td>
+<td>调整和启用缓存系统</td>
+</tr>
+<tr>
+<td></td>
+<td>JVM资源不足</td>
+<td>增加堆内存和调整JVM参数</td>
+</tr>
+<tr>
+<td>前端无法连接后端</td>
+<td>CORS配置</td>
+<td>检查CORS设置是否允许前端来源</td>
+</tr>
+<tr>
+<td></td>
+<td>API地址配置错误</td>
+<td>验证前端API_BASE_URL配置</td>
+</tr>
+<tr>
+<td></td>
+<td>网络问题</td>
+<td>检查网络连接和防火墙规则</td>
+</tr>
+</tbody></table>
+<h3 id="10-3-日志分析">10.3 日志分析<a class="hlink" data-h="10-3-日志分析" href="#10-3-日志分析" title="跳到本节">¶</a></h3><p><strong>重要日志位置</strong>:</p>
+<ul>
+<li>API服务器日志: 容器内的 <code>/data/logs/</code> 目录</li>
+<li>前端日志: 浏览器控制台</li>
+<li>数据库日志: PostgreSQL 日志</li>
+</ul>
+<p><strong>常见日志模式分析</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 提取错误日志</span></span><br><span class="line">docker <span class="built_in">exec</span> dtrack-apiserver grep -i <span class="string">&quot;error&quot;</span> /data/logs/dependency-track.log | <span class="built_in">tail</span> -50</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看API请求日志</span></span><br><span class="line">docker <span class="built_in">exec</span> dtrack-apiserver grep -i <span class="string">&quot;api request&quot;</span> /data/logs/dependency-track.log | <span class="built_in">tail</span> -50</span><br><span class="line"></span><br><span class="line"><span class="comment"># 分析漏洞扫描日志</span></span><br><span class="line">docker <span class="built_in">exec</span> dtrack-apiserver grep -i <span class="string">&quot;vulnerability&quot;</span> /data/logs/dependency-track.log | <span class="built_in">tail</span> -50</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看组件分析日志</span></span><br><span class="line">docker <span class="built_in">exec</span> dtrack-apiserver grep -i <span class="string">&quot;analyzing&quot;</span> /data/logs/dependency-track.log | <span class="built_in">tail</span> -50</span><br></pre></td></tr></table></figure>
+
+<h2 id="十一、落地按阶段推进，别一步到位">十一、落地按阶段推进，别一步到位<a class="hlink" data-h="十一、落地按阶段推进，别一步到位" href="#十一、落地按阶段推进，别一步到位" title="跳到本节">¶</a></h2><h3 id="11-1-实施路线图">11.1 实施路线图<a class="hlink" data-h="11-1-实施路线图" href="#11-1-实施路线图" title="跳到本节">¶</a></h3><div class="mermaid">
+graph LR
+    A[实施阶段] --&gt; B[初始部署]
+    B --&gt; C[团队试用]
+    C --&gt; D[扩大使用]
+    D --&gt; E[自动化集成]
+    E --&gt; F[持续优化]
+    B --&gt; B1[安装基础系统]
+    B --&gt; B2[配置基础分析]
+    C --&gt; C1[选择试点项目]
+    C --&gt; C2[培训核心用户]
+    D --&gt; D1[定义团队流程]
+    D --&gt; D2[扩展到多项目]
+    E --&gt; E1[CI/CD集成]
+    E --&gt; E2[自动化报告]
+    F --&gt; F1[优化策略]
+    F --&gt; F2[持续监控]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<h3 id="11-2-分步实施计划">11.2 分步实施计划<a class="hlink" data-h="11-2-分步实施计划" href="#11-2-分步实施计划" title="跳到本节">¶</a></h3><h4 id="11-2-1-初始部署阶段-1-2周"><a href="#11-2-1-初始部署阶段-1-2周" class="headerlink" title="11.2.1 初始部署阶段 (1-2周)"></a>11.2.1 初始部署阶段 (1-2周)</h4><ol>
+<li><p><strong>系统安装与基本配置</strong></p>
+<ul>
+<li>安装 Dependency-Track 服务器</li>
+<li>配置数据库连接</li>
+<li>设置基本安全参数</li>
+<li>验证系统正常运行</li>
+</ul>
+</li>
+<li><p><strong>初始管理员配置</strong></p>
+<ul>
+<li>创建管理员账户</li>
+<li>配置用户权限模型</li>
+<li>设置组织结构</li>
+<li>配置外部漏洞数据源</li>
+</ul>
+</li>
+<li><p><strong>基础环境集成</strong></p>
+<ul>
+<li>配置邮件通知</li>
+<li>设置初始扫描策略</li>
+<li>建立基本项目结构</li>
+</ul>
+</li>
+</ol>
+<h4 id="11-2-2-团队试用阶段-2-4周"><a href="#11-2-2-团队试用阶段-2-4周" class="headerlink" title="11.2.2 团队试用阶段 (2-4周)"></a>11.2.2 团队试用阶段 (2-4周)</h4><ol>
+<li><p><strong>选择试点项目</strong></p>
+<ul>
+<li>选择1-2个代表性项目</li>
+<li>确定项目成员和责任人</li>
+<li>设置项目特定的配置</li>
+<li>生成初始SBOM并上传</li>
+</ul>
+</li>
+<li><p><strong>核心团队培训</strong></p>
+<ul>
+<li>管理员培训</li>
+<li>安全团队培训</li>
+<li>开发人员基础培训</li>
+<li>制定初步流程文档</li>
+</ul>
+</li>
+<li><p><strong>初步分析与调整</strong></p>
+<ul>
+<li>分析初步结果</li>
+<li>调整扫描配置</li>
+<li>更新通知设置</li>
+<li>收集用户反馈</li>
+</ul>
+</li>
+</ol>
+<h4 id="11-2-3-扩大使用阶段-1-2个月"><a href="#11-2-3-扩大使用阶段-1-2个月" class="headerlink" title="11.2.3 扩大使用阶段 (1-2个月)"></a>11.2.3 扩大使用阶段 (1-2个月)</h4><ol>
+<li><p><strong>制定正式流程</strong></p>
+<ul>
+<li>开发标准操作流程</li>
+<li>确定漏洞响应流程</li>
+<li>建立审批和例外流程</li>
+<li>形成正式文档</li>
+</ul>
+</li>
+<li><p><strong>扩展到更多项目</strong></p>
+<ul>
+<li>项目团队培训和宣讲</li>
+<li>制定项目接入标准</li>
+<li>批量创建和配置项目</li>
+<li>设置项目特定安全策略</li>
+</ul>
+</li>
+<li><p><strong>报告与度量体系</strong></p>
+<ul>
+<li>建立标准报告模板</li>
+<li>确定关键安全指标</li>
+<li>建立定期审查机制</li>
+<li>开发管理层报告体系</li>
+</ul>
+</li>
+</ol>
+<h4 id="11-2-4-自动化集成阶段-2-3个月"><a href="#11-2-4-自动化集成阶段-2-3个月" class="headerlink" title="11.2.4 自动化集成阶段 (2-3个月)"></a>11.2.4 自动化集成阶段 (2-3个月)</h4><ol>
+<li><p><strong>持续集成设置</strong></p>
+<ul>
+<li>在CI&#x2F;CD流水线中集成</li>
+<li>自动生成与上传SBOM</li>
+<li>配置构建安全阈值</li>
+<li>设置自动化测试</li>
+</ul>
+</li>
+<li><p><strong>自动化报告与通知</strong></p>
+<ul>
+<li>配置定期自动报告</li>
+<li>设置基于条件的通知</li>
+<li>与问题跟踪系统集成</li>
+<li>建立风险评分和趋势分析</li>
+</ul>
+</li>
+<li><p><strong>流程自动化</strong></p>
+<ul>
+<li>建立自动化执行工作流</li>
+<li>配置漏洞修复建议</li>
+<li>开发自动化处理脚本</li>
+<li>设置自动验证机制</li>
+</ul>
+</li>
+</ol>
+<h4 id="11-2-5-持续优化阶段-持续"><a href="#11-2-5-持续优化阶段-持续" class="headerlink" title="11.2.5 持续优化阶段 (持续)"></a>11.2.5 持续优化阶段 (持续)</h4><ol>
+<li><p><strong>持续改进</strong></p>
+<ul>
+<li>定期评估并更新策略</li>
+<li>优化扫描和分析规则</li>
+<li>更新集成和流程</li>
+<li>改进使用体验</li>
+</ul>
+</li>
+<li><p><strong>监控与调整</strong></p>
+<ul>
+<li>监控系统性能和资源使用</li>
+<li>调整扫描频率和范围</li>
+<li>更新通知和报告模式</li>
+<li>适应新兴威胁和最佳实践</li>
+</ul>
+</li>
+</ol>
+<h3 id="11-3-关键成功因素">11.3 关键成功因素<a class="hlink" data-h="11-3-关键成功因素" href="#11-3-关键成功因素" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>高层支持</strong></p>
+<ul>
+<li>获取管理层明确支持</li>
+<li>确保资源分配充足</li>
+<li>明确安全目标和责任</li>
+</ul>
+</li>
+<li><p><strong>团队参与</strong></p>
+<ul>
+<li>提供充分培训和知识分享</li>
+<li>建立清晰的责任和流程</li>
+<li>收集并采纳用户反馈</li>
+</ul>
+</li>
+<li><p><strong>集成与自动化</strong></p>
+<ul>
+<li>无缝集成到开发流程</li>
+<li>最小化手动干预</li>
+<li>自动化报告和分析</li>
+</ul>
+</li>
+<li><p><strong>渐进实施</strong></p>
+<ul>
+<li>从小处开始，逐步扩展</li>
+<li>根据反馈调整计划</li>
+<li>设置现实目标和时间表</li>
+</ul>
+</li>
+<li><p><strong>持续优化</strong></p>
+<ul>
+<li>定期评估和优化流程</li>
+<li>更新和扩展知识库</li>
+<li>适应不断变化的环境和威胁</li>
+</ul>
+</li>
+</ol>
+<h2 id="十二、组织、技术、流程三层都要跟得上">十二、组织、技术、流程三层都要跟得上<a class="hlink" data-h="十二、组织、技术、流程三层都要跟得上" href="#十二、组织、技术、流程三层都要跟得上" title="跳到本节">¶</a></h2><div class="mermaid">
+mindmap
+  root((Dependency-Track最佳实践))
+    组织准备
+      建立安全责任制
+      明确角色分工
+      制定安全培训计划
+      获取高层支持
+    技术配置
+      策略分级管理
+      合理设置扫描频率
+      配置适当通知机制
+      优化系统性能
+    流程集成
+      融入开发生命周期
+      自动化漏洞响应
+      与CI/CD无缝连接
+      结合代码审查
+    处理方法
+      漏洞分类与优先级
+      合理使用抑制功能
+      建立例外流程
+      定期安全审查
+    持续改进
+      度量与分析
+      反馈与优化
+      定期系统更新
+      知识共享
+</div>
+
+<h3 id="12-1-组织准备最佳实践">12.1 组织准备最佳实践<a class="hlink" data-h="12-1-组织准备最佳实践" href="#12-1-组织准备最佳实践" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>建立明确的责任制</strong></p>
+<ul>
+<li>指定专门的安全负责人或团队</li>
+<li>明确开发团队和安全团队的责任</li>
+<li>设立漏洞审核和决策委员会</li>
+<li>定义上报路径和流程</li>
+</ul>
+</li>
+<li><p><strong>制定全面的安全策略</strong></p>
+<ul>
+<li>明确组件安全要求和限制</li>
+<li>定义不同类型漏洞的处理流程</li>
+<li>制定例外情况的审批流程</li>
+<li>确立安全合规标准</li>
+</ul>
+</li>
+<li><p><strong>开展定期培训</strong></p>
+<ul>
+<li>为开发人员提供安全意识培训</li>
+<li>为安全团队提供深入技术培训</li>
+<li>定期分享最新威胁和防护知识</li>
+<li>进行实际案例研讨</li>
+</ul>
+</li>
+</ol>
+<h3 id="12-2-技术配置最佳实践">12.2 技术配置最佳实践<a class="hlink" data-h="12-2-技术配置最佳实践" href="#12-2-技术配置最佳实践" title="跳到本节">¶</a></h3><h4 id="12-2-1-系统优化"><a href="#12-2-1-系统优化" class="headerlink" title="12.2.1 系统优化"></a>12.2.1 系统优化</h4><ol>
+<li><p><strong>硬件资源配置</strong></p>
+<ul>
+<li>API服务器: 至少4核CPU, 8GB RAM</li>
+<li>数据库服务器: 快速存储，足够内存</li>
+<li>根据项目数量和规模适当扩展</li>
+</ul>
+</li>
+<li><p><strong>数据库优化</strong></p>
+<ul>
+<li>使用PostgreSQL而非H2用于生产环境</li>
+<li>配置适当的连接池大小</li>
+<li>定期进行数据库维护和优化</li>
+<li>监控关键查询性能</li>
+</ul>
+</li>
+<li><p><strong>系统配置</strong></p>
+<ul>
+<li>调整JVM堆大小适应工作负载</li>
+<li>配置适当的线程池大小</li>
+<li>启用压缩减少网络负载</li>
+<li>优化缓存配置提升性能</li>
+</ul>
+</li>
+</ol>
+<h4 id="12-2-2-扫描和分析配置"><a href="#12-2-2-扫描和分析配置" class="headerlink" title="12.2.2 扫描和分析配置"></a>12.2.2 扫描和分析配置</h4><ol>
+<li><p><strong>扫描策略</strong></p>
+<ul>
+<li>为不同环境设置不同扫描频率</li>
+<li>生产代码每次提交扫描</li>
+<li>开发代码每日扫描</li>
+<li>第三方库定期扫描</li>
+</ul>
+</li>
+<li><p><strong>分析设置</strong></p>
+<ul>
+<li>配置所有相关漏洞源</li>
+<li>启用增量分析减少资源使用</li>
+<li>设置合适的重试策略</li>
+<li>处理暂时不可用的外部服务</li>
+</ul>
+</li>
+</ol>
+<h3 id="12-3-流程集成最佳实践">12.3 流程集成最佳实践<a class="hlink" data-h="12-3-流程集成最佳实践" href="#12-3-流程集成最佳实践" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>与开发流程集成</strong></p>
+<ul>
+<li>在设计阶段考虑组件选择</li>
+<li>开发阶段进行定期扫描</li>
+<li>提交前进行本地预检查</li>
+<li>合并代码前验证安全状况</li>
+</ul>
+</li>
+<li><p><strong>与CI&#x2F;CD流水线集成</strong></p>
+<ul>
+<li>每次构建自动生成SBOM</li>
+<li>设置安全门禁规则</li>
+<li>基于漏洞严重度阻止部署</li>
+<li>将结果反馈给开发者</li>
+</ul>
+</li>
+<li><p><strong>与问题跟踪系统集成</strong></p>
+<ul>
+<li>自动创建漏洞修复任务</li>
+<li>将漏洞关联到相关项目</li>
+<li>跟踪漏洞修复进度</li>
+<li>验证修复有效性</li>
+</ul>
+</li>
+</ol>
+<h3 id="12-4-漏洞管理最佳实践">12.4 漏洞管理最佳实践<a class="hlink" data-h="12-4-漏洞管理最佳实践" href="#12-4-漏洞管理最佳实践" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>分类与优先级</strong></p>
+<ul>
+<li>建立清晰的漏洞分类标准</li>
+<li>结合业务影响确定优先级</li>
+<li>考虑可利用性和暴露面</li>
+<li>定期审查和调整优先级</li>
+</ul>
+</li>
+<li><p><strong>响应流程</strong></p>
+<ul>
+<li>制定标准响应流程</li>
+<li>明确不同级别漏洞的响应时间</li>
+<li>建立升级和例外流程</li>
+<li>定期进行响应演练</li>
+</ul>
+</li>
+<li><p><strong>修复策略</strong></p>
+<ul>
+<li>优先修复高风险漏洞</li>
+<li>评估修复成本与风险</li>
+<li>实施临时缓解措施</li>
+<li>验证修复有效性</li>
+</ul>
+</li>
+<li><p><strong>抑制管理</strong></p>
+<ul>
+<li>严格控制漏洞抑制使用</li>
+<li>所有抑制必须有充分理由</li>
+<li>设置抑制到期日期</li>
+<li>定期审查抑制决定</li>
+</ul>
+</li>
+</ol>
+<h2 id="十三、排查按系统、集成、数据、性能四类走">十三、排查按系统、集成、数据、性能四类走<a class="hlink" data-h="十三、排查按系统、集成、数据、性能四类走" href="#十三、排查按系统、集成、数据、性能四类走" title="跳到本节">¶</a></h2><div class="mermaid">
+flowchart TD
+    A[故障排查] --&gt; B{系统问题}
+    A --&gt; C{集成问题}
+    A --&gt; D{数据问题}
+    A --&gt; E{性能问题}
+    B --&gt; B1[服务无法启动]
+    B --&gt; B2[频繁崩溃]
+    B --&gt; B3[UI加载问题]
+    C --&gt; C1[API连接失败]
+    C --&gt; C2[CI/CD集成问题]
+    C --&gt; C3[通知传递失败]
+    D --&gt; D1[数据不一致]
+    D --&gt; D2[SBOM解析失败]
+    D --&gt; D3[漏洞数据缺失]
+    E --&gt; E1[分析速度慢]
+    E --&gt; E2[UI响应慢]
+    E --&gt; E3[内存使用过高]
+    B1 --&gt; B1a[检查日志]
+    B1 --&gt; B1b[验证配置]
+    B1 --&gt; B1c[检查权限]
+    B2 --&gt; B2a[检查内存配置]
+    B2 --&gt; B2b[检查数据库连接]
+    B2 --&gt; B2c[监控资源使用]
+    C1 --&gt; C1a[验证API密钥]
+    C1 --&gt; C1b[检查网络连接]
+    C1 --&gt; C1c[检查URL配置]
+    D2 --&gt; D2a[验证SBOM格式]
+    D2 --&gt; D2b[检查组件标识符]
+    D2 --&gt; D2c[尝试不同版本]
+    E1 --&gt; E1a[优化数据库]
+    E1 --&gt; E1b[增加系统资源]
+    E1 --&gt; E1c[拆分大型SBOM]
+    style A fill:#bbf,stroke:#333,stroke-width:2px
+</div>
+
+<h3 id="13-1-常见问题解决方案">13.1 常见问题解决方案<a class="hlink" data-h="13-1-常见问题解决方案" href="#13-1-常见问题解决方案" title="跳到本节">¶</a></h3><h4 id="13-1-1-系统问题"><a href="#13-1-1-系统问题" class="headerlink" title="13.1.1 系统问题"></a>13.1.1 系统问题</h4><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>可能原因</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>API服务器无法启动</td>
+<td>JVM内存配置不当</td>
+<td>检查并调整<code>-Xms</code>和<code>-Xmx</code>参数</td>
+</tr>
+<tr>
+<td></td>
+<td>数据库连接问题</td>
+<td>验证数据库连接字符串和权限</td>
+</tr>
+<tr>
+<td></td>
+<td>文件权限问题</td>
+<td>检查数据目录的所有权和权限</td>
+</tr>
+<tr>
+<td>API服务器频繁崩溃</td>
+<td>内存不足</td>
+<td>增加可用内存，调整JVM参数</td>
+</tr>
+<tr>
+<td></td>
+<td>数据库连接池耗尽</td>
+<td>增加连接池大小，检查连接泄漏</td>
+</tr>
+<tr>
+<td></td>
+<td>大量并发请求</td>
+<td>实施请求限流，增加服务器资源</td>
+</tr>
+<tr>
+<td>前端界面无法加载</td>
+<td>API服务器地址错误</td>
+<td>检查API_BASE_URL配置</td>
+</tr>
+<tr>
+<td></td>
+<td>CORS配置问题</td>
+<td>验证CORS设置允许前端域名</td>
+</tr>
+<tr>
+<td></td>
+<td>JavaScript错误</td>
+<td>检查浏览器控制台日志</td>
+</tr>
+</tbody></table>
+<h4 id="13-1-2-集成问题"><a href="#13-1-2-集成问题" class="headerlink" title="13.1.2 集成问题"></a>13.1.2 集成问题</h4><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>可能原因</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>API连接失败</td>
+<td>API密钥无效</td>
+<td>验证并重新生成API密钥</td>
+</tr>
+<tr>
+<td></td>
+<td>网络连接问题</td>
+<td>检查网络连接性和防火墙设置</td>
+</tr>
+<tr>
+<td></td>
+<td>权限不足</td>
+<td>确认API密钥具有必要权限</td>
+</tr>
+<tr>
+<td>CI&#x2F;CD集成失败</td>
+<td>配置错误</td>
+<td>检查项目UUID和端点URL</td>
+</tr>
+<tr>
+<td></td>
+<td>SBOM生成失败</td>
+<td>验证SBOM生成工具配置</td>
+</tr>
+<tr>
+<td></td>
+<td>超时</td>
+<td>增加请求超时设置</td>
+</tr>
+<tr>
+<td>通知未送达</td>
+<td>通知配置错误</td>
+<td>检查通知配置和端点URL</td>
+</tr>
+<tr>
+<td></td>
+<td>网络问题</td>
+<td>测试网络连接和目标系统</td>
+</tr>
+<tr>
+<td></td>
+<td>内容格式问题</td>
+<td>验证通知内容和格式</td>
+</tr>
+</tbody></table>
+<h4 id="13-1-3-数据问题"><a href="#13-1-3-数据问题" class="headerlink" title="13.1.3 数据问题"></a>13.1.3 数据问题</h4><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>可能原因</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SBOM解析失败</td>
+<td>格式错误</td>
+<td>验证SBOM符合CycloneDX规范</td>
+</tr>
+<tr>
+<td></td>
+<td>无效组件标识符</td>
+<td>确保组件有正确的PURL或名称</td>
+</tr>
+<tr>
+<td></td>
+<td>特殊字符问题</td>
+<td>检查并清理文件中的特殊字符</td>
+</tr>
+<tr>
+<td>漏洞数据缺失</td>
+<td>数据源配置错误</td>
+<td>验证漏洞数据源配置和API密钥</td>
+</tr>
+<tr>
+<td></td>
+<td>组件识别问题</td>
+<td>确保组件有正确的标识符</td>
+</tr>
+<tr>
+<td></td>
+<td>分析未完成</td>
+<td>检查分析队列状态和日志</td>
+</tr>
+<tr>
+<td>数据不一致</td>
+<td>缓存问题</td>
+<td>清除缓存，强制刷新数据</td>
+</tr>
+<tr>
+<td></td>
+<td>并发更新</td>
+<td>检查并解决并发更新冲突</td>
+</tr>
+<tr>
+<td></td>
+<td>数据库问题</td>
+<td>验证数据库完整性</td>
+</tr>
+</tbody></table>
+<h3 id="13-2-日志分析技巧">13.2 日志分析技巧<a class="hlink" data-h="13-2-日志分析技巧" href="#13-2-日志分析技巧" title="跳到本节">¶</a></h3><h4 id="13-2-1-关键日志位置"><a href="#13-2-1-关键日志位置" class="headerlink" title="13.2.1 关键日志位置"></a>13.2.1 关键日志位置</h4><ul>
+<li><strong>API服务器日志</strong>: <code>/data/dependency-track/logs/</code></li>
+<li><strong>审计日志</strong>: <code>/data/dependency-track/logs/audit.log</code></li>
+<li><strong>数据库日志</strong>: 取决于数据库配置</li>
+<li><strong>前端日志</strong>: 浏览器控制台</li>
+</ul>
+<h4 id="13-2-2-常用日志分析命令"><a href="#13-2-2-常用日志分析命令" class="headerlink" title="13.2.2 常用日志分析命令"></a>13.2.2 常用日志分析命令</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查找错误</span></span><br><span class="line">grep -i <span class="string">&quot;error&quot;</span> /data/dependency-track/logs/dependency-track.log</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查找特定组件问题</span></span><br><span class="line">grep -i <span class="string">&quot;component&quot;</span> /data/dependency-track/logs/dependency-track.log | grep -i <span class="string">&quot;error&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看最近500行日志</span></span><br><span class="line"><span class="built_in">tail</span> -n 500 /data/dependency-track/logs/dependency-track.log</span><br><span class="line"></span><br><span class="line"><span class="comment"># 实时监控日志</span></span><br><span class="line"><span class="built_in">tail</span> -f /data/dependency-track/logs/dependency-track.log</span><br></pre></td></tr></table></figure>
+
+<h4 id="13-2-3-日志级别调整"><a href="#13-2-3-日志级别调整" class="headerlink" title="13.2.3 日志级别调整"></a>13.2.3 日志级别调整</h4><p>临时调整日志级别以获取更多调试信息:</p>
+<ol>
+<li>导航到管理界面中的配置部分</li>
+<li>找到”日志记录”设置</li>
+<li>将级别从INFO调整为DEBUG</li>
+<li>重现问题并收集日志</li>
+<li>问题解决后恢复为INFO级别</li>
+</ol>
+<h3 id="13-3-系统健康检查">13.3 系统健康检查<a class="hlink" data-h="13-3-系统健康检查" href="#13-3-系统健康检查" title="跳到本节">¶</a></h3><h4 id="13-3-1-快速健康检查"><a href="#13-3-1-快速健康检查" class="headerlink" title="13.3.1 快速健康检查"></a>13.3.1 快速健康检查</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查API服务器状态</span></span><br><span class="line">curl -X GET <span class="string">&quot;http://localhost:8080/api/v1/version&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查系统健康状态</span></span><br><span class="line">curl -X GET <span class="string">&quot;http://localhost:8080/api/v1/health&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: YOUR_API_KEY&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查队列状态</span></span><br><span class="line">curl -X GET <span class="string">&quot;http://localhost:8080/api/v1/metrics/status&quot;</span> \</span><br><span class="line">  -H <span class="string">&quot;X-API-Key: YOUR_API_KEY&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="13-3-2-性能监控"><a href="#13-3-2-性能监控" class="headerlink" title="13.3.2 性能监控"></a>13.3.2 性能监控</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查JVM内存使用</span></span><br><span class="line">ps -o pid,rss,<span class="built_in">command</span> -p $(pgrep -f dependency-track)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查CPU使用情况</span></span><br><span class="line">top -p $(pgrep -f dependency-track)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查磁盘使用情况</span></span><br><span class="line"><span class="built_in">df</span> -h /data/dependency-track</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查数据库状态 (PostgreSQL)</span></span><br><span class="line">psql -U dtrack -c <span class="string">&quot;SELECT count(*) FROM component;&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="十四、把工具接进流程才是终点">十四、把工具接进流程才是终点<a class="hlink" data-h="十四、把工具接进流程才是终点" href="#十四、把工具接进流程才是终点" title="跳到本节">¶</a></h2><h3 id="14-1-总结">14.1 总结<a class="hlink" data-h="14-1-总结" href="#14-1-总结" title="跳到本节">¶</a></h3><p>Dependency-Track是一个功能强大的软件成分分析平台，通过持续分析依赖项的安全状况，帮助组织识别和管理供应链风险。本指南全面介绍了Dependency-Track的部署、配置、使用和集成方法，以帮助安全团队和开发团队建立有效的软件供应链安全实践。</p>
+<p>通过适当的计划和实施，Dependency-Track可以成为组织DevSecOps工具链中的重要组成部分，提供关键的安全洞察，确保交付的软件产品更加安全可靠。随着供应链攻击日益增多，实施像Dependency-Track这样的工具变得越来越重要，它能帮助组织了解其依赖组件中的安全风险，并及时采取行动。</p>
+<h3 id="14-2-持续学习资源">14.2 持续学习资源<a class="hlink" data-h="14-2-持续学习资源" href="#14-2-持续学习资源" title="跳到本节">¶</a></h3><h4 id="14-2-1-官方资源"><a href="#14-2-1-官方资源" class="headerlink" title="14.2.1 官方资源"></a>14.2.1 官方资源</h4><ul>
+<li><a target="_blank" rel="noopener" href="https://docs.dependencytrack.org/">Dependency-Track官方文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/DependencyTrack/dependency-track">Dependency-Track GitHub仓库</a></li>
+<li><a target="_blank" rel="noopener" href="https://owasp.org/www-project-dependency-track/">OWASP Dependency-Track项目页</a></li>
+<li><a target="_blank" rel="noopener" href="https://cyclonedx.org/specification/overview/">CycloneDX规范文档</a></li>
+</ul>
+<h4 id="14-2-2-社区资源"><a href="#14-2-2-社区资源" class="headerlink" title="14.2.2 社区资源"></a>14.2.2 社区资源</h4><ul>
+<li><a target="_blank" rel="noopener" href="https://owasp.org/www-project-software-component-verification-standard/">OWASP软件成分分析项目</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.ntia.gov/SBOM">软件物料清单(SBOM)相关资源</a></li>
+<li><a target="_blank" rel="noopener" href="https://dependencytrack.org/forum/">Dependency-Track用户论坛</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.owasp.org/index.php/OWASP_STAF">安全测试自动化框架</a></li>
+</ul>
+<h4 id="14-2-3-进阶学习"><a href="#14-2-3-进阶学习" class="headerlink" title="14.2.3 进阶学习"></a>14.2.3 进阶学习</h4><ul>
+<li><p><strong>书籍</strong>:</p>
+<ul>
+<li>“Software Composition Analysis: A Guide to Securing Software Supply Chains”</li>
+<li>“DevSecOps: A leader’s guide to producing secure software”</li>
+<li>“Supply Chain Security: A Complete Guide”</li>
+</ul>
+</li>
+<li><p><strong>会议与网络研讨会</strong>:</p>
+<ul>
+<li>OWASP AppSec 会议</li>
+<li>RSA Conference 供应链安全专题</li>
+<li>BlackHat 和 DEF CON 相关主题演讲</li>
+</ul>
+</li>
+</ul>
+<h3 id="14-3-最终思考">14.3 最终思考<a class="hlink" data-h="14-3-最终思考" href="#14-3-最终思考" title="跳到本节">¶</a></h3><p>随着软件开发变得越来越依赖第三方组件，组织必须采取积极措施保护其软件供应链。Dependency-Track提供了一个强大的平台来实现这一目标，但技术工具只是解决方案的一部分。成功的软件供应链安全还需要组织文化、流程和人员的共同支持。</p>
+<p>通过将Dependency-Track与开发流程紧密集成，建立明确的安全策略，以及培养团队的安全意识，组织可以显著提高其识别和缓解第三方组件风险的能力。这不仅有助于保护软件产品和用户，还能满足日益严格的法规和客户安全要求。</p>
+<p>随着软件供应链安全领域的不断发展，持续学习和适应新的威胁与最佳实践将是保持安全姿态的关键。Dependency-Track作为一个开源工具，也将继续发展以应对这些挑战，为组织提供更好的软件供应链安全保障。</p>
+<div class="callout tip" data-callout="tip"><div class="callout-title"><span class="callout-ico">🔥</span><span class="callout-title-inner">落地建议：先装最小可用环境，拿一两个试点项目生成 SBOM 上传，跑通门禁后再扩面。</span></div><div class="callout-body"></div></div>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Dependency-Track 实战：把组件风险管到流水线里","description":"供应链风险光靠人工盯依赖清单盯不住，我一般把 SCA 挂进 CI 流水线里卡门禁。Dependency-Track 就是我常用的那一环，装好、传 SBOM、配策略就能持续看组件漏洞。","datePublished":"2026-11-01T00:00:00+08:00","dateModified":"2026-11-01T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/2352368518.html"},"url":"https://zeek-zhao.github.io/posts/2352368518.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"DevOps 与 CI","item":"https://zeek-zhao.github.io/categories/DevOps-%E4%B8%8E-CI/"},{"@type":"ListItem","position":4,"name":"Devops","item":"https://zeek-zhao.github.io/categories/DevOps-%E4%B8%8E-CI/Devops/"},{"@type":"ListItem","position":5,"name":"Dependency-Track 实战：把组件风险管到流水线里","item":"https://zeek-zhao.github.io/posts/2352368518.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#一、先搞清-Dependency-Track-能解决什么问题" data-h="一、先搞清-Dependency-Track-能解决什么问题" class="">一、先搞清 Dependency-Track 能解决什么问题</a>
+      
+        <a href="#1-1-Dependency-Track-概述" data-h="1-1-Dependency-Track-概述" class="l2">1.1 Dependency-Track 概述</a>
+      
+        <a href="#1-2-核心功能与优势" data-h="1-2-核心功能与优势" class="l2">1.2 核心功能与优势</a>
+      
+        <a href="#1-3-架构与组件" data-h="1-3-架构与组件" class="l2">1.3 架构与组件</a>
+      
+        <a href="#二、部署走-Docker-最省事，配置别漏数据源" data-h="二、部署走-Docker-最省事，配置别漏数据源" class="">二、部署走 Docker 最省事，配置别漏数据源</a>
+      
+        <a href="#2-1-系统要求" data-h="2-1-系统要求" class="l2">2.1 系统要求</a>
+      
+        <a href="#2-2-部署方法" data-h="2-2-部署方法" class="l2">2.2 部署方法</a>
+      
+        <a href="#2-3-初始配置" data-h="2-3-初始配置" class="l2">2.3 初始配置</a>
+      
+        <a href="#三、数据模型就围着项目、组件、漏洞和-SBOM-转" data-h="三、数据模型就围着项目、组件、漏洞和-SBOM-转" class="">三、数据模型就围着项目、组件、漏洞和 SBOM 转</a>
+      
+        <a href="#3-1-数据模型概览" data-h="3-1-数据模型概览" class="l2">3.1 数据模型概览</a>
+      
+        <a href="#3-2-项目与组合" data-h="3-2-项目与组合" class="l2">3.2 项目与组合</a>
+      
+        <a href="#3-3-组件与依赖" data-h="3-3-组件与依赖" class="l2">3.3 组件与依赖</a>
+      
+        <a href="#3-4-漏洞模型" data-h="3-4-漏洞模型" class="l2">3.4 漏洞模型</a>
+      
+        <a href="#3-5-软件物料清单-SBOM" data-h="3-5-软件物料清单-SBOM" class="l2">3.5 软件物料清单 (SBOM)</a>
+      
+        <a href="#四、把-SBOM-上传和漏洞检查塞进流水线" data-h="四、把-SBOM-上传和漏洞检查塞进流水线" class="">四、把 SBOM 上传和漏洞检查塞进流水线</a>
+      
+        <a href="#4-1-CI-CD-集成" data-h="4-1-CI-CD-集成" class="l2">4.1 CI&#x2F;CD 集成</a>
+      
+        <a href="#4-2-API-集成" data-h="4-2-API-集成" class="l2">4.2 API 集成</a>
+      
+        <a href="#4-3-工具整合" data-h="4-3-工具整合" class="l2">4.3 工具整合</a>
+      
+        <a href="#五、漏洞按严重性和范围排优先级，别一锅端" data-h="五、漏洞按严重性和范围排优先级，别一锅端" class="">五、漏洞按严重性和范围排优先级，别一锅端</a>
+      
+        <a href="#5-1-漏洞分类与优先级" data-h="5-1-漏洞分类与优先级" class="l2">5.1 漏洞分类与优先级</a>
+      
+        <a href="#5-2-漏洞响应流程" data-h="5-2-漏洞响应流程" class="l2">5.2 漏洞响应流程</a>
+      
+        <a href="#5-3-漏洞抑制策略" data-h="5-3-漏洞抑制策略" class="l2">5.3 漏洞抑制策略</a>
+      
+        <a href="#六、用策略引擎把安全要求自动执行起来" data-h="六、用策略引擎把安全要求自动执行起来" class="">六、用策略引擎把安全要求自动执行起来</a>
+      
+        <a href="#6-1-策略框架" data-h="6-1-策略框架" class="l2">6.1 策略框架</a>
+      
+        <a href="#6-2-创建和管理策略" data-h="6-2-创建和管理策略" class="l2">6.2 创建和管理策略</a>
+      
+        <a href="#6-3-项目治理与合规" data-h="6-3-项目治理与合规" class="l2">6.3 项目治理与合规</a>
+      
+        <a href="#七、指标要能取出来，报告才有意义" data-h="七、指标要能取出来，报告才有意义" class="">七、指标要能取出来，报告才有意义</a>
+      
+        <a href="#7-1-内置报告" data-h="7-1-内置报告" class="l2">7.1 内置报告</a>
+      
+        <a href="#7-2-自定义指标与-KPI" data-h="7-2-自定义指标与-KPI" class="l2">7.2 自定义指标与 KPI</a>
+      
+        <a href="#7-3-高级报告与集成" data-h="7-3-高级报告与集成" class="l2">7.3 高级报告与集成</a>
+      
+        <a href="#八、性能调优、备份和升级都得提前规划" data-h="八、性能调优、备份和升级都得提前规划" class="">八、性能调优、备份和升级都得提前规划</a>
+      
+        <a href="#8-1-系统调优" data-h="8-1-系统调优" class="l2">8.1 系统调优</a>
+      
+        <a href="#8-2-备份与恢复" data-h="8-2-备份与恢复" class="l2">8.2 备份与恢复</a>
+      
+        <a href="#8-3-升级策略" data-h="8-3-升级策略" class="l2">8.3 升级策略</a>
+      
+        <a href="#九、大规模部署和多租户隔离怎么选" data-h="九、大规模部署和多租户隔离怎么选" class="">九、大规模部署和多租户隔离怎么选</a>
+      
+        <a href="#9-1-大规模部署" data-h="9-1-大规模部署" class="l2">9.1 大规模部署</a>
+      
+        <a href="#9-2-多组织与隔离环境" data-h="9-2-多组织与隔离环境" class="l2">9.2 多组织与隔离环境</a>
+      
+        <a href="#9-3-完整-DevSecOps-集成" data-h="9-3-完整-DevSecOps-集成" class="l2">9.3 完整 DevSecOps 集成</a>
+      
+        <a href="#十、出问题先看日志、状态和连接三件事" data-h="十、出问题先看日志、状态和连接三件事" class="">十、出问题先看日志、状态和连接三件事</a>
+      
+        <a href="#10-1-常见问题解决方案" data-h="10-1-常见问题解决方案" class="l2">10.1 常见问题解决方案</a>
+      
+        <a href="#10-2-问题排查方法" data-h="10-2-问题排查方法" class="l2">10.2 问题排查方法</a>
+      
+        <a href="#10-3-日志分析" data-h="10-3-日志分析" class="l2">10.3 日志分析</a>
+      
+        <a href="#十一、落地按阶段推进，别一步到位" data-h="十一、落地按阶段推进，别一步到位" class="">十一、落地按阶段推进，别一步到位</a>
+      
+        <a href="#11-1-实施路线图" data-h="11-1-实施路线图" class="l2">11.1 实施路线图</a>
+      
+        <a href="#11-2-分步实施计划" data-h="11-2-分步实施计划" class="l2">11.2 分步实施计划</a>
+      
+        <a href="#11-3-关键成功因素" data-h="11-3-关键成功因素" class="l2">11.3 关键成功因素</a>
+      
+        <a href="#十二、组织、技术、流程三层都要跟得上" data-h="十二、组织、技术、流程三层都要跟得上" class="">十二、组织、技术、流程三层都要跟得上</a>
+      
+        <a href="#12-1-组织准备最佳实践" data-h="12-1-组织准备最佳实践" class="l2">12.1 组织准备最佳实践</a>
+      
+        <a href="#12-2-技术配置最佳实践" data-h="12-2-技术配置最佳实践" class="l2">12.2 技术配置最佳实践</a>
+      
+        <a href="#12-3-流程集成最佳实践" data-h="12-3-流程集成最佳实践" class="l2">12.3 流程集成最佳实践</a>
+      
+        <a href="#12-4-漏洞管理最佳实践" data-h="12-4-漏洞管理最佳实践" class="l2">12.4 漏洞管理最佳实践</a>
+      
+        <a href="#十三、排查按系统、集成、数据、性能四类走" data-h="十三、排查按系统、集成、数据、性能四类走" class="">十三、排查按系统、集成、数据、性能四类走</a>
+      
+        <a href="#13-1-常见问题解决方案" data-h="13-1-常见问题解决方案" class="l2">13.1 常见问题解决方案</a>
+      
+        <a href="#13-2-日志分析技巧" data-h="13-2-日志分析技巧" class="l2">13.2 日志分析技巧</a>
+      
+        <a href="#13-3-系统健康检查" data-h="13-3-系统健康检查" class="l2">13.3 系统健康检查</a>
+      
+        <a href="#十四、把工具接进流程才是终点" data-h="十四、把工具接进流程才是终点" class="">十四、把工具接进流程才是终点</a>
+      
+        <a href="#14-1-总结" data-h="14-1-总结" class="l2">14.1 总结</a>
+      
+        <a href="#14-2-持续学习资源" data-h="14-2-持续学习资源" class="l2">14.2 持续学习资源</a>
+      
+        <a href="#14-3-最终思考" data-h="14-3-最终思考" class="l2">14.3 最终思考</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

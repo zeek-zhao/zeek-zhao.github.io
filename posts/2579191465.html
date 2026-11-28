@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>监控系统：从指标到告警的落地思路 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="监控系统是一套工具和流程的组合，用于收集、处理、存储和展示IT环境中各种组件的运行状态和性能数据。它帮助技术团队了解系统现在是否正常工作以及为什么系统不正常工作。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/2579191465.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="监控系统：从指标到告警的落地思路">
+<meta property="og:description" content="监控系统是一套工具和流程的组合，用于收集、处理、存储和展示IT环境中各种组件的运行状态和性能数据。它帮助技术团队了解系统现在是否正常工作以及为什么系统不正常工作。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/2579191465.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="监控系统：从指标到告警的落地思路">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-03T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="编程语言">
+          <div class="sg-head">
+            <span>💻</span><span>编程语言</span><span class="cnt">231 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="groovy">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/groovy/" class=""><span>🎵</span><span>groovy</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 groovy 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2282500807.html" class="">01-Groovy简介与特性</a>
+                  
+                    <a href="/posts/2192269971.html" class="">02-安装与运行环境</a>
+                  
+                    <a href="/posts/1972862518.html" class="">03-语法基础</a>
+                  
+                    <a href="/posts/1893677660.html" class="">04-动态类型与类型系统</a>
+                  
+                    <a href="/posts/2263298668.html" class="">05-闭包基础</a>
+                  
+                    <a href="/posts/1963770138.html" class="">06-GString与字符串</a>
+                  
+                    <a href="/posts/2926533160.html" class="">07-操作符重载</a>
+                  
+                    <a href="/posts/137803024.html" class="">08-与Java互操作</a>
+                  
+                    <a href="/posts/3109056171.html" class="">09-面向对象</a>
+                  
+                    <a href="/posts/264025632.html" class="">10-trait与特性</a>
+                  
+                    <a href="/posts/3241380956.html" class="">11-默认参数与多重赋值</a>
+                  
+                    <a href="/posts/850744168.html" class="">12-集合与遍历</a>
+                  
+                    <a href="/posts/1773101978.html" class="">13-闭包进阶</a>
+                  
+                    <a href="/posts/2038790379.html" class="">14-元编程MOP</a>
+                  
+                    <a href="/posts/3307374400.html" class="">15-方法缺失与动态方法</a>
+                  
+                    <a href="/posts/73439704.html" class="">16-分类与扩展</a>
+                  
+                    <a href="/posts/2022487872.html" class="">17-字符串与正则</a>
+                  
+                    <a href="/posts/1372015587.html" class="">18-文件IO</a>
+                  
+                    <a href="/posts/1278490648.html" class="">19-JSON与XML处理</a>
+                  
+                    <a href="/posts/1109974885.html" class="">20-数据库访问</a>
+                  
+                    <a href="/posts/1914309065.html" class="">21-Groovy与Gradle构建</a>
+                  
+                    <a href="/posts/3829449832.html" class="">22-Spock测试框架</a>
+                  
+                    <a href="/posts/3208685137.html" class="">23-Groovy脚本化</a>
+                  
+                    <a href="/posts/1860553690.html" class="">24-GDK扩展</a>
+                  
+                    <a href="/posts/3169274589.html" class="">25-Groovy与Jenkins Pipeline</a>
+                  
+                    <a href="/posts/1593747744.html" class="">26-Jenkins声明式与脚本式</a>
+                  
+                    <a href="/posts/2901769728.html" class="">27-DSL构建</a>
+                  
+                    <a href="/posts/1617959215.html" class="">28-AST转换</a>
+                  
+                    <a href="/posts/3312453882.html" class="">29-性能优化</a>
+                  
+                    <a href="/posts/66510573.html" class="">30-并发与异步</a>
+                  
+                    <a href="/posts/530063675.html" class="">groovy 00-索引</a>
+                  
+                    <a href="/posts/1282058828.html" class="">groovy 39-常见问题排查</a>
+                  
+                    <a href="/posts/3404541891.html" class="">groovy 资料索引指南</a>
+                  
+                    <a href="/posts/4286498902.html" class="">31-GPars并发库</a>
+                  
+                    <a href="/posts/3824291235.html" class="">32-Web开发与Grails</a>
+                  
+                    <a href="/posts/2195762983.html" class="">33-Groovy服务与微服务</a>
+                  
+                    <a href="/posts/3216722037.html" class="">34-构建工具与依赖管理</a>
+                  
+                    <a href="/posts/1687475308.html" class="">35-单元测试与Mock</a>
+                  
+                    <a href="/posts/734893168.html" class="">36-代码风格与最佳实践</a>
+                  
+                    <a href="/posts/2569908089.html" class="">37-调试与性能分析</a>
+                  
+                    <a href="/posts/1365861220.html" class="">38-版本与发布管理</a>
+                  
+                    <a href="/posts/1678134708.html" class="">40-实战项目</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="c-cpp">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/c-cpp/" class=""><span>🔧</span><span>c-cpp</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 c-cpp 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2010224224.html" class="">环境搭建与第一个程序</a>
+                  
+                    <a href="/posts/3276415470.html" class="">基础语法与数据类型</a>
+                  
+                    <a href="/posts/3694112316.html" class="">运算符与表达式</a>
+                  
+                    <a href="/posts/989639610.html" class="">控制流</a>
+                  
+                    <a href="/posts/286376949.html" class="">函数基础</a>
+                  
+                    <a href="/posts/2122762525.html" class="">指针与内存</a>
+                  
+                    <a href="/posts/137912287.html" class="">数组与字符串</a>
+                  
+                    <a href="/posts/421182776.html" class="">结构体与联合体</a>
+                  
+                    <a href="/posts/3189511810.html" class="">文件IO</a>
+                  
+                    <a href="/posts/1851015026.html" class="">预处理器与宏</a>
+                  
+                    <a href="/posts/3132484424.html" class="">编译与链接</a>
+                  
+                    <a href="/posts/3487791556.html" class="">Make与CMake</a>
+                  
+                    <a href="/posts/2247057531.html" class="">动态库与静态库</a>
+                  
+                    <a href="/posts/1846073231.html" class="">STL基础</a>
+                  
+                    <a href="/posts/978419494.html" class="">类与对象</a>
+                  
+                    <a href="/posts/4127262035.html" class="">模板</a>
+                  
+                    <a href="/posts/42497983.html" class="">异常处理</a>
+                  
+                    <a href="/posts/785480470.html" class="">并发基础</a>
+                  
+                    <a href="/posts/2995456600.html" class="">调试技巧</a>
+                  
+                    <a href="/posts/2737067120.html" class="">移动语义与智能指针</a>
+                  
+                    <a href="/posts/4006321951.html" class="">工程实践与代码规范</a>
+                  
+                    <a href="/posts/2042245035.html" class="">综合实战项目</a>
+                  
+                    <a href="/posts/2084193678.html" class="">C/C++ 学习路线索引</a>
+                  
+                    <a href="/posts/633058435.html" class="">C/C++ 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="database">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/database/" class=""><span>🗄️</span><span>database</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 database 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2785949970.html" class="">数据库基础与SQL入门</a>
+                  
+                    <a href="/posts/3910832008.html" class="">MySQL 安装与配置</a>
+                  
+                    <a href="/posts/1137247105.html" class="">MySQL 常用操作</a>
+                  
+                    <a href="/posts/418285562.html" class="">索引与执行计划</a>
+                  
+                    <a href="/posts/1229218731.html" class="">事务与锁</a>
+                  
+                    <a href="/posts/4026121810.html" class="">视图、存储过程与触发器</a>
+                  
+                    <a href="/posts/1684695169.html" class="">SQL 优化</a>
+                  
+                    <a href="/posts/440716968.html" class="">database 备份恢复</a>
+                  
+                    <a href="/posts/1216837036.html" class="">数据库设计范式</a>
+                  
+                    <a href="/posts/3376583833.html" class="">PostgreSQL 入门</a>
+                  
+                    <a href="/posts/4079913310.html" class="">PostgreSQL 进阶</a>
+                  
+                    <a href="/posts/4157437049.html" class="">Redis 入门与常用命令</a>
+                  
+                    <a href="/posts/2585400016.html" class="">Redis 持久化与集群</a>
+                  
+                    <a href="/posts/3389292749.html" class="">Redis 高级特性</a>
+                  
+                    <a href="/posts/3026500765.html" class="">MongoDB 入门</a>
+                  
+                    <a href="/posts/2382930266.html" class="">MongoDB 进阶</a>
+                  
+                    <a href="/posts/1017376680.html" class="">ORM 基础</a>
+                  
+                    <a href="/posts/1693324160.html" class="">读写分离与高可用</a>
+                  
+                    <a href="/posts/3520293075.html" class="">运维监控</a>
+                  
+                    <a href="/posts/260837483.html" class="">数据库安全与权限</a>
+                  
+                    <a href="/posts/1018471082.html" class="">分布式数据库与新技术</a>
+                  
+                    <a href="/posts/550302554.html" class="">综合实战：从设计到上线</a>
+                  
+                    <a href="/posts/3362087806.html" class="">数据库学习索引</a>
+                  
+                    <a href="/posts/1312405026.html" class="">database 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="go">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/go/" class=""><span>🐹</span><span>go</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 go 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2222052917.html" class="">环境与工程结构</a>
+                  
+                    <a href="/posts/2006681042.html" class="">go 控制流</a>
+                  
+                    <a href="/posts/2233595580.html" class="">函数与包</a>
+                  
+                    <a href="/posts/4006853306.html" class="">数组切片与映射</a>
+                  
+                    <a href="/posts/1502279950.html" class="">结构体与方法</a>
+                  
+                    <a href="/posts/1498536549.html" class="">接口</a>
+                  
+                    <a href="/posts/3252376470.html" class="">错误处理</a>
+                  
+                    <a href="/posts/2438782949.html" class="">并发goroutine与channel</a>
+                  
+                    <a href="/posts/4019209590.html" class="">标准库常用包</a>
+                  
+                    <a href="/posts/1273448351.html" class="">文件与JSON</a>
+                  
+                    <a href="/posts/2187071801.html" class="">Web编程</a>
+                  
+                    <a href="/posts/2645272983.html" class="">测试</a>
+                  
+                    <a href="/posts/3617876276.html" class="">模块管理</a>
+                  
+                    <a href="/posts/3767251478.html" class="">go 性能优化</a>
+                  
+                    <a href="/posts/649712689.html" class="">部署</a>
+                  
+                    <a href="/posts/869149486.html" class="">指针与内存模型</a>
+                  
+                    <a href="/posts/3343202970.html" class="">反射与泛型</a>
+                  
+                    <a href="/posts/676309271.html" class="">Context与超时控制</a>
+                  
+                    <a href="/posts/150711566.html" class="">并发模式与sync包</a>
+                  
+                    <a href="/posts/4074450660.html" class="">Go 语言学习路线索引</a>
+                  
+                    <a href="/posts/1599809470.html" class="">go 基础语法与数据类型</a>
+                  
+                    <a href="/posts/1926928719.html" class="">go 工程实践与代码规范</a>
+                  
+                    <a href="/posts/544488756.html" class="">go 综合实战项目</a>
+                  
+                    <a href="/posts/291020681.html" class="">Go 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="java">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/java/" class=""><span>☕</span><span>java</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 java 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/900698739.html" class="">环境与构建工具</a>
+                  
+                    <a href="/posts/2709793725.html" class="">运算符与控制流</a>
+                  
+                    <a href="/posts/2644169279.html" class="">面向对象基础</a>
+                  
+                    <a href="/posts/490099472.html" class="">接口与抽象类</a>
+                  
+                    <a href="/posts/3179474559.html" class="">常用工具类与字符串</a>
+                  
+                    <a href="/posts/3763929048.html" class="">java 异常处理</a>
+                  
+                    <a href="/posts/2128322273.html" class="">集合框架</a>
+                  
+                    <a href="/posts/1987617322.html" class="">泛型</a>
+                  
+                    <a href="/posts/4237021425.html" class="">IO与NIO</a>
+                  
+                    <a href="/posts/2861427371.html" class="">多线程与并发</a>
+                  
+                    <a href="/posts/2319003500.html" class="">JVM基础</a>
+                  
+                    <a href="/posts/1093045828.html" class="">注解与反射</a>
+                  
+                    <a href="/posts/3874941873.html" class="">Lambda与Stream</a>
+                  
+                    <a href="/posts/764954799.html" class="">JDBC与数据库访问</a>
+                  
+                    <a href="/posts/4073422361.html" class="">Spring Boot 入门</a>
+                  
+                    <a href="/posts/3258749148.html" class="">Maven与Gradle</a>
+                  
+                    <a href="/posts/306399501.html" class="">java 性能调优</a>
+                  
+                    <a href="/posts/2616540108.html" class="">java 测试</a>
+                  
+                    <a href="/posts/2324736803.html" class="">java 工程实践与代码规范</a>
+                  
+                    <a href="/posts/2391349040.html" class="">进阶专题与框架生态</a>
+                  
+                    <a href="/posts/121696792.html" class="">面试指南与学习路线</a>
+                  
+                    <a href="/posts/2624531645.html" class="">Java 学习路线索引</a>
+                  
+                    <a href="/posts/2802914770.html" class="">java 基础语法与数据类型</a>
+                  
+                    <a href="/posts/3339440424.html" class="">java 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="python">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/python/" class=""><span>🐍</span><span>python</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 python 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2553430398.html" class="">环境与虚拟环境</a>
+                  
+                    <a href="/posts/127297243.html" class="">数据结构</a>
+                  
+                    <a href="/posts/3603745174.html" class="">函数与作用域</a>
+                  
+                    <a href="/posts/673421965.html" class="">面向对象</a>
+                  
+                    <a href="/posts/976952921.html" class="">模块与包</a>
+                  
+                    <a href="/posts/2782557087.html" class="">文件与异常</a>
+                  
+                    <a href="/posts/3920158161.html" class="">迭代器与生成器</a>
+                  
+                    <a href="/posts/3662810771.html" class="">装饰器</a>
+                  
+                    <a href="/posts/451270359.html" class="">常用标准库</a>
+                  
+                    <a href="/posts/794273428.html" class="">正则表达式</a>
+                  
+                    <a href="/posts/3687837868.html" class="">网络请求</a>
+                  
+                    <a href="/posts/2804548108.html" class="">数据可视化基础</a>
+                  
+                    <a href="/posts/3982325932.html" class="">Web框架入门</a>
+                  
+                    <a href="/posts/633809346.html" class="">python 测试</a>
+                  
+                    <a href="/posts/3541108257.html" class="">打包发布</a>
+                  
+                    <a href="/posts/2879226760.html" class="">python 性能优化</a>
+                  
+                    <a href="/posts/1313650551.html" class="">类型注解与异步编程</a>
+                  
+                    <a href="/posts/1812046728.html" class="">并发编程基础</a>
+                  
+                    <a href="/posts/3719268839.html" class="">Python 学习路线索引</a>
+                  
+                    <a href="/posts/3674709764.html" class="">python 基础语法与数据类型</a>
+                  
+                    <a href="/posts/789375585.html" class="">python 控制流</a>
+                  
+                    <a href="/posts/4135985653.html" class="">python 工程实践与代码规范</a>
+                  
+                    <a href="/posts/2464461139.html" class="">python 综合实战项目</a>
+                  
+                    <a href="/posts/2217638122.html" class="">Python 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="shell">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/shell/" class=""><span>🐚</span><span>shell</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 shell 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/100939485.html" class="">基础语法与第一个脚本</a>
+                  
+                    <a href="/posts/222000688.html" class="">变量与参数</a>
+                  
+                    <a href="/posts/4017408055.html" class="">条件与循环</a>
+                  
+                    <a href="/posts/1907208342.html" class="">函数</a>
+                  
+                    <a href="/posts/3056822755.html" class="">字符串处理</a>
+                  
+                    <a href="/posts/196339549.html" class="">数组与关联数组</a>
+                  
+                    <a href="/posts/3390854318.html" class="">文件与目录操作</a>
+                  
+                    <a href="/posts/1083871715.html" class="">管道与重定向</a>
+                  
+                    <a href="/posts/2340941560.html" class="">文本处理三剑客</a>
+                  
+                    <a href="/posts/2916222012.html" class="">进程与作业控制</a>
+                  
+                    <a href="/posts/125459599.html" class="">shell 正则表达式</a>
+                  
+                    <a href="/posts/2395128666.html" class="">脚本调试</a>
+                  
+                    <a href="/posts/3386609682.html" class="">常用脚本实战</a>
+                  
+                    <a href="/posts/1097168287.html" class="">安全与健壮性</a>
+                  
+                    <a href="/posts/2878192351.html" class="">系统管理脚本</a>
+                  
+                    <a href="/posts/2849399902.html" class="">命令替换与算术运算</a>
+                  
+                    <a href="/posts/3022682465.html" class="">环境变量与配置文件</a>
+                  
+                    <a href="/posts/2817359151.html" class="">信号处理与trap</a>
+                  
+                    <a href="/posts/3580546465.html" class="">数组进阶与参数展开</a>
+                  
+                    <a href="/posts/3103867964.html" class="">函数库与模块化</a>
+                  
+                    <a href="/posts/4270973958.html" class="">性能与效率</a>
+                  
+                    <a href="/posts/2758675135.html" class="">综合实战自动化运维脚本</a>
+                  
+                    <a href="/posts/3287727682.html" class="">Shell 学习路线索引</a>
+                  
+                    <a href="/posts/2591510351.html" class="">Shell 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="vue">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/vue/" class=""><span>💚</span><span>vue</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 vue 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3650843800.html" class="">环境搭建与第一个项目</a>
+                  
+                    <a href="/posts/1971197746.html" class="">模板语法与指令</a>
+                  
+                    <a href="/posts/3932569755.html" class="">组件基础</a>
+                  
+                    <a href="/posts/1162395221.html" class="">组件通信</a>
+                  
+                    <a href="/posts/4270092731.html" class="">生命周期</a>
+                  
+                    <a href="/posts/571520866.html" class="">计算属性与侦听器</a>
+                  
+                    <a href="/posts/4180264891.html" class="">路由基础</a>
+                  
+                    <a href="/posts/2737864006.html" class="">路由进阶与导航守卫</a>
+                  
+                    <a href="/posts/2673001667.html" class="">状态管理 Pinia</a>
+                  
+                    <a href="/posts/3525517994.html" class="">组合式API</a>
+                  
+                    <a href="/posts/3179177874.html" class="">指令与插槽</a>
+                  
+                    <a href="/posts/1188634286.html" class="">表单处理与v-model</a>
+                  
+                    <a href="/posts/1361545107.html" class="">动画与过渡</a>
+                  
+                    <a href="/posts/917590456.html" class="">组件高级模式</a>
+                  
+                    <a href="/posts/4201712671.html" class="">工程化与构建工具</a>
+                  
+                    <a href="/posts/1646590434.html" class="">vue 部署</a>
+                  
+                    <a href="/posts/2239008446.html" class="">组合式API进阶与Hooks</a>
+                  
+                    <a href="/posts/3154329587.html" class="">TypeScript集成</a>
+                  
+                    <a href="/posts/1774703644.html" class="">vue 性能优化</a>
+                  
+                    <a href="/posts/3455342102.html" class="">工程实践与项目架构</a>
+                  
+                    <a href="/posts/3745628062.html" class="">Vue 学习路线索引</a>
+                  
+                    <a href="/posts/3644228676.html" class="">vue 测试</a>
+                  
+                    <a href="/posts/2830850869.html" class="">vue 综合实战项目</a>
+                  
+                    <a href="/posts/241163344.html" class="">vue 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FullStack">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/FullStack/" class=""><span>🌐</span><span>FullStack</span><span class="cnt">21</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FullStack 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1535834507.html" class="">全栈开发必须打牢的基础知识</a>
+                  
+                    <a href="/posts/2984936648.html" class="">先搞清楚全栈开发到底要干什么</a>
+                  
+                    <a href="/posts/4182759822.html" class="">前端开发从基础到工程化全梳理</a>
+                  
+                    <a href="/posts/595339902.html" class="">前端开发全景：从三件套到架构</a>
+                  
+                    <a href="/posts/2821924903.html" class="">前端框架怎么选：React、Vue、Angular 横着比</a>
+                  
+                    <a href="/posts/408632485.html" class="">API 设计与开发：从原则到落地</a>
+                  
+                    <a href="/posts/691554806.html" class="">后端开发从环境到架构全梳理</a>
+                  
+                    <a href="/posts/299971416.html" class="">后端开发全景：语言、架构、存储与运维</a>
+                  
+                    <a href="/posts/298451379.html" class="">后端框架怎么选：从场景出发的取舍</a>
+                  
+                    <a href="/posts/4172611324.html" class="">微服务架构：拆得动还要扛得住</a>
+                  
+                    <a href="/posts/807990903.html" class="">大数据：从采集到价值落地的全链路</a>
+                  
+                    <a href="/posts/4077735264.html" class="">安全架构：把防御做进系统每一层</a>
+                  
+                    <a href="/posts/2558853324.html" class="">数据库：选型、建模、调优一条线</a>
+                  
+                    <a href="/posts/3112799765.html" class="">认证与授权：把身份和权限说清楚</a>
+                  
+                    <a href="/posts/1187077599.html" class="">包管理：依赖、锁文件与供应链安全</a>
+                  
+                    <a href="/posts/2530189277.html" class="">现代应用部署：从流水线到云原生</a>
+                  
+                    <a href="/posts/2579191465.html" class="active">监控系统：从指标到告警的落地思路</a>
+                  
+                    <a href="/posts/4085498241.html" class="">软件测试：把质量做进日常开发</a>
+                  
+                    <a href="/posts/193953784.html" class="">静态检查与代码格式化：让规则替人把关</a>
+                  
+                    <a href="/posts/1529645776.html" class="">FullStack 全栈开发技能索引</a>
+                  
+                    <a href="/posts/228268299.html" class="">性能优化：从前端到基础设施的系统打法</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/">💻 编程语言</a> / <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/FullStack/">🌐 FullStack</a> / <span>监控系统：从指标到告警的落地思路</span></div>
+
+<h1>监控系统：从指标到告警的落地思路</h1>
+<div class="subtitle">监控系统是一套工具和流程的组合，用于收集、处理、存储和展示IT环境中各种组件的运行状态和性能数据。它帮助技术团队了解系统现在是否正常工作以及为什么系统不正常工作。</div>
+<div class="article-meta">
+  <span>📅 2026-11-03</span><span>· 更新于 2026-11-03</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 8243 字 · 约 21 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/FullStack/">#FullStack</a><a class="tagchip" href="/tags/%E7%9B%91%E6%8E%A7/">#监控</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/2579191465.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="监控系统：从指标到告警的落地思路"><a href="#监控系统：从指标到告警的落地思路" class="headerlink" title="监控系统：从指标到告警的落地思路"></a>监控系统：从指标到告警的落地思路</h1><p>监控系统不是 dashboards 堆得越多越好。我更倾向先把告警做准，再考虑可视化。</p>
+<h2 id="监控到底是什么，先把概念掰开">监控到底是什么，先把概念掰开<a class="hlink" data-h="监控到底是什么，先把概念掰开" href="#监控到底是什么，先把概念掰开" title="跳到本节">¶</a></h2><h3 id="什么是监控系统？">什么是监控系统？<a class="hlink" data-h="什么是监控系统？" href="#什么是监控系统？" title="跳到本节">¶</a></h3><div class="mermaid">
+mindmap
+  root((监控系统))
+    定义
+      系统状态观测工具
+      问题早期预警机制
+      性能瓶颈识别器
+      数据驱动决策基础
+    目标
+      减少平均检测时间(MTTD)
+      减少平均恢复时间(MTTR)
+      提高系统可用性
+      优化性能和资源利用
+      防患于未然
+    核心功能
+      数据收集
+        指标
+        日志
+        追踪
+        事件
+      数据处理
+        聚合
+        计算
+        存储
+      数据展示
+        可视化
+        报告
+      告警管理
+        规则定义
+        通知传递
+        升级流程
+    演进趋势
+      从单一工具到集成平台
+      从被动响应到主动预测
+      从监控到可观测性
+</div>
+
+<p>监控系统是一套工具和流程的组合，用于收集、处理、存储和展示IT环境中各种组件的运行状态和性能数据。它帮助技术团队了解”系统现在是否正常工作”以及”为什么系统不正常工作”。</p>
+<h3 id="监控系统的重要性">监控系统的重要性<a class="hlink" data-h="监控系统的重要性" href="#监控系统的重要性" title="跳到本节">¶</a></h3><div class="callout note" data-callout="note"><div class="callout-title"><span class="callout-ico">📝</span><span class="callout-title-inner">监控系统的关键价值</span></div><div class="callout-body"><ol>
+<li><p><strong>降低风险</strong></p>
+<ul>
+<li>早期发现潜在问题</li>
+<li>预防系统故障和服务中断</li>
+<li>减少安全事件的影响</li>
+</ul>
+</li>
+<li><p><strong>提升性能</strong></p>
+<ul>
+<li>识别和解决性能瓶颈</li>
+<li>优化资源使用和分配</li>
+<li>验证性能优化的效果</li>
+</ul>
+</li>
+<li><p><strong>改进用户体验</strong></p>
+<ul>
+<li>确保服务可用性和响应速度</li>
+<li>减少因故障导致的负面体验</li>
+<li>提供持续稳定的服务</li>
+</ul>
+</li>
+<li><p><strong>支持业务决策</strong></p>
+<ul>
+<li>提供容量规划的数据依据</li>
+<li>量化技术投资的回报</li>
+<li>优化运营成本</li>
+</ul>
+</li>
+</ol>
+</div></div>
+<h3 id="从监控到可观测性">从监控到可观测性<a class="hlink" data-h="从监控到可观测性" href="#从监控到可观测性" title="跳到本节">¶</a></h3><div class="mermaid">
+graph LR
+    A[监控 Monitoring] --&gt;|演进| B[可观测性 Observability]
+    A --&gt; A1[告诉你系统&lt;br&gt;出了什么问题]
+    B --&gt; B1[告诉你为什么&lt;br&gt;出现这个问题]
+    A --&gt; A2[预定义指标]
+    B --&gt; B2[未知问题探索]
+    A --&gt; A3[系统视角]
+    B --&gt; B3[用户视角]
+    A --&gt; A4[被动响应]
+    B --&gt; B4[主动发现]
+    style A fill:#e3f2fd
+    style B fill:#e8f5e9
+    style A1,A2,A3,A4 fill:#bbdefb
+    style B1,B2,B3,B4 fill:#c8e6c9
+</div>
+
+<p>可观测性是监控的自然演进，它超越了简单的状态检查，提供了更全面的系统洞察能力。传统监控告诉你”系统是否正常工作”，而可观测性帮助你理解”系统为什么会这样工作”。</p>
+<h3 id="监控的三大支柱">监控的三大支柱<a class="hlink" data-h="监控的三大支柱" href="#监控的三大支柱" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[监控系统三大支柱] --&gt; B[指标 Metrics]
+    A --&gt; C[日志 Logs]
+    A --&gt; D[追踪 Traces]
+    B --&gt; B1[数值化的系统状态表示]
+    B --&gt; B2[如: CPU使用率、内存消耗]
+    B --&gt; B3[特点: 低开销、高聚合性]
+    C --&gt; C1[系统事件的文本记录]
+    C --&gt; C2[如: 错误消息、审计记录]
+    C --&gt; C3[特点: 详细上下文、非结构化]
+    D --&gt; D1[分布式系统的请求流程]
+    D --&gt; D2[如: 微服务间调用关系]
+    D --&gt; D3[特点: 端到端可视、高基数]
+    B --&gt; E[工具: Prometheus, Graphite]
+    C --&gt; F[工具: ELK Stack, Graylog]
+    D --&gt; G[工具: Jaeger, Zipkin]
+    style A fill:#f9f9f9
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D fill:#fff8e1
+</div>
+
+<p>现代监控系统基于三大核心数据类型：指标、日志和追踪。这三者共同构成了完整的可观测性解决方案，为系统的健康状态提供全方位的洞察。</p>
+<h3 id="监控的黄金信号">监控的黄金信号<a class="hlink" data-h="监控的黄金信号" href="#监控的黄金信号" title="跳到本节">¶</a></h3><p>Google的SRE团队定义了四个黄金信号（Four Golden Signals），作为服务监控的基础：</p>
+<div class="callout info" data-callout="info"><div class="callout-title"><span class="callout-ico">ℹ️</span><span class="callout-title-inner"><br><strong>监控黄金信号</strong></span></div><div class="callout-body"></div></div>
+<ol>
+<li><p><strong>延迟 (Latency)</strong></p>
+<ul>
+<li><strong>定义</strong>: 服务处理请求所需的时间</li>
+<li><strong>关注点</strong>: 区分成功请求和失败请求的延迟</li>
+<li><strong>重要性</strong>: 直接影响用户体验和满意度</li>
+<li><strong>示例指标</strong>: API响应时间、页面加载时间、数据库查询延迟</li>
+</ul>
+</li>
+<li><p><strong>流量 (Traffic)</strong></p>
+<ul>
+<li><strong>定义</strong>: 系统需求的度量，通常是请求率</li>
+<li><strong>关注点</strong>: 了解系统负载，预测扩容需求</li>
+<li><strong>重要性</strong>: 帮助理解系统容量和瓶颈</li>
+<li><strong>示例指标</strong>: RPS(每秒请求数)、QPS(每秒查询数)、带宽使用</li>
+</ul>
+</li>
+<li><p><strong>错误 (Errors)</strong></p>
+<ul>
+<li><strong>定义</strong>: 失败请求的比率或数量</li>
+<li><strong>关注点</strong>: 显式失败(如HTTP 500)和隐式失败(如错误内容)</li>
+<li><strong>重要性</strong>: 直接反映服务质量问题</li>
+<li><strong>示例指标</strong>: 错误率、失败事务百分比、超时次数</li>
+</ul>
+</li>
+<li><p><strong>饱和度 (Saturation)</strong></p>
+<ul>
+<li><strong>定义</strong>: 系统资源使用程度</li>
+<li><strong>关注点</strong>: 最受限制资源的利用率(瓶颈)</li>
+<li><strong>重要性</strong>: 指示系统接近极限，可预测未来故障</li>
+<li><strong>示例指标</strong>: CPU利用率、内存使用、磁盘I&#x2F;O、连接池使用率<blockquote>
+</blockquote>
+</li>
+</ul>
+</li>
+</ol>
+<h2 id="监控架构要按数据流来搭">监控架构要按数据流来搭<a class="hlink" data-h="监控架构要按数据流来搭" href="#监控架构要按数据流来搭" title="跳到本节">¶</a></h2><h3 id="监控系统的基本架构">监控系统的基本架构<a class="hlink" data-h="监控系统的基本架构" href="#监控系统的基本架构" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[数据源] --&gt; B[收集器]
+    B --&gt; C[存储系统]
+    C --&gt; D[处理引擎]
+    D --&gt; E[可视化层]
+    D --&gt; F[告警系统]
+    F --&gt; G[通知渠道]
+    D --&gt; H[API接口]
+    A --&gt; A1[服务器]
+    A --&gt; A2[网络设备]
+    A --&gt; A3[应用程序]
+    A --&gt; A4[数据库]
+    A --&gt; A5[云服务]
+    B --&gt; B1[Agent/Exporter]
+    B --&gt; B2[日志收集器]
+    B --&gt; B3[API集成]
+    C --&gt; C1[时序数据库]
+    C --&gt; C2[日志存储]
+    C --&gt; C3[追踪存储]
+    G --&gt; G1[Email]
+    G --&gt; G2[SMS]
+    G --&gt; G3[Slack/Teams]
+    G --&gt; G4[PagerDuty]
+    style A fill:#f9f9f9
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D fill:#fff8e1
+    style E fill:#ffebee
+    style F fill:#e0f7fa
+    style G fill:#f3e5f5
+    style H fill:#ede7f6
+</div>
+
+<p>监控系统一般由数据收集、数据存储、数据处理、数据展示和告警通知五个主要部分组成。这些组件共同工作，提供对系统状态的全面可视化和异常情况的及时警报。</p>
+<h3 id="推拉模型比较">推拉模型比较<a class="hlink" data-h="推拉模型比较" href="#推拉模型比较" title="跳到本节">¶</a></h3><p>监控数据收集有两种主要模式：推送(Push)和拉取(Pull)。</p>
+<div class="mermaid">
+graph LR
+    subgraph 推送模型 Push
+        A1[被监控对象] --&gt;|主动发送数据| B1[监控服务器]
+    end
+    subgraph 拉取模型 Pull
+        B2[监控服务器] --&gt;|主动获取数据| A2[被监控对象]
+    end
+    style A1 fill:#bbdefb
+    style B1 fill:#c8e6c9
+    style A2 fill:#bbdefb
+    style B2 fill:#c8e6c9
+</div>
+
+<div class="callout info" data-callout="info"><div class="callout-title"><span class="callout-ico">ℹ️</span><span class="callout-title-inner"><br><strong>推拉模型对比</strong></span></div><div class="callout-body"></div></div>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>推送模型 (Push)</th>
+<th>拉取模型 (Pull)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>数据流向</strong></td>
+<td>被监控对象 → 监控系统</td>
+<td>监控系统 → 被监控对象</td>
+</tr>
+<tr>
+<td><strong>实现复杂度</strong></td>
+<td>较高（需在每个监控点实现发送逻辑）</td>
+<td>较低（监控点只需暴露数据）</td>
+</tr>
+<tr>
+<td><strong>实时性</strong></td>
+<td>更高（事件发生即推送）</td>
+<td>依赖于抓取间隔</td>
+</tr>
+<tr>
+<td><strong>可靠性</strong></td>
+<td>较低（网络问题可能导致数据丢失）</td>
+<td>较高（可重试失败的抓取）</td>
+</tr>
+<tr>
+<td><strong>安全性</strong></td>
+<td>需要授权监控点访问接收端</td>
+<td>需要授权监控系统访问监控点</td>
+</tr>
+<tr>
+<td><strong>适用场景</strong></td>
+<td>短生命周期实例、动态环境</td>
+<td>稳定的基础设施、传统应用</td>
+</tr>
+<tr>
+<td><strong>流量控制</strong></td>
+<td>由发送方决定，可能导致接收端压力</td>
+<td>由接收方控制，更易管理资源</td>
+</tr>
+<tr>
+<td><strong>代表工具</strong></td>
+<td>StatsD, Graphite, InfluxDB</td>
+<td>Prometheus, Nagios</td>
+</tr>
+</tbody></table>
+<blockquote>
+</blockquote>
+<h3 id="分层架构模型">分层架构模型<a class="hlink" data-h="分层架构模型" href="#分层架构模型" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[监控系统分层模型] --&gt; B[基础设施层]
+    A --&gt; C[应用层]
+    A --&gt; D[业务层]
+    A --&gt; E[用户体验层]
+    B --&gt; B1[服务器监控]
+    B --&gt; B2[网络监控]
+    B --&gt; B3[存储监控]
+    B --&gt; B4[云资源监控]
+    C --&gt; C1[应用性能]
+    C --&gt; C2[服务健康]
+    C --&gt; C3[依赖服务]
+    C --&gt; C4[中间件]
+    D --&gt; D1[业务指标]
+    D --&gt; D2[流程完成率]
+    D --&gt; D3[事务吞吐量]
+    D --&gt; D4[SLA达成度]
+    E --&gt; E1[页面加载时间]
+    E --&gt; E2[交互响应时间]
+    E --&gt; E3[错误率]
+    E --&gt; E4[用户行为]
+    style A fill:#f9f9f9
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D fill:#fff8e1
+    style E fill:#ffebee
+</div>
+
+<p>监控系统通常采用分层架构，从底层的基础设施监控到顶层的用户体验监控，每一层关注不同的指标和关键性能指标(KPIs)。</p>
+<h3 id="集中式与分布式架构">集中式与分布式架构<a class="hlink" data-h="集中式与分布式架构" href="#集中式与分布式架构" title="跳到本节">¶</a></h3><p>系统规模一变大，监控架构也得跟着演进：</p>
+<div class="mermaid">
+graph TD
+    subgraph 集中式架构
+        A1[监控服务器] --&gt; B1[被监控对象1]
+        A1 --&gt; B2[被监控对象2]
+        A1 --&gt; B3[被监控对象3]
+    end
+    subgraph 分布式架构
+        C1[监控服务器集群] --&gt; D1[区域收集器1]
+        C1 --&gt; D2[区域收集器2]
+        D1 --&gt; E1[被监控对象组1]
+        D1 --&gt; E2[被监控对象组2]
+        D2 --&gt; E3[被监控对象组3]
+        D2 --&gt; E4[被监控对象组4]
+    end
+    style A1 fill:#c8e6c9
+    style B1,B2,B3 fill:#bbdefb
+    style C1 fill:#c8e6c9
+    style D1,D2 fill:#ffcc80
+    style E1,E2,E3,E4 fill:#bbdefb
+</div>
+
+<p><strong>分布式监控架构的优势</strong>:</p>
+<ul>
+<li>更好的可扩展性，适应大规模部署</li>
+<li>提高容错能力，单点故障影响有限</li>
+<li>减少网络开销和延迟</li>
+<li>支持多数据中心和跨地域监控</li>
+<li>允许按照团队或业务单元进行监控分区</li>
+</ul>
+<h2 id="指标收集：先定口径再谈工具">指标收集：先定口径再谈工具<a class="hlink" data-h="指标收集：先定口径再谈工具" href="#指标收集：先定口径再谈工具" title="跳到本节">¶</a></h2><h3 id="关键监控指标分类">关键监控指标分类<a class="hlink" data-h="关键监控指标分类" href="#关键监控指标分类" title="跳到本节">¶</a></h3><p>选择正确的监控指标是建立有效监控系统的基础：</p>
+<div class="mermaid">
+graph TD
+    A[监控指标分类] --&gt; B[系统指标]
+    A --&gt; C[应用指标]
+    A --&gt; D[网络指标]
+    A --&gt; E[业务指标]
+    B --&gt; B1[CPU使用率]
+    B --&gt; B2[内存使用率]
+    B --&gt; B3[磁盘I/O]
+    B --&gt; B4[系统负载]
+    C --&gt; C1[请求速率]
+    C --&gt; C2[错误率]
+    C --&gt; C3[响应时间]
+    C --&gt; C4[并发连接数]
+    D --&gt; D1[带宽使用]
+    D --&gt; D2[网络延迟]
+    D --&gt; D3[包丢失率]
+    D --&gt; D4[连接状态]
+    E --&gt; E1[转化率]
+    E --&gt; E2[活跃用户数]
+    E --&gt; E3[事务成功率]
+    E --&gt; E4[收入指标]
+    style A fill:#f9f9f9
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D fill:#fff8e1
+    style E fill:#ffebee
+</div>
+
+<h3 id="指标类型与特性">指标类型与特性<a class="hlink" data-h="指标类型与特性" href="#指标类型与特性" title="跳到本节">¶</a></h3><div class="callout info" data-callout="info"><div class="callout-title"><span class="callout-ico">ℹ️</span><span class="callout-title-inner"><br><strong>主要指标类型</strong></span></div><div class="callout-body"></div></div>
+<ol>
+<li><p><strong>计数器(Counter)</strong></p>
+<ul>
+<li><strong>特性</strong>: 单调递增的累积值，只会增加不会减少（重启除外）</li>
+<li><strong>应用</strong>: 请求总数、错误总数、处理的任务数</li>
+<li><strong>计算</strong>: 通常通过计算速率(rate)使用，如每秒请求数</li>
+</ul>
+</li>
+<li><p><strong>仪表盘(Gauge)</strong></p>
+<ul>
+<li><strong>特性</strong>: 可任意上下波动的瞬时值</li>
+<li><strong>应用</strong>: CPU使用率、内存使用量、队列长度、当前温度</li>
+<li><strong>计算</strong>: 直接使用当前值，或计算最大&#x2F;最小&#x2F;平均值</li>
+</ul>
+</li>
+<li><p><strong>直方图(Histogram)</strong></p>
+<ul>
+<li><strong>特性</strong>: 将观测值分布在预定义的桶中</li>
+<li><strong>应用</strong>: 请求持续时间、响应大小分布</li>
+<li><strong>计算</strong>: 分位数、均值、中位数分析</li>
+</ul>
+</li>
+<li><p><strong>摘要(Summary)</strong></p>
+<ul>
+<li><strong>特性</strong>: 类似直方图，但在客户端计算分位数</li>
+<li><strong>应用</strong>: 与直方图类似，但可能更精确</li>
+<li><strong>计算</strong>: 直接提供分位数信息<blockquote>
+</blockquote>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="指标命名与标签管理">指标命名与标签管理<a class="hlink" data-h="指标命名与标签管理" href="#指标命名与标签管理" title="跳到本节">¶</a></h3><p>良好的指标命名和标签管理对于可维护的监控系统至关重要：</p>
+<div class="callout tip" data-callout="tip"><div class="callout-title"><span class="callout-ico">🔥</span><span class="callout-title-inner">指标命名最佳实践</span></div><div class="callout-body"><ol>
+<li><p><strong>遵循命名约定</strong></p>
+<ul>
+<li>使用有意义的前缀(如: <code>http_requests_total</code>)</li>
+<li>应用蛇形命名法(如: <code>memory_usage_bytes</code>)</li>
+<li>包含测量单位(如: <code>process_cpu_seconds_total</code>)</li>
+</ul>
+</li>
+<li><p><strong>添加适当的标签</strong></p>
+<ul>
+<li>使用标签区分不同维度(如: <code>environment=&quot;production&quot;</code>)</li>
+<li>避免高基数标签(如唯一ID)</li>
+<li>保持标签名称一致性</li>
+</ul>
+</li>
+<li><p><strong>避免常见错误</strong></p>
+<ul>
+<li>不要在指标名中包含变量内容</li>
+<li>不要创建过多相似指标</li>
+<li>不要使用过于复杂的标签组合</li>
+</ul>
+</li>
+</ol>
+</div></div>
+<p><strong>Prometheus指标示例</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 好的指标命名示例</span></span><br><span class="line"><span class="comment"># HELP http_requests_total HTTP请求的总数</span></span><br><span class="line"><span class="comment"># TYPE http_requests_total counter</span></span><br><span class="line">http_requests_total&#123;method=<span class="string">&quot;GET&quot;</span>, endpoint=<span class="string">&quot;/api/users&quot;</span>, status=<span class="string">&quot;200&quot;</span>&#125; 1036</span><br><span class="line">http_requests_total&#123;method=<span class="string">&quot;POST&quot;</span>, endpoint=<span class="string">&quot;/api/users&quot;</span>, status=<span class="string">&quot;201&quot;</span>&#125; 342</span><br><span class="line">http_requests_total&#123;method=<span class="string">&quot;GET&quot;</span>, endpoint=<span class="string">&quot;/api/products&quot;</span>, status=<span class="string">&quot;200&quot;</span>&#125; 2056</span><br><span class="line"></span><br><span class="line"><span class="comment"># HELP api_request_duration_seconds API请求处理时间直方图</span></span><br><span class="line"><span class="comment"># TYPE api_request_duration_seconds histogram</span></span><br><span class="line">api_request_duration_seconds_bucket&#123;endpoint=<span class="string">&quot;/api/users&quot;</span>, le=<span class="string">&quot;0.1&quot;</span>&#125; 980</span><br><span class="line">api_request_duration_seconds_bucket&#123;endpoint=<span class="string">&quot;/api/users&quot;</span>, le=<span class="string">&quot;0.5&quot;</span>&#125; 1001</span><br><span class="line">api_request_duration_seconds_bucket&#123;endpoint=<span class="string">&quot;/api/users&quot;</span>, le=<span class="string">&quot;1&quot;</span>&#125; 1015</span><br><span class="line">api_request_duration_seconds_bucket&#123;endpoint=<span class="string">&quot;/api/users&quot;</span>, le=<span class="string">&quot;+Inf&quot;</span>&#125; 1036</span><br><span class="line">api_request_duration_seconds_sum&#123;endpoint=<span class="string">&quot;/api/users&quot;</span>&#125; 80.3</span><br><span class="line">api_request_duration_seconds_count&#123;endpoint=<span class="string">&quot;/api/users&quot;</span>&#125; 1036</span><br></pre></td></tr></table></figure>
+
+<h3 id="数据收集策略">数据收集策略<a class="hlink" data-h="数据收集策略" href="#数据收集策略" title="跳到本节">¶</a></h3><div class="mermaid">
+flowchart TD
+    A[数据收集策略] --&gt; B[采样频率选择]
+    A --&gt; C[聚合方法]
+    A --&gt; D[数据保留策略]
+    B --&gt; B1[根据数据变化速率&lt;br&gt;确定采样间隔]
+    B --&gt; B2[平衡精度与开销]
+    C --&gt; C1[时间窗口聚合]
+    C --&gt; C2[空间聚合]
+    C --&gt; C3[适当降采样]
+    D --&gt; D1[高精度短期保留]
+    D --&gt; D2[低精度长期保留]
+    D --&gt; D3[按重要性分级存储]
+    style A fill:#f9f9f9
+    style B,C,D fill:#e3f2fd
+    style B1,B2 fill:#bbdefb
+    style C1,C2,C3 fill:#bbdefb
+    style D1,D2,D3 fill:#bbdefb
+</div>
+
+<p><strong>Prometheus数据保留配置示例</strong>:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Prometheus全局配置</span></span><br><span class="line"><span class="attr">global:</span></span><br><span class="line">  <span class="attr">scrape_interval:</span> <span class="string">15s</span>     <span class="comment"># 默认抓取间隔</span></span><br><span class="line">  <span class="attr">evaluation_interval:</span> <span class="string">15s</span> <span class="comment"># 规则评估间隔</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 存储配置</span></span><br><span class="line"><span class="attr">storage:</span></span><br><span class="line">  <span class="attr">tsdb:</span></span><br><span class="line">    <span class="attr">path:</span> <span class="string">/var/lib/prometheus</span></span><br><span class="line">    <span class="attr">retention:</span></span><br><span class="line">      <span class="attr">time:</span> <span class="string">15d</span>           <span class="comment"># 数据保留15天</span></span><br><span class="line">      <span class="attr">size:</span> <span class="string">500GB</span>         <span class="comment"># 最大存储大小</span></span><br><span class="line">    <span class="attr">out_of_order_time_window:</span> <span class="string">30m</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 远程存储集成(长期存储)</span></span><br><span class="line"><span class="attr">remote_write:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">url:</span> <span class="string">&quot;http://thanos-receiver:19291/api/v1/receive&quot;</span></span><br><span class="line">    <span class="attr">queue_config:</span></span><br><span class="line">      <span class="attr">capacity:</span> <span class="number">500</span></span><br><span class="line">      <span class="attr">max_shards:</span> <span class="number">1000</span></span><br><span class="line">      <span class="attr">max_samples_per_send:</span> <span class="number">100</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="告警要让收到的人能动手">告警要让收到的人能动手<a class="hlink" data-h="告警要让收到的人能动手" href="#告警要让收到的人能动手" title="跳到本节">¶</a></h2><h3 id="告警策略设计原则">告警策略设计原则<a class="hlink" data-h="告警策略设计原则" href="#告警策略设计原则" title="跳到本节">¶</a></h3><div class="mermaid">
+mindmap
+  root((告警策略&lt;br&gt;设计原则))
+    有意义
+      关注用户影响
+      避免假阳性
+      明确严重程度
+    可操作
+      清晰的行动指南
+      包含关键上下文
+      易于理解根本原因
+    分级管理
+      严重度定义
+      响应优先级
+      升级流程
+    维护性
+      易于调整阈值
+      支持模板化
+      集中化管理
+    降噪
+      防止告警风暴
+      分组相关告警
+      抑制次要告警
+</div>
+
+<h3 id="告警类型与定义方法">告警类型与定义方法<a class="hlink" data-h="告警类型与定义方法" href="#告警类型与定义方法" title="跳到本节">¶</a></h3><div class="callout info" data-callout="info"><div class="callout-title"><span class="callout-ico">ℹ️</span><span class="callout-title-inner"><br><strong>主要告警类型</strong></span></div><div class="callout-body"></div></div>
+<table>
+<thead>
+<tr>
+<th>告警类型</th>
+<th>描述</th>
+<th>适用场景</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>阈值告警</strong></td>
+<td>基于指标值超过预设阈值</td>
+<td>资源利用率监控</td>
+<td>CPU使用率&gt;90%</td>
+</tr>
+<tr>
+<td><strong>异常检测</strong></td>
+<td>基于指标的异常行为</td>
+<td>流量模式、性能异常</td>
+<td>请求延迟突然增加3倍</td>
+</tr>
+<tr>
+<td><strong>缺失数据告警</strong></td>
+<td>监控数据停止上报</td>
+<td>服务健康检查</td>
+<td>5分钟未收到心跳信号</td>
+</tr>
+<tr>
+<td><strong>复合条件告警</strong></td>
+<td>基于多个条件的组合</td>
+<td>复杂系统状态</td>
+<td>高CPU + 高内存 + 高错误率</td>
+</tr>
+<tr>
+<td><strong>预测性告警</strong></td>
+<td>基于趋势预测未来问题</td>
+<td>容量规划、磁盘空间</td>
+<td>预测24小时内磁盘将满</td>
+</tr>
+<tr>
+<td><strong>状态转换告警</strong></td>
+<td>监控对象状态变化</td>
+<td>服务状态监控</td>
+<td>服务从正常变为降级</td>
+</tr>
+<tr>
+<td><strong>模式识别告警</strong></td>
+<td>识别有害的访问或使用模式</td>
+<td>安全监控、异常行为</td>
+<td>检测到异常登录尝试模式</td>
+</tr>
+</tbody></table>
+<blockquote>
+</blockquote>
+<p><strong>Prometheus告警规则示例</strong>:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">groups:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">name:</span> <span class="string">example</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="comment"># 简单阈值告警</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">HighCPUUsage</span></span><br><span class="line">    <span class="attr">expr:</span> <span class="string">instance:node_cpu_utilization:avg1m</span> <span class="string">&gt;</span> <span class="number">0.9</span></span><br><span class="line">    <span class="attr">for:</span> <span class="string">5m</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">    <span class="attr">annotations:</span></span><br><span class="line">      <span class="attr">summary:</span> <span class="string">&quot;High CPU usage detected on <span class="template-variable">&#123;&#123; $labels.instance &#125;&#125;</span>&quot;</span></span><br><span class="line">      <span class="attr">description:</span> <span class="string">&quot;CPU usage is above 90% for 5 minutes&quot;</span></span><br><span class="line">      <span class="attr">dashboard:</span> <span class="string">&quot;https://grafana.example.com/d/node/node-exporter?var-instance=<span class="template-variable">&#123;&#123; $labels.instance &#125;&#125;</span>&quot;</span></span><br><span class="line">      <span class="attr">runbook:</span> <span class="string">&quot;https://wiki.example.com/runbooks/high-cpu&quot;</span></span><br><span class="line"></span><br><span class="line">  <span class="comment"># 异常检测告警</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">HTTPRequestLatencySpike</span></span><br><span class="line">    <span class="attr">expr:</span> <span class="string">rate(http_request_duration_seconds_sum[5m])</span> <span class="string">/</span> <span class="string">rate(http_request_duration_seconds_count[5m])</span> <span class="string">&gt;</span> <span class="string">hist_quantile(0.99,</span> <span class="string">sum(rate(http_request_duration_seconds_bucket[1h]))</span> <span class="string">by</span> <span class="string">(le))</span> <span class="string">*</span> <span class="number">3</span></span><br><span class="line">    <span class="attr">for:</span> <span class="string">10m</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">severity:</span> <span class="string">critical</span></span><br><span class="line">    <span class="attr">annotations:</span></span><br><span class="line">      <span class="attr">summary:</span> <span class="string">&quot;HTTP latency spike detected&quot;</span></span><br><span class="line">      <span class="attr">description:</span> <span class="string">&quot;Current HTTP latency is 3x higher than normal 99th percentile&quot;</span></span><br><span class="line"></span><br><span class="line">  <span class="comment"># 预测性告警</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">alert:</span> <span class="string">DiskWillFillIn24Hours</span></span><br><span class="line">    <span class="attr">expr:</span> <span class="string">predict_linear(node_filesystem_free_bytes&#123;fstype!~&quot;tmpfs&quot;&#125;[6h],</span> <span class="number">24</span> <span class="string">*</span> <span class="number">3600</span><span class="string">)</span> <span class="string">&lt;</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">for:</span> <span class="string">30m</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">severity:</span> <span class="string">warning</span></span><br><span class="line">    <span class="attr">annotations:</span></span><br><span class="line">      <span class="attr">summary:</span> <span class="string">&quot;Disk is predicted to fill in 24 hours on <span class="template-variable">&#123;&#123; $labels.instance &#125;&#125;</span>&quot;</span></span><br><span class="line">      <span class="attr">description:</span> <span class="string">&quot;Disk <span class="template-variable">&#123;&#123; $labels.device &#125;&#125;</span> mounted on <span class="template-variable">&#123;&#123; $labels.mountpoint &#125;&#125;</span> is predicted to fill within 24 hours&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="告警分级与路由">告警分级与路由<a class="hlink" data-h="告警分级与路由" href="#告警分级与路由" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[告警产生] --&gt; B{告警级别?}
+    B --&gt;|P1-严重| C[立即通知&lt;br&gt;所有渠道]
+    B --&gt;|P2-高| D[通知主要渠道&lt;br&gt;工作时间外升级]
+    B --&gt;|P3-中| E[正常工作时间&lt;br&gt;通知团队]
+    B --&gt;|P4-低| F[记录问题&lt;br&gt;定期审查]
+    C --&gt; G[Pager/电话]
+    C --&gt; H[短信/电子邮件]
+    C --&gt; I[团队聊天]
+    D --&gt; H
+    D --&gt; I
+    E --&gt; I
+    E --&gt; J[工单系统]
+    F --&gt; J
+    style A fill:#f3e5f5
+    style B fill:#f9fbe7
+    style C fill:#ffebee
+    style D fill:#ffe0b2
+    style E fill:#e8f5e9
+    style F fill:#e3f2fd
+    style G,H,I,J fill:#eceff1
+</div>
+
+<p><strong>PagerDuty告警路由配置示例</strong>:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 告警路由配置</span></span><br><span class="line"><span class="attr">routes:</span></span><br><span class="line">  <span class="comment"># 生产环境严重告警</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">      <span class="attr">severity:</span> <span class="string">critical</span></span><br><span class="line">      <span class="attr">environment:</span> <span class="string">production</span></span><br><span class="line">    <span class="attr">targets:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">team:</span> <span class="string">sre-oncall</span></span><br><span class="line">        <span class="attr">escalation_policy:</span> <span class="string">immediate_24x7</span></span><br><span class="line">        <span class="attr">notification_channels:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="string">sms</span></span><br><span class="line">          <span class="bullet">-</span> <span class="string">phone</span></span><br><span class="line">          <span class="bullet">-</span> <span class="string">slack</span></span><br><span class="line"></span><br><span class="line">  <span class="comment"># 生产环境高级别告警</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">      <span class="attr">severity:</span> <span class="string">high</span></span><br><span class="line">      <span class="attr">environment:</span> <span class="string">production</span></span><br><span class="line">    <span class="attr">targets:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">team:</span> <span class="string">app-team</span></span><br><span class="line">        <span class="attr">escalation_policy:</span> <span class="string">standard</span></span><br><span class="line">        <span class="attr">notification_channels:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="string">slack</span></span><br><span class="line">          <span class="bullet">-</span> <span class="string">email</span></span><br><span class="line"></span><br><span class="line">  <span class="comment"># 非生产环境告警</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">      <span class="attr">environment:</span> <span class="string">staging</span></span><br><span class="line">    <span class="attr">targets:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">team:</span> <span class="string">dev-team</span></span><br><span class="line">        <span class="attr">notification_channels:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="string">slack</span></span><br><span class="line">        <span class="attr">suppress_during:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">time_window:</span></span><br><span class="line">              <span class="attr">start_time:</span> <span class="string">&quot;20:00&quot;</span></span><br><span class="line">              <span class="attr">end_time:</span> <span class="string">&quot;08:00&quot;</span></span><br><span class="line">              <span class="attr">time_zone:</span> <span class="string">&quot;America/New_York&quot;</span></span><br><span class="line">              <span class="attr">days:</span> [<span class="string">&quot;Saturday&quot;</span>, <span class="string">&quot;Sunday&quot;</span>]</span><br></pre></td></tr></table></figure>
+
+<h3 id="降噪和告警疲劳管理">降噪和告警疲劳管理<a class="hlink" data-h="降噪和告警疲劳管理" href="#降噪和告警疲劳管理" title="跳到本节">¶</a></h3><div class="callout warning" data-callout="warning"><div class="callout-title"><span class="callout-ico">⚠️</span><span class="callout-title-inner">告警疲劳的危害</span></div><div class="callout-body"><p>告警过多会导致团队逐渐忽视警报，甚至忽略重要警报。研究表明，过量的警报会导致以下问题：</p>
+<ul>
+<li>响应速度变慢（平均响应时间增加）</li>
+<li>解决问题的质量下降</li>
+<li>团队倦怠和士气降低</li>
+<li>可能忽略关键警报，导致重大事故</li>
+</ul>
+</div></div>
+<p>降噪策略示例：</p>
+<ol>
+<li><p><strong>分组和聚合</strong></p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Alertmanager分组配置</span></span><br><span class="line"><span class="attr">route:</span></span><br><span class="line">  <span class="attr">group_by:</span> [<span class="string">&#x27;alertname&#x27;</span>, <span class="string">&#x27;cluster&#x27;</span>, <span class="string">&#x27;service&#x27;</span>]</span><br><span class="line">  <span class="attr">group_wait:</span> <span class="string">30s</span></span><br><span class="line">  <span class="attr">group_interval:</span> <span class="string">5m</span></span><br><span class="line">  <span class="attr">repeat_interval:</span> <span class="string">4h</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>告警抑制</strong></p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 当集群状态为不可用时，抑制该集群的所有低级别告警</span></span><br><span class="line"><span class="attr">inhibit_rules:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">source_match:</span></span><br><span class="line">    <span class="attr">severity:</span> <span class="string">&#x27;critical&#x27;</span></span><br><span class="line">    <span class="attr">alertname:</span> <span class="string">&#x27;ClusterDown&#x27;</span></span><br><span class="line">  <span class="attr">target_match:</span></span><br><span class="line">    <span class="attr">severity:</span> <span class="string">&#x27;warning&#x27;</span></span><br><span class="line">  <span class="attr">equal:</span> [<span class="string">&#x27;cluster&#x27;</span>]</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>静默期设置</strong></p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 维护窗口静默期</span></span><br><span class="line"><span class="attr">silences:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">comment:</span> <span class="string">&quot;Planned maintenance for database upgrade&quot;</span></span><br><span class="line">  <span class="attr">createdBy:</span> <span class="string">&quot;ops-team&quot;</span></span><br><span class="line">  <span class="attr">startsAt:</span> <span class="string">&quot;2023-02-15T01:00:00Z&quot;</span></span><br><span class="line">  <span class="attr">endsAt:</span> <span class="string">&quot;2023-02-15T05:00:00Z&quot;</span></span><br><span class="line">  <span class="attr">matchers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">&quot;service&quot;</span></span><br><span class="line">    <span class="attr">value:</span> <span class="string">&quot;database&quot;</span></span><br><span class="line">    <span class="attr">isRegex:</span> <span class="literal">false</span></span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="仪表盘不是越花越好">仪表盘不是越花越好<a class="hlink" data-h="仪表盘不是越花越好" href="#仪表盘不是越花越好" title="跳到本节">¶</a></h2><h3 id="有效仪表盘设计原则">有效仪表盘设计原则<a class="hlink" data-h="有效仪表盘设计原则" href="#有效仪表盘设计原则" title="跳到本节">¶</a></h3><div class="mermaid">
+mindmap
+  root((仪表盘设计原则))
+    目标导向
+      确定主要目标用户
+      解决特定问题
+      支持决策过程
+    信息层次
+      最重要信息最显眼
+      从概览到细节
+      分组相关指标
+    简洁清晰
+      避免信息过载
+      减少视觉杂乱
+      仅显示相关数据
+    上下文提供
+      比较与基准
+      趋势与历史数据
+      显示正常范围
+    一致性
+      统一视觉风格
+      标准化图表类型
+      一致的命名约定
+    交互性
+      有效的筛选器
+      动态时间范围
+      钻取功能
+</div>
+
+<h3 id="可视化类型与应用场景">可视化类型与应用场景<a class="hlink" data-h="可视化类型与应用场景" href="#可视化类型与应用场景" title="跳到本节">¶</a></h3><p>不同类型的数据需要不同的可视化方式：</p>
+<div class="callout info" data-callout="info"><div class="callout-title"><span class="callout-ico">ℹ️</span><span class="callout-title-inner"><br><strong>常用可视化类型及适用场景</strong></span></div><div class="callout-body"></div></div>
+<ol>
+<li><p><strong>时间序列图</strong></p>
+<ul>
+<li><strong>适用于</strong>: 随时间变化的指标（如CPU使用率变化）</li>
+<li><strong>优势</strong>: 直观展示趋势和模式</li>
+<li><strong>示例场景</strong>: 服务响应时间监控、资源使用趋势</li>
+</ul>
+</li>
+<li><p><strong>仪表盘&#x2F;单值面板</strong></p>
+<ul>
+<li><strong>适用于</strong>: 关键性能指标(KPI)、当前状态</li>
+<li><strong>优势</strong>: 简洁明了，一目了然</li>
+<li><strong>示例场景</strong>: 服务可用性百分比、活跃用户数</li>
+</ul>
+</li>
+<li><p><strong>热力图</strong></p>
+<ul>
+<li><strong>适用于</strong>: 分布情况、密度分析</li>
+<li><strong>优势</strong>: 识别异常分布模式</li>
+<li><strong>示例场景</strong>: 请求延迟分布、错误分布</li>
+</ul>
+</li>
+<li><p><strong>表格</strong></p>
+<ul>
+<li><strong>适用于</strong>: 精确数值、多维比较</li>
+<li><strong>优势</strong>: 支持排序和过滤</li>
+<li><strong>示例场景</strong>: 详细错误日志、资源使用对比</li>
+</ul>
+</li>
+<li><p><strong>饼图&#x2F;环形图</strong></p>
+<ul>
+<li><strong>适用于</strong>: 部分与整体的关系</li>
+<li><strong>优势</strong>: 比例关系直观</li>
+<li><strong>示例场景</strong>: 存储空间分配、流量来源分析</li>
+</ul>
+</li>
+<li><p><strong>状态图&#x2F;流程图</strong></p>
+<ul>
+<li><strong>适用于</strong>: 系统拓扑、依赖关系</li>
+<li><strong>优势</strong>: 展示系统架构和状态</li>
+<li><strong>示例场景</strong>: 微服务调用关系、基础设施状态</li>
+</ul>
+</li>
+<li><p><strong>地图</strong></p>
+<ul>
+<li><strong>适用于</strong>: 地理分布数据</li>
+<li><strong>优势</strong>: 直观展示地域相关问题</li>
+<li><strong>示例场景</strong>: 用户地理分布、区域性延迟<blockquote>
+</blockquote>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="Grafana仪表盘设计实践">Grafana仪表盘设计实践<a class="hlink" data-h="Grafana仪表盘设计实践" href="#Grafana仪表盘设计实践" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[Grafana仪表盘实践] --&gt; B[仪表盘层级]
+    A --&gt; C[面板组织]
+    A --&gt; D[变量与模板]
+    A --&gt; E[告警集成]
+    B --&gt; B1[概览仪表盘]
+    B --&gt; B2[服务仪表盘]
+    B --&gt; B3[资源仪表盘]
+    B --&gt; B4[故障排查仪表盘]
+    C --&gt; C1[一致的行列布局]
+    C --&gt; C2[逻辑分组]
+    C --&gt; C3[反映处理流程]
+    D --&gt; D1[多环境切换变量]
+    D --&gt; D2[服务/实例选择器]
+    D --&gt; D3[时间范围模板]
+    E --&gt; E1[面板级告警]
+    E --&gt; E2[阈值可视化]
+    E --&gt; E3[告警状态显示]
+    style A fill:#f9f9f9
+    style B,C,D,E fill:#e3f2fd
+</div>
+
+<p><strong>Grafana仪表盘JSON配置示例</strong>:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;annotations&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;list&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;builtIn&quot;</span><span class="punctuation">:</span> <span class="number">1</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;datasource&quot;</span><span class="punctuation">:</span> <span class="string">&quot;-- Grafana --&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;enable&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;hide&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;iconColor&quot;</span><span class="punctuation">:</span> <span class="string">&quot;rgba(0, 211, 255, 1)&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Annotations &amp; Alerts&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;dashboard&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;datasource&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Prometheus&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;enable&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;expr&quot;</span><span class="punctuation">:</span> <span class="string">&quot;changes(kube_pod_container_status_restarts_total&#123;namespace=\&quot;$namespace\&quot;,pod=~\&quot;$deployment-.*\&quot;&#125;[1m]) &gt; 0&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;hide&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;iconColor&quot;</span><span class="punctuation">:</span> <span class="string">&quot;rgba(255, 96, 96, 1)&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Pod重启&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;showIn&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;tags&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">          <span class="string">&quot;restart&quot;</span></span><br><span class="line">        <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;titleFormat&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Pod重启&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">]</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;description&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Kubernetes部署监控仪表盘&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;editable&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;gnetId&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">null</span></span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;graphTooltip&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">42</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;iteration&quot;</span><span class="punctuation">:</span> <span class="number">1645023661028</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;links&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;panels&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;collapsed&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;datasource&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">null</span></span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;gridPos&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;h&quot;</span><span class="punctuation">:</span> <span class="number">1</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;w&quot;</span><span class="punctuation">:</span> <span class="number">24</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;x&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;y&quot;</span><span class="punctuation">:</span> <span class="number">0</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">20</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;panels&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;应用概览&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;row&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;datasource&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Prometheus&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;fieldConfig&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;defaults&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;color&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;mode&quot;</span><span class="punctuation">:</span> <span class="string">&quot;thresholds&quot;</span></span><br><span class="line">          <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;mappings&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;thresholds&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;mode&quot;</span><span class="punctuation">:</span> <span class="string">&quot;absolute&quot;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;steps&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">              <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="attr">&quot;color&quot;</span><span class="punctuation">:</span> <span class="string">&quot;green&quot;</span><span class="punctuation">,</span></span><br><span class="line">                <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">null</span></span></span><br><span class="line">              <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">              <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="attr">&quot;color&quot;</span><span class="punctuation">:</span> <span class="string">&quot;orange&quot;</span><span class="punctuation">,</span></span><br><span class="line">                <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="number">85</span></span><br><span class="line">              <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">              <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="attr">&quot;color&quot;</span><span class="punctuation">:</span> <span class="string">&quot;red&quot;</span><span class="punctuation">,</span></span><br><span class="line">                <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="number">95</span></span><br><span class="line">              <span class="punctuation">&#125;</span></span><br><span class="line">            <span class="punctuation">]</span></span><br><span class="line">          <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;unit&quot;</span><span class="punctuation">:</span> <span class="string">&quot;percent&quot;</span></span><br><span class="line">        <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;overrides&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">]</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;gridPos&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;h&quot;</span><span class="punctuation">:</span> <span class="number">8</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;w&quot;</span><span class="punctuation">:</span> <span class="number">6</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;x&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;y&quot;</span><span class="punctuation">:</span> <span class="number">1</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">22</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;options&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;orientation&quot;</span><span class="punctuation">:</span> <span class="string">&quot;auto&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;reduceOptions&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;calcs&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">            <span class="string">&quot;lastNotNull&quot;</span></span><br><span class="line">          <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;fields&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&quot;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;values&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span></span><br><span class="line">        <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;showThresholdLabels&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;showThresholdMarkers&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;pluginVersion&quot;</span><span class="punctuation">:</span> <span class="string">&quot;8.0.6&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;targets&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">        <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;expr&quot;</span><span class="punctuation">:</span> <span class="string">&quot;sum(rate(container_cpu_usage_seconds_total&#123;namespace=\&quot;$namespace\&quot;,pod=~\&quot;$deployment-.*\&quot;&#125;[5m])) / sum(kube_pod_container_resource_limits&#123;namespace=\&quot;$namespace\&quot;,pod=~\&quot;$deployment-.*\&quot;,resource=\&quot;cpu\&quot;&#125;) * 100&quot;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;interval&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&quot;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;legendFormat&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&quot;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;refId&quot;</span><span class="punctuation">:</span> <span class="string">&quot;A&quot;</span></span><br><span class="line">        <span class="punctuation">&#125;</span></span><br><span class="line">      <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;CPU利用率&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;gauge&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;templating&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;list&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;current&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;selected&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;text&quot;</span><span class="punctuation">:</span> <span class="string">&quot;production&quot;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="string">&quot;production&quot;</span></span><br><span class="line">        <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;description&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">null</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;error&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">null</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;hide&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;includeAll&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;label&quot;</span><span class="punctuation">:</span> <span class="string">&quot;命名空间&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;multi&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;namespace&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;options&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;query&quot;</span><span class="punctuation">:</span> <span class="string">&quot;label_values(kube_pod_info, namespace)&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;refresh&quot;</span><span class="punctuation">:</span> <span class="number">1</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;regex&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;skipUrlSync&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;sort&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;query&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;current&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;selected&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;text&quot;</span><span class="punctuation">:</span> <span class="string">&quot;web-app&quot;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;value&quot;</span><span class="punctuation">:</span> <span class="string">&quot;web-app&quot;</span></span><br><span class="line">        <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;description&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">null</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;error&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">null</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;hide&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;includeAll&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;label&quot;</span><span class="punctuation">:</span> <span class="string">&quot;部署&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;multi&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;deployment&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;options&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;query&quot;</span><span class="punctuation">:</span> <span class="string">&quot;label_values(kube_deployment_metadata_generation&#123;namespace=\&quot;$namespace\&quot;&#125;, deployment)&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;refresh&quot;</span><span class="punctuation">:</span> <span class="number">1</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;regex&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;skipUrlSync&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;sort&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;query&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">]</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;refresh&quot;</span><span class="punctuation">:</span> <span class="string">&quot;5s&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;time&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;from&quot;</span><span class="punctuation">:</span> <span class="string">&quot;now-3h&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;to&quot;</span><span class="punctuation">:</span> <span class="string">&quot;now&quot;</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;timepicker&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;refresh_intervals&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">      <span class="string">&quot;5s&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;10s&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;30s&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;1m&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;5m&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;15m&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;30m&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;1h&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;2h&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="string">&quot;1d&quot;</span></span><br><span class="line">    <span class="punctuation">]</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;timezone&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Kubernetes应用监控&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;uid&quot;</span><span class="punctuation">:</span> <span class="string">&quot;k8s-app-monitor&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;version&quot;</span><span class="punctuation">:</span> <span class="number">1</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="日志要能搜、能查、能追踪">日志要能搜、能查、能追踪<a class="hlink" data-h="日志要能搜、能查、能追踪" href="#日志要能搜、能查、能追踪" title="跳到本节">¶</a></h2><h3 id="日志收集架构">日志收集架构<a class="hlink" data-h="日志收集架构" href="#日志收集架构" title="跳到本节">¶</a></h3><p>日志是监控系统的重要组成部分，为系统行为和问题排查提供详细上下文：</p>
+<div class="mermaid">
+graph TD
+    A[日志源] --&gt; B[收集层]
+    B --&gt; C[处理层]
+    C --&gt; D[存储层]
+    D --&gt; E[分析层]
+    E --&gt; F[可视化层]
+    A --&gt; A1[应用日志]
+    A --&gt; A2[系统日志]
+    A --&gt; A3[网络设备日志]
+    A --&gt; A4[安全日志]
+    A --&gt; A5[容器日志]
+    B --&gt; B1[文件采集器]
+    B --&gt; B2[Agent]
+    B --&gt; B3[Sidecar]
+    B --&gt; B4[API接入]
+    C --&gt; C1[解析]
+    C --&gt; C2[过滤]
+    C --&gt; C3[转换]
+    C --&gt; C4[富化]
+    D --&gt; D1[短期热存储]
+    D --&gt; D2[长期冷存储]
+    D --&gt; D3[分片与索引]
+    E --&gt; E1[全文搜索]
+    E --&gt; E2[聚合分析]
+    E --&gt; E3[异常检测]
+    F --&gt; F1[仪表盘]
+    F --&gt; F2[告警]
+    F --&gt; F3[报告]
+    style A fill:#f9f9f9
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D fill:#fff8e1
+    style E fill:#ffebee
+    style F fill:#e0f7fa
+</div>
+
+<h3 id="结构化日志与日志标准化">结构化日志与日志标准化<a class="hlink" data-h="结构化日志与日志标准化" href="#结构化日志与日志标准化" title="跳到本节">¶</a></h3><p>结构化日志能够大幅提升日志的可分析性和可查询性：</p>
+<div class="callout tip" data-callout="tip"><div class="callout-title"><span class="callout-ico">🔥</span><span class="callout-title-inner">结构化日志最佳实践</span></div><div class="callout-body"><ol>
+<li><p><strong>使用标准日志格式</strong></p>
+<ul>
+<li>JSON格式易于机器处理</li>
+<li>包含时间戳、级别、消息、上下文</li>
+<li>统一字段命名约定</li>
+</ul>
+</li>
+<li><p><strong>包含关键上下文信息</strong></p>
+<ul>
+<li>请求ID贯穿整个调用链</li>
+<li>用户ID或会话ID关联用户活动</li>
+<li>操作名称和结果状态</li>
+<li>错误代码和错误详情</li>
+</ul>
+</li>
+<li><p><strong>日志级别使用规范</strong></p>
+<ul>
+<li>ERROR: 错误事件，需要注意</li>
+<li>WARN: 潜在问题或即将出现的问题</li>
+<li>INFO: 正常但重要的操作事件</li>
+<li>DEBUG: 详细信息，主要用于调试</li>
+<li>TRACE: 非常详细的信息，用于特定问题排查</li>
+</ul>
+</li>
+<li><p><strong>避免敏感信息记录</strong></p>
+<ul>
+<li>不记录密码、令牌等凭证</li>
+<li>必要时对PII信息进行脱敏</li>
+<li>遵守数据保护法规</li>
+</ul>
+</li>
+</ol>
+</div></div>
+<p><strong>Node.js结构化日志示例</strong>:</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Winston日志配置</span></span><br><span class="line"><span class="keyword">const</span> winston = <span class="built_in">require</span>(<span class="string">&#x27;winston&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> &#123; format &#125; = winston;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 请求上下文中间件</span></span><br><span class="line"><span class="keyword">const</span> requestContext = <span class="built_in">require</span>(<span class="string">&#x27;request-context&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> &#123; <span class="attr">v4</span>: uuidv4 &#125; = <span class="built_in">require</span>(<span class="string">&#x27;uuid&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 创建日志配置</span></span><br><span class="line"><span class="keyword">const</span> logger = winston.<span class="title function_">createLogger</span>(&#123;</span><br><span class="line">  <span class="attr">level</span>: process.<span class="property">env</span>.<span class="property">LOG_LEVEL</span> || <span class="string">&#x27;info&#x27;</span>,</span><br><span class="line">  <span class="attr">format</span>: format.<span class="title function_">combine</span>(</span><br><span class="line">    format.<span class="title function_">timestamp</span>(),</span><br><span class="line">    format.<span class="title function_">errors</span>(&#123; <span class="attr">stack</span>: <span class="literal">true</span> &#125;),</span><br><span class="line">    format.<span class="title function_">json</span>()</span><br><span class="line">  ),</span><br><span class="line">  <span class="attr">defaultMeta</span>: &#123;</span><br><span class="line">    <span class="attr">service</span>: <span class="string">&#x27;api-service&#x27;</span>,</span><br><span class="line">    <span class="attr">environment</span>: process.<span class="property">env</span>.<span class="property">NODE_ENV</span></span><br><span class="line">  &#125;,</span><br><span class="line">  <span class="attr">transports</span>: [</span><br><span class="line">    <span class="keyword">new</span> winston.<span class="property">transports</span>.<span class="title class_">Console</span>(),</span><br><span class="line">    <span class="keyword">new</span> winston.<span class="property">transports</span>.<span class="title class_">File</span>(&#123;</span><br><span class="line">      <span class="attr">filename</span>: <span class="string">&#x27;logs/error.log&#x27;</span>,</span><br><span class="line">      <span class="attr">level</span>: <span class="string">&#x27;error&#x27;</span>,</span><br><span class="line">      <span class="attr">maxsize</span>: <span class="number">10485760</span>, <span class="comment">// 10MB</span></span><br><span class="line">      <span class="attr">maxFiles</span>: <span class="number">10</span></span><br><span class="line">    &#125;),</span><br><span class="line">    <span class="keyword">new</span> winston.<span class="property">transports</span>.<span class="title class_">File</span>(&#123;</span><br><span class="line">      <span class="attr">filename</span>: <span class="string">&#x27;logs/combined.log&#x27;</span>,</span><br><span class="line">      <span class="attr">maxsize</span>: <span class="number">10485760</span>, <span class="comment">// 10MB</span></span><br><span class="line">      <span class="attr">maxFiles</span>: <span class="number">30</span></span><br><span class="line">    &#125;)</span><br><span class="line">  ]</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line"><span class="comment">// Express请求上下文中间件</span></span><br><span class="line">app.<span class="title function_">use</span>(requestContext.<span class="title function_">middleware</span>(<span class="string">&#x27;request&#x27;</span>));</span><br><span class="line">app.<span class="title function_">use</span>(<span class="function">(<span class="params">req, res, next</span>) =&gt;</span> &#123;</span><br><span class="line">  <span class="comment">// 生成或传递请求ID</span></span><br><span class="line">  <span class="keyword">const</span> requestId = req.<span class="property">headers</span>[<span class="string">&#x27;x-request-id&#x27;</span>] || <span class="title function_">uuidv4</span>();</span><br><span class="line">  requestContext.<span class="title function_">set</span>(<span class="string">&#x27;request:requestId&#x27;</span>, requestId);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 设置用户ID(如果有认证)</span></span><br><span class="line">  <span class="keyword">if</span> (req.<span class="property">user</span>) &#123;</span><br><span class="line">    requestContext.<span class="title function_">set</span>(<span class="string">&#x27;request:userId&#x27;</span>, req.<span class="property">user</span>.<span class="property">id</span>);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 在响应头中返回请求ID</span></span><br><span class="line">  res.<span class="title function_">setHeader</span>(<span class="string">&#x27;X-Request-ID&#x27;</span>, requestId);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 记录请求开始</span></span><br><span class="line">  logger.<span class="title function_">info</span>(&#123;</span><br><span class="line">    <span class="attr">message</span>: <span class="string">&#x27;Request started&#x27;</span>,</span><br><span class="line">    <span class="attr">method</span>: req.<span class="property">method</span>,</span><br><span class="line">    <span class="attr">url</span>: req.<span class="property">originalUrl</span>,</span><br><span class="line">    <span class="attr">ip</span>: req.<span class="property">ip</span>,</span><br><span class="line">    <span class="attr">userAgent</span>: req.<span class="property">headers</span>[<span class="string">&#x27;user-agent&#x27;</span>],</span><br><span class="line">    <span class="attr">requestId</span>: requestId</span><br><span class="line">  &#125;);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 记录响应完成</span></span><br><span class="line">  res.<span class="title function_">on</span>(<span class="string">&#x27;finish&#x27;</span>, <span class="function">() =&gt;</span> &#123;</span><br><span class="line">    logger.<span class="title function_">info</span>(&#123;</span><br><span class="line">      <span class="attr">message</span>: <span class="string">&#x27;Request completed&#x27;</span>,</span><br><span class="line">      <span class="attr">method</span>: req.<span class="property">method</span>,</span><br><span class="line">      <span class="attr">url</span>: req.<span class="property">originalUrl</span>,</span><br><span class="line">      <span class="attr">statusCode</span>: res.<span class="property">statusCode</span>,</span><br><span class="line">      <span class="attr">responseTime</span>: <span class="title class_">Date</span>.<span class="title function_">now</span>() - req.<span class="property">_startTime</span>,</span><br><span class="line">      <span class="attr">requestId</span>: requestId</span><br><span class="line">    &#125;);</span><br><span class="line">  &#125;);</span><br><span class="line"></span><br><span class="line">  <span class="title function_">next</span>();</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 自定义日志上下文包装</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">getContextLogger</span>(<span class="params"></span>) &#123;</span><br><span class="line">  <span class="keyword">return</span> &#123;</span><br><span class="line">    <span class="attr">error</span>: <span class="function">(<span class="params">message, meta = &#123;&#125;</span>) =&gt;</span> &#123;</span><br><span class="line">      logger.<span class="title function_">error</span>(&#123;</span><br><span class="line">        ...meta,</span><br><span class="line">        message,</span><br><span class="line">        <span class="attr">requestId</span>: requestContext.<span class="title function_">get</span>(<span class="string">&#x27;request:requestId&#x27;</span>),</span><br><span class="line">        <span class="attr">userId</span>: requestContext.<span class="title function_">get</span>(<span class="string">&#x27;request:userId&#x27;</span>)</span><br><span class="line">      &#125;);</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">warn</span>: <span class="function">(<span class="params">message, meta = &#123;&#125;</span>) =&gt;</span> &#123;</span><br><span class="line">      logger.<span class="title function_">warn</span>(&#123;</span><br><span class="line">        ...meta,</span><br><span class="line">        message,</span><br><span class="line">        <span class="attr">requestId</span>: requestContext.<span class="title function_">get</span>(<span class="string">&#x27;request:requestId&#x27;</span>),</span><br><span class="line">        <span class="attr">userId</span>: requestContext.<span class="title function_">get</span>(<span class="string">&#x27;request:userId&#x27;</span>)</span><br><span class="line">      &#125;);</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">info</span>: <span class="function">(<span class="params">message, meta = &#123;&#125;</span>) =&gt;</span> &#123;</span><br><span class="line">      logger.<span class="title function_">info</span>(&#123;</span><br><span class="line">        ...meta,</span><br><span class="line">        message,</span><br><span class="line">        <span class="attr">requestId</span>: requestContext.<span class="title function_">get</span>(<span class="string">&#x27;request:requestId&#x27;</span>),</span><br><span class="line">        <span class="attr">userId</span>: requestContext.<span class="title function_">get</span>(<span class="string">&#x27;request:userId&#x27;</span>)</span><br><span class="line">      &#125;);</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">debug</span>: <span class="function">(<span class="params">message, meta = &#123;&#125;</span>) =&gt;</span> &#123;</span><br><span class="line">      logger.<span class="title function_">debug</span>(&#123;</span><br><span class="line">        ...meta,</span><br><span class="line">        message,</span><br><span class="line">        <span class="attr">requestId</span>: requestContext.<span class="title function_">get</span>(<span class="string">&#x27;request:requestId&#x27;</span>),</span><br><span class="line">        <span class="attr">userId</span>: requestContext.<span class="title function_">get</span>(<span class="string">&#x27;request:userId&#x27;</span>)</span><br><span class="line">      &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 控制器中使用</span></span><br><span class="line">app.<span class="title function_">get</span>(<span class="string">&#x27;/api/users&#x27;</span>, <span class="function">(<span class="params">req, res</span>) =&gt;</span> &#123;</span><br><span class="line">  <span class="keyword">const</span> log = <span class="title function_">getContextLogger</span>();</span><br><span class="line"></span><br><span class="line">  <span class="keyword">try</span> &#123;</span><br><span class="line">    log.<span class="title function_">info</span>(<span class="string">&#x27;Fetching users&#x27;</span>, &#123; <span class="attr">query</span>: req.<span class="property">query</span> &#125;);</span><br><span class="line">    <span class="comment">// 业务逻辑...</span></span><br><span class="line">    res.<span class="title function_">json</span>(&#123; <span class="attr">users</span>: [] &#125;);</span><br><span class="line">  &#125; <span class="keyword">catch</span> (error) &#123;</span><br><span class="line">    log.<span class="title function_">error</span>(<span class="string">&#x27;Failed to fetch users&#x27;</span>, &#123; <span class="attr">error</span>: error.<span class="property">message</span> &#125;);</span><br><span class="line">    res.<span class="title function_">status</span>(<span class="number">500</span>).<span class="title function_">json</span>(&#123; <span class="attr">error</span>: <span class="string">&#x27;Internal server error&#x27;</span> &#125;);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<h3 id="ELK-Stack与日志搜索">ELK Stack与日志搜索<a class="hlink" data-h="ELK-Stack与日志搜索" href="#ELK-Stack与日志搜索" title="跳到本节">¶</a></h3><p>ELK Stack (Elasticsearch, Logstash, Kibana)是流行的日志管理解决方案：</p>
+<div class="mermaid">
+graph LR
+    A[日志源] --&gt; B[Beats/Agent]
+    B --&gt; C[Logstash]
+    C --&gt; D[Elasticsearch]
+    D --&gt; E[Kibana]
+    A --&gt; A1[应用日志]
+    A --&gt; A2[系统日志]
+    A --&gt; A3[网络日志]
+    B --&gt; B1[Filebeat]
+    B --&gt; B2[Metricbeat]
+    B --&gt; B3[Packetbeat]
+    B --&gt; B4[其他Beats]
+    C --&gt; C1[输入插件]
+    C --&gt; C2[过滤插件]
+    C --&gt; C3[输出插件]
+    D --&gt; D1[索引]
+    D --&gt; D2[分片]
+    D --&gt; D3[复制]
+    E --&gt; E1[可视化]
+    E --&gt; E2[仪表盘]
+    E --&gt; E3[告警]
+    style A fill:#f9f9f9
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D fill:#fff8e1
+    style E fill:#ffebee
+</div>
+
+<p><strong>Logstash配置示例</strong>:</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br></pre></td><td class="code"><pre><span class="line">input &#123;</span><br><span class="line">  beats &#123;</span><br><span class="line">    port =&gt; <span class="number">5044</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">filter &#123;</span><br><span class="line">  <span class="keyword">if</span> [log][file][path] =~ <span class="string">&quot;access.log&quot;</span> &#123;</span><br><span class="line">    grok &#123;</span><br><span class="line">      match =&gt; &#123; <span class="string">&quot;message&quot;</span> =&gt; <span class="string">&quot;%&#123;COMBINEDAPACHELOG&#125;&quot;</span> &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    date &#123;</span><br><span class="line">      match =&gt; [ <span class="string">&quot;timestamp&quot;</span>, <span class="string">&quot;dd/MMM/yyyy:HH:mm:ss Z&quot;</span> ]</span><br><span class="line">      target =&gt; <span class="string">&quot;@timestamp&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">    geoip &#123;</span><br><span class="line">      source =&gt; <span class="string">&quot;clientip&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">    useragent &#123;</span><br><span class="line">      source =&gt; <span class="string">&quot;agent&quot;</span></span><br><span class="line">      target =&gt; <span class="string">&quot;user_agent&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125; <span class="keyword">else</span> <span class="keyword">if</span> [log][file][path] =~ <span class="string">&quot;application.log&quot;</span> &#123;</span><br><span class="line">    json &#123;</span><br><span class="line">      source =&gt; <span class="string">&quot;message&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> <span class="string">&quot;_jsonparsefailure&quot;</span> <span class="keyword">in</span> [tags] &#123;</span><br><span class="line">      mutate &#123;</span><br><span class="line">        remove_tag =&gt; [<span class="string">&quot;_jsonparsefailure&quot;</span>]</span><br><span class="line">        add_tag =&gt; [<span class="string">&quot;json_parse_failure&quot;</span>, <span class="string">&quot;application_log&quot;</span>]</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      mutate &#123;</span><br><span class="line">        add_tag =&gt; [<span class="string">&quot;application_log&quot;</span>]</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> [level] == <span class="string">&quot;ERROR&quot;</span> &#123;</span><br><span class="line">      mutate &#123;</span><br><span class="line">        add_tag =&gt; [<span class="string">&quot;error&quot;</span>]</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 添加通用元数据</span></span><br><span class="line">  mutate &#123;</span><br><span class="line">    add_field =&gt; &#123;</span><br><span class="line">      <span class="string">&quot;environment&quot;</span> =&gt; <span class="string">&quot;$&#123;ENVIRONMENT:production&#125;&quot;</span></span><br><span class="line">      <span class="string">&quot;datacenter&quot;</span> =&gt; <span class="string">&quot;$&#123;DATACENTER:dc1&#125;&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">output &#123;</span><br><span class="line">  elasticsearch &#123;</span><br><span class="line">    hosts =&gt; [<span class="string">&quot;elasticsearch:9200&quot;</span>]</span><br><span class="line">    index =&gt; <span class="string">&quot;%&#123;[@metadata][beat]&#125;-%&#123;[@metadata][version]&#125;-%&#123;+YYYY.MM.dd&#125;&quot;</span></span><br><span class="line">    user =&gt; <span class="string">&quot;$&#123;ES_USER:elastic&#125;&quot;</span></span><br><span class="line">    password =&gt; <span class="string">&quot;$&#123;ES_PASSWORD:changeme&#125;&quot;</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 错误日志发送到特定索引</span></span><br><span class="line">  <span class="keyword">if</span> <span class="string">&quot;error&quot;</span> <span class="keyword">in</span> [tags] &#123;</span><br><span class="line">    elasticsearch &#123;</span><br><span class="line">      hosts =&gt; [<span class="string">&quot;elasticsearch:9200&quot;</span>]</span><br><span class="line">      index =&gt; <span class="string">&quot;errors-%&#123;+YYYY.MM.dd&#125;&quot;</span></span><br><span class="line">      user =&gt; <span class="string">&quot;$&#123;ES_USER:elastic&#125;&quot;</span></span><br><span class="line">      password =&gt; <span class="string">&quot;$&#123;ES_PASSWORD:changeme&#125;&quot;</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 用于调试的标准输出</span></span><br><span class="line">  <span class="keyword">if</span> <span class="string">&quot;$&#123;DEBUG:false&#125;&quot;</span> == <span class="string">&quot;true&quot;</span> &#123;</span><br><span class="line">    stdout &#123;</span><br><span class="line">      codec =&gt; rubydebug</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="日志分析技术">日志分析技术<a class="hlink" data-h="日志分析技术" href="#日志分析技术" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[日志分析技术] --&gt; B[模式识别]
+    A --&gt; C[异常检测]
+    A --&gt; D[根因分析]
+    A --&gt; E[预测分析]
+    B --&gt; B1[日志聚类]
+    B --&gt; B2[频率分析]
+    B --&gt; B3[模式匹配]
+    C --&gt; C1[异常检测算法]
+    C --&gt; C2[基线比较]
+    C --&gt; C3[统计分析]
+    D --&gt; D1[日志关联]
+    D --&gt; D2[依赖分析]
+    D --&gt; D3[错误传播追踪]
+    E --&gt; E1[趋势分析]
+    E --&gt; E2[系统行为预测]
+    E --&gt; E3[故障预测]
+    style A fill:#f9f9f9
+    style B,C,D,E fill:#e3f2fd
+</div>
+
+<p><strong>Elasticsearch分析查询示例</strong>:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误日志分析和聚合</span></span><br><span class="line">GET /logs-*/_search</span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;size&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;query&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;bool&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;must&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">        <span class="punctuation">&#123;</span> <span class="attr">&quot;match&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;level&quot;</span><span class="punctuation">:</span> <span class="string">&quot;ERROR&quot;</span> <span class="punctuation">&#125;</span> <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="punctuation">&#123;</span> <span class="attr">&quot;range&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;@timestamp&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;gte&quot;</span><span class="punctuation">:</span> <span class="string">&quot;now-24h&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;lte&quot;</span><span class="punctuation">:</span> <span class="string">&quot;now&quot;</span> <span class="punctuation">&#125;</span> <span class="punctuation">&#125;</span> <span class="punctuation">&#125;</span></span><br><span class="line">      <span class="punctuation">]</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;aggs&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;error_by_service&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;terms&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;field&quot;</span><span class="punctuation">:</span> <span class="string">&quot;service.keyword&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;size&quot;</span><span class="punctuation">:</span> <span class="number">10</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;aggs&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;error_by_type&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;terms&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;field&quot;</span><span class="punctuation">:</span> <span class="string">&quot;error.type.keyword&quot;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;size&quot;</span><span class="punctuation">:</span> <span class="number">5</span></span><br><span class="line">          <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;aggs&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;error_time_trend&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">              <span class="attr">&quot;date_histogram&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="attr">&quot;field&quot;</span><span class="punctuation">:</span> <span class="string">&quot;@timestamp&quot;</span><span class="punctuation">,</span></span><br><span class="line">                <span class="attr">&quot;calendar_interval&quot;</span><span class="punctuation">:</span> <span class="string">&quot;1h&quot;</span></span><br><span class="line">              <span class="punctuation">&#125;</span></span><br><span class="line">            <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;top_errors&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">              <span class="attr">&quot;top_hits&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="attr">&quot;size&quot;</span><span class="punctuation">:</span> <span class="number">3</span><span class="punctuation">,</span></span><br><span class="line">                <span class="attr">&quot;_source&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;message&quot;</span><span class="punctuation">,</span> <span class="string">&quot;stack_trace&quot;</span><span class="punctuation">,</span> <span class="string">&quot;requestId&quot;</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">                <span class="attr">&quot;sort&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">&#123;</span> <span class="attr">&quot;@timestamp&quot;</span><span class="punctuation">:</span> <span class="string">&quot;desc&quot;</span> <span class="punctuation">&#125;</span><span class="punctuation">]</span></span><br><span class="line">              <span class="punctuation">&#125;</span></span><br><span class="line">            <span class="punctuation">&#125;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">&#125;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;errors_over_time&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;date_histogram&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;field&quot;</span><span class="punctuation">:</span> <span class="string">&quot;@timestamp&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;calendar_interval&quot;</span><span class="punctuation">:</span> <span class="string">&quot;10m&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 用户行为模式分析</span></span><br><span class="line">GET /access-logs-*/_search</span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;size&quot;</span><span class="punctuation">:</span> <span class="number">0</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;query&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;bool&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;must&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">        <span class="punctuation">&#123;</span> <span class="attr">&quot;range&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;@timestamp&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;gte&quot;</span><span class="punctuation">:</span> <span class="string">&quot;now-7d&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;lte&quot;</span><span class="punctuation">:</span> <span class="string">&quot;now&quot;</span> <span class="punctuation">&#125;</span> <span class="punctuation">&#125;</span> <span class="punctuation">&#125;</span></span><br><span class="line">      <span class="punctuation">]</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;aggs&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;user_sessions&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;terms&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;field&quot;</span><span class="punctuation">:</span> <span class="string">&quot;session_id.keyword&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;size&quot;</span><span class="punctuation">:</span> <span class="number">1000</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;aggs&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;path_flow&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;terms&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;field&quot;</span><span class="punctuation">:</span> <span class="string">&quot;path.keyword&quot;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;size&quot;</span><span class="punctuation">:</span> <span class="number">10</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;order&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;_count&quot;</span><span class="punctuation">:</span> <span class="string">&quot;desc&quot;</span> <span class="punctuation">&#125;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;session_duration&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;stats&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;script&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">              <span class="attr">&quot;source&quot;</span><span class="punctuation">:</span> <span class="string">&quot;doc[&#x27;@timestamp&#x27;].value.toInstant().toEpochMilli() - doc[&#x27;session_start&#x27;].value.toInstant().toEpochMilli()&quot;</span></span><br><span class="line">            <span class="punctuation">&#125;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;errors_in_session&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;filter&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;range&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">              <span class="attr">&quot;response_code&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="attr">&quot;gte&quot;</span><span class="punctuation">:</span> <span class="number">400</span></span><br><span class="line">              <span class="punctuation">&#125;</span></span><br><span class="line">            <span class="punctuation">&#125;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">&#125;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;response_time_percentiles&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;percentiles&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;field&quot;</span><span class="punctuation">:</span> <span class="string">&quot;response_time&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;percents&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="number">50</span><span class="punctuation">,</span> <span class="number">75</span><span class="punctuation">,</span> <span class="number">90</span><span class="punctuation">,</span> <span class="number">95</span><span class="punctuation">,</span> <span class="number">99</span><span class="punctuation">]</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;error_rate_over_time&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;date_histogram&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;field&quot;</span><span class="punctuation">:</span> <span class="string">&quot;@timestamp&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;calendar_interval&quot;</span><span class="punctuation">:</span> <span class="string">&quot;1h&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;aggs&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;error_rate&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;filters&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;filters&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">              <span class="attr">&quot;errors&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="attr">&quot;range&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">                  <span class="attr">&quot;response_code&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;gte&quot;</span><span class="punctuation">:</span> <span class="number">400</span> <span class="punctuation">&#125;</span></span><br><span class="line">                <span class="punctuation">&#125;</span></span><br><span class="line">              <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">              <span class="attr">&quot;success&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">                <span class="attr">&quot;range&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">                  <span class="attr">&quot;response_code&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;lt&quot;</span><span class="punctuation">:</span> <span class="number">400</span> <span class="punctuation">&#125;</span></span><br><span class="line">                <span class="punctuation">&#125;</span></span><br><span class="line">              <span class="punctuation">&#125;</span></span><br><span class="line">            <span class="punctuation">&#125;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">&#125;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="链路追踪把请求路径摊开看">链路追踪把请求路径摊开看<a class="hlink" data-h="链路追踪把请求路径摊开看" href="#链路追踪把请求路径摊开看" title="跳到本节">¶</a></h2><h3 id="分布式追踪原理">分布式追踪原理<a class="hlink" data-h="分布式追踪原理" href="#分布式追踪原理" title="跳到本节">¶</a></h3><p>分布式追踪是监控微服务和分布式系统的关键技术，用于跟踪请求在系统各组件间的完整路径：</p>
+<div class="mermaid">
+sequenceDiagram
+    participant Client
+    participant API as API网关
+    participant Auth as 认证服务
+    participant User as 用户服务
+    participant Product as 产品服务
+    participant DB as 数据库
+    Client-&gt;&gt;API: 请求
+    Note over Client,API: TraceID: abc123&lt;br&gt;SpanID: span1
+    API-&gt;&gt;Auth: 验证令牌
+    Note over API,Auth: TraceID: abc123&lt;br&gt;SpanID: span2&lt;br&gt;ParentSpanID: span1
+    Auth-&gt;&gt;Auth: 校验令牌
+    Auth-&gt;&gt;API: 返回用户信息
+    API-&gt;&gt;User: 获取用户详情
+    Note over API,User: TraceID: abc123&lt;br&gt;SpanID: span3&lt;br&gt;ParentSpanID: span1
+    User-&gt;&gt;DB: 查询用户数据
+    Note over User,DB: TraceID: abc123&lt;br&gt;SpanID: span4&lt;br&gt;ParentSpanID: span3
+    DB-&gt;&gt;User: 返回用户数据
+    User-&gt;&gt;API: 返回用户信息
+    API-&gt;&gt;Product: 获取推荐产品
+    Note over API,Product: TraceID: abc123&lt;br&gt;SpanID: span5&lt;br&gt;ParentSpanID: span1
+    Product-&gt;&gt;DB: 查询产品数据
+    Note over Product,DB: TraceID: abc123&lt;br&gt;SpanID: span6&lt;br&gt;ParentSpanID: span5
+    DB-&gt;&gt;Product: 返回产品数据
+    Product-&gt;&gt;API: 返回产品列表
+    API-&gt;&gt;Client: 返回完整响应
+</div>
+
+<p><strong>分布式追踪的关键概念</strong>：</p>
+<ul>
+<li><strong>追踪(Trace)</strong>: 表示一个端到端的请求流程</li>
+<li><strong>跨度(Span)</strong>: 追踪中的单个工作单元，如一次服务调用</li>
+<li><strong>上下文传播</strong>: 在不同服务间传递追踪信息</li>
+<li><strong>标签(Tags)</strong>: 添加到跨度的键值对元数据</li>
+<li><strong>日志</strong>: 附加到跨度的时间戳事件</li>
+</ul>
+<h3 id="OpenTelemetry和可观测性">OpenTelemetry和可观测性<a class="hlink" data-h="OpenTelemetry和可观测性" href="#OpenTelemetry和可观测性" title="跳到本节">¶</a></h3><p>OpenTelemetry是一个开源可观测性框架，提供标准化的方式来收集和导出遥测数据：</p>
+<div class="mermaid">
+graph TD
+    A[应用程序] --&gt; B[OpenTelemetry SDK]
+    B --&gt; C[OpenTelemetry收集器]
+    C --&gt; D[Prometheus]
+    C --&gt; E[Jaeger]
+    C --&gt; F[Elasticsearch]
+    C --&gt; G[其他后端]
+    B --&gt; B1[追踪API]
+    B --&gt; B2[指标API]
+    B --&gt; B3[日志API]
+    B --&gt; B4[上下文传播]
+    C --&gt; C1[接收器]
+    C --&gt; C2[处理器]
+    C --&gt; C3[导出器]
+    style A fill:#f9f9f9
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D,E,F,G fill:#fff8e1
+</div>
+
+<p><strong>Node.js OpenTelemetry集成示例</strong>:</p>
+<pre><code class="javascript">// OpenTelemetry初始化 - 追踪配置
+const &#123; NodeTracerProvider &#125; = require(&#39;@opentelemetry/node&#39;);
+const &#123; Resource &#125; = require(&#39;@opentelemetry/resources&#39;);
+const &#123; SemanticResourceAttributes &#125; = require(&#39;@opentelemetry/semantic-conventions&#39;);
+const &#123; SimpleSpanProcessor, ConsoleSpanExporter &#125; = require(&#39;@opentelemetry/tracing&#39;);
+const &#123; JaegerExporter &#125; = require(&#39;@opentelemetry/exporter-jaeger&#39;);
+const &#123; ExpressInstrumentation &#125; = require(&#39;@opentelemetry/instrumentation-express&#39;);
+const &#123; HttpInstrumentation &#125; = require(&#39;@opentelemetry/instrumentation-http&#39;);
+const &#123; registerInstrumentations &#125; =
+
+先让告警可行动，再补齐追踪和可视化。这样投入才不会打水漂。
+</code></pre>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"监控系统：从指标到告警的落地思路","description":"监控系统是一套工具和流程的组合，用于收集、处理、存储和展示IT环境中各种组件的运行状态和性能数据。它帮助技术团队了解系统现在是否正常工作以及为什么系统不正常工作。","datePublished":"2026-11-03T00:00:00+08:00","dateModified":"2026-11-03T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/2579191465.html"},"url":"https://zeek-zhao.github.io/posts/2579191465.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"编程语言","item":"https://zeek-zhao.github.io/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/"},{"@type":"ListItem","position":4,"name":"FullStack","item":"https://zeek-zhao.github.io/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/FullStack/"},{"@type":"ListItem","position":5,"name":"监控系统：从指标到告警的落地思路","item":"https://zeek-zhao.github.io/posts/2579191465.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#监控到底是什么，先把概念掰开" data-h="监控到底是什么，先把概念掰开" class="">监控到底是什么，先把概念掰开</a>
+      
+        <a href="#什么是监控系统？" data-h="什么是监控系统？" class="l2">什么是监控系统？</a>
+      
+        <a href="#监控系统的重要性" data-h="监控系统的重要性" class="l2">监控系统的重要性</a>
+      
+        <a href="#从监控到可观测性" data-h="从监控到可观测性" class="l2">从监控到可观测性</a>
+      
+        <a href="#监控的三大支柱" data-h="监控的三大支柱" class="l2">监控的三大支柱</a>
+      
+        <a href="#监控的黄金信号" data-h="监控的黄金信号" class="l2">监控的黄金信号</a>
+      
+        <a href="#监控架构要按数据流来搭" data-h="监控架构要按数据流来搭" class="">监控架构要按数据流来搭</a>
+      
+        <a href="#监控系统的基本架构" data-h="监控系统的基本架构" class="l2">监控系统的基本架构</a>
+      
+        <a href="#推拉模型比较" data-h="推拉模型比较" class="l2">推拉模型比较</a>
+      
+        <a href="#分层架构模型" data-h="分层架构模型" class="l2">分层架构模型</a>
+      
+        <a href="#集中式与分布式架构" data-h="集中式与分布式架构" class="l2">集中式与分布式架构</a>
+      
+        <a href="#指标收集：先定口径再谈工具" data-h="指标收集：先定口径再谈工具" class="">指标收集：先定口径再谈工具</a>
+      
+        <a href="#关键监控指标分类" data-h="关键监控指标分类" class="l2">关键监控指标分类</a>
+      
+        <a href="#指标类型与特性" data-h="指标类型与特性" class="l2">指标类型与特性</a>
+      
+        <a href="#指标命名与标签管理" data-h="指标命名与标签管理" class="l2">指标命名与标签管理</a>
+      
+        <a href="#数据收集策略" data-h="数据收集策略" class="l2">数据收集策略</a>
+      
+        <a href="#告警要让收到的人能动手" data-h="告警要让收到的人能动手" class="">告警要让收到的人能动手</a>
+      
+        <a href="#告警策略设计原则" data-h="告警策略设计原则" class="l2">告警策略设计原则</a>
+      
+        <a href="#告警类型与定义方法" data-h="告警类型与定义方法" class="l2">告警类型与定义方法</a>
+      
+        <a href="#告警分级与路由" data-h="告警分级与路由" class="l2">告警分级与路由</a>
+      
+        <a href="#降噪和告警疲劳管理" data-h="降噪和告警疲劳管理" class="l2">降噪和告警疲劳管理</a>
+      
+        <a href="#仪表盘不是越花越好" data-h="仪表盘不是越花越好" class="">仪表盘不是越花越好</a>
+      
+        <a href="#有效仪表盘设计原则" data-h="有效仪表盘设计原则" class="l2">有效仪表盘设计原则</a>
+      
+        <a href="#可视化类型与应用场景" data-h="可视化类型与应用场景" class="l2">可视化类型与应用场景</a>
+      
+        <a href="#Grafana仪表盘设计实践" data-h="Grafana仪表盘设计实践" class="l2">Grafana仪表盘设计实践</a>
+      
+        <a href="#日志要能搜、能查、能追踪" data-h="日志要能搜、能查、能追踪" class="">日志要能搜、能查、能追踪</a>
+      
+        <a href="#日志收集架构" data-h="日志收集架构" class="l2">日志收集架构</a>
+      
+        <a href="#结构化日志与日志标准化" data-h="结构化日志与日志标准化" class="l2">结构化日志与日志标准化</a>
+      
+        <a href="#ELK-Stack与日志搜索" data-h="ELK-Stack与日志搜索" class="l2">ELK Stack与日志搜索</a>
+      
+        <a href="#日志分析技术" data-h="日志分析技术" class="l2">日志分析技术</a>
+      
+        <a href="#链路追踪把请求路径摊开看" data-h="链路追踪把请求路径摊开看" class="">链路追踪把请求路径摊开看</a>
+      
+        <a href="#分布式追踪原理" data-h="分布式追踪原理" class="l2">分布式追踪原理</a>
+      
+        <a href="#OpenTelemetry和可观测性" data-h="OpenTelemetry和可观测性" class="l2">OpenTelemetry和可观测性</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

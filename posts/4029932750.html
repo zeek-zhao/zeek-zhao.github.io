@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>44-UART串口原理与通信实战 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="UART 大概是嵌入式工程师最熟悉也最容易低估的接口。我调试时第一反应永远是先把串口打通，它简单、可靠，几个参数对了就能打印日志。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/4029932750.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="44-UART串口原理与通信实战">
+<meta property="og:description" content="UART 大概是嵌入式工程师最熟悉也最容易低估的接口。我调试时第一反应永远是先把串口打通，它简单、可靠，几个参数对了就能打印日志。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/4029932750.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="44-UART串口原理与通信实战">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-08T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="操作系统与机器人">
+          <div class="sg-head">
+            <span>🤖</span><span>操作系统与机器人</span><span class="cnt">447 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Linux">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/" class=""><span>🐧</span><span>Linux</span><span class="cnt">129</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Linux 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1681936644.html" class="">01-EC20模块4G拨号与GPS定位开发</a>
+                  
+                    <a href="/posts/4083254943.html" class="">01-Linux安全子系统访问控制与隔离</a>
+                  
+                    <a href="/posts/2415137652.html" class="">01-Linux常用命令速查</a>
+                  
+                    <a href="/posts/533232104.html" class="">01-U-Boot基础与启动流程</a>
+                  
+                    <a href="/posts/3075951192.html" class="">01-Systemd核心组件架构与功能</a>
+                  
+                    <a href="/posts/228001063.html" class="">01-基础工具排查内存泄漏</a>
+                  
+                    <a href="/posts/2735785623.html" class="">01-工业控制器软硬件测试方案</a>
+                  
+                    <a href="/posts/419018602.html" class="">01-裸机开发流程与硬件操控</a>
+                  
+                    <a href="/posts/1072254920.html" class="">02-Linux系统网络配置方法与排障</a>
+                  
+                    <a href="/posts/299621239.html" class="">02-Linux电源管理子系统架构与调优</a>
+                  
+                    <a href="/posts/1221451.html" class="">02-U-Boot新板移植适配流程</a>
+                  
+                    <a href="/posts/4128798125.html" class="">02-systemd-analyze启动性能分析</a>
+                  
+                    <a href="/posts/3888100408.html" class="">02-内核功能与模块管理命令</a>
+                  
+                    <a href="/posts/1471709349.html" class="">02-外设接口测试指南</a>
+                  
+                    <a href="/posts/609416877.html" class="">02-嵌入式开发板硬件接口速查</a>
+                  
+                    <a href="/posts/711801502.html" class="">02-磁盘与文件系统管理</a>
+                  
+                    <a href="/posts/2990991122.html" class="">03-Linux进程管理调度与IPC机制</a>
+                  
+                    <a href="/posts/2680037132.html" class="">03-U-Boot源码结构与启动流程</a>
+                  
+                    <a href="/posts/101579121.html" class="">03-mmap内存映射原理与驱动实现</a>
+                  
+                    <a href="/posts/4216171518.html" class="">03-systemd服务配置与管理</a>
+                  
+                    <a href="/posts/2319334978.html" class="">03-内核基础编译与模块开发</a>
+                  
+                    <a href="/posts/3923580784.html" class="">03-各类工具代理配置</a>
+                  
+                    <a href="/posts/3161741332.html" class="">03-开发板SSH默认端口修改与安全连接</a>
+                  
+                    <a href="/posts/3641886687.html" class="">03-网络测试指南</a>
+                  
+                    <a href="/posts/3785836924.html" class="">04-systemd核心概念与基础</a>
+                  
+                    <a href="/posts/3734120973.html" class="">04-内存管理子系统的层次与机制</a>
+                  
+                    <a href="/posts/972888713.html" class="">04-内核编译与模块功能定制</a>
+                  
+                    <a href="/posts/3751178843.html" class="">04-开发板Linux下修改MAC地址</a>
+                  
+                    <a href="/posts/1112658189.html" class="">04-根文件系统开发实践</a>
+                  
+                    <a href="/posts/1854171497.html" class="">04-芯片四大组件性能测试与选型</a>
+                  
+                    <a href="/posts/262344998.html" class="">04-驱动开发概念分类与架构流程</a>
+                  
+                    <a href="/posts/1094537113.html" class="">05-IMA完整性测量架构与配置</a>
+                  
+                    <a href="/posts/2881050404.html" class="">05-kmemleak内核内存泄漏检测</a>
+                  
+                    <a href="/posts/1992174196.html" class="">05-systemd启动流程与机制</a>
+                  
+                    <a href="/posts/3908546189.html" class="">05-内核架构与子系统协作</a>
+                  
+                    <a href="/posts/3140138007.html" class="">05-根文件系统类型与构建方法</a>
+                  
+                    <a href="/posts/2172472796.html" class="">05-音频设备测试与故障排查</a>
+                  
+                    <a href="/posts/2557508733.html" class="">05-驱动开发框架与通用子系统</a>
+                  
+                    <a href="/posts/862017958.html" class="">06-ICM20608六轴传感器驱动移植</a>
+                  
+                    <a href="/posts/4115811846.html" class="">06-Linux基础术语与核心概念</a>
+                  
+                    <a href="/posts/2015394678.html" class="">06-S3C2440时钟体系与寄存器配置</a>
+                  
+                    <a href="/posts/1758255262.html" class="">06-journald日志查询与管理</a>
+                  
+                    <a href="/posts/45575455.html" class="">06-mtrace内存泄漏分析技巧</a>
+                  
+                    <a href="/posts/3755082214.html" class="">06-内核同步机制与并发控制</a>
+                  
+                    <a href="/posts/3813382677.html" class="">07-Linux计划任务配置与选型</a>
+                  
+                    <a href="/posts/1886591968.html" class="">07-Linux设备驱动模型核心机制</a>
+                  
+                    <a href="/posts/3144201791.html" class="">07-Sanitizer内存泄漏分析</a>
+                  
+                    <a href="/posts/1893451115.html" class="">07-systemd架构与服务管理</a>
+                  
+                    <a href="/posts/992563292.html" class="">07-内核子系统总览</a>
+                  
+                    <a href="/posts/2252012541.html" class="">07-裸机点亮LED与GPIO寄存器操作</a>
+                  
+                    <a href="/posts/2494136140.html" class="">08-Linux图像设备V4L2开发</a>
+                  
+                    <a href="/posts/2551125294.html" class="">08-TCMalloc内存分配器与内存泄漏分析</a>
+                  
+                    <a href="/posts/286299626.html" class="">08-网络协议与通信原理</a>
+                  
+                    <a href="/posts/2856475980.html" class="">08-裸机交叉编译工具链与链接脚本</a>
+                  
+                    <a href="/posts/423458188.html" class="">08-设备驱动模型与开发实践</a>
+                  
+                    <a href="/posts/4014961628.html" class="">09-Linux网卡流量统计工具选型与用法</a>
+                  
+                    <a href="/posts/4142321600.html" class="">09-Ubuntu2004禁止自动休眠的几种方式</a>
+                  
+                    <a href="/posts/1114536982.html" class="">09-内存管理基础</a>
+                  
+                    <a href="/posts/1702870561.html" class="">09-时间子系统原理与实现</a>
+                  
+                    <a href="/posts/729158944.html" class="">09-设备树DTS语法与内核解析</a>
+                  
+                    <a href="/posts/1720365042.html" class="">10-GPIO三种操作方式与设备树配置</a>
+                  
+                    <a href="/posts/1524901879.html" class="">10-Valgrind内存泄漏分析实战</a>
+                  
+                    <a href="/posts/683186726.html" class="">10-内存泄漏分析与定位流程</a>
+                  
+                    <a href="/posts/1370598446.html" class="">10-图形子系统架构与渲染栈</a>
+                  
+                    <a href="/posts/1626889410.html" class="">10-设备树架构与内核处理流程</a>
+                  
+                    <a href="/posts/1631881322.html" class="">11-CAN总线SocketCAN与CANopen开发</a>
+                  
+                    <a href="/posts/3507320406.html" class="">11-内存泄漏概念检测与修复</a>
+                  
+                    <a href="/posts/2395844944.html" class="">11-网络子系统架构与数据包流程</a>
+                  
+                    <a href="/posts/3827344601.html" class="">11-设备树开发流程与驱动实践</a>
+                  
+                    <a href="/posts/2542203250.html" class="">12-Flash驱动开发与MTD测试体系</a>
+                  
+                    <a href="/posts/3601506011.html" class="">12-嵌入式设备烧录与自动烧录SD卡</a>
+                  
+                    <a href="/posts/1249611102.html" class="">12-文件系统VFS架构与调优</a>
+                  
+                    <a href="/posts/3302243246.html" class="">12-设备树语法规则与节点属性</a>
+                  
+                    <a href="/posts/4232086438.html" class="">13-I2C协议与驱动开发调试</a>
+                  
+                    <a href="/posts/1745770341.html" class="">13-系统调用接口与陷入机制</a>
+                  
+                    <a href="/posts/3541193669.html" class="">13-设备树源码与内核实现</a>
+                  
+                    <a href="/posts/1932562151.html" class="">13-软件包管理工具与依赖排障</a>
+                  
+                    <a href="/posts/3679683762.html" class="">14-kmod工具集与内核模块管理</a>
+                  
+                    <a href="/posts/204754706.html" class="">14-内核调试工具与方法</a>
+                  
+                    <a href="/posts/337401038.html" class="">14-虚拟化子系统架构与实现</a>
+                  
+                    <a href="/posts/3619291073.html" class="">14-网络编程基础与高性能实践</a>
+                  
+                    <a href="/posts/30952159.html" class="">15-PWM子系统与三种开发方式</a>
+                  
+                    <a href="/posts/3428022739.html" class="">15-内核体系结构与学习路径</a>
+                  
+                    <a href="/posts/1156349833.html" class="">15-网络调试工具与防火墙配置</a>
+                  
+                    <a href="/posts/2084393826.html" class="">15-虚拟文件系统VFS架构与缓存</a>
+                  
+                    <a href="/posts/1492466562.html" class="">16-Linux网络基础与协议栈</a>
+                  
+                    <a href="/posts/1443612112.html" class="">16-RPMSG核间通信与开发流程</a>
+                  
+                    <a href="/posts/64163175.html" class="">16-中断处理子系统与上下半部</a>
+                  
+                    <a href="/posts/1662370678.html" class="">17-Linux网络配置与故障排查</a>
+                  
+                    <a href="/posts/3499888327.html" class="">17-RTC驱动与应用开发</a>
+                  
+                    <a href="/posts/1472071864.html" class="">17-内核子系统间交互与IPC机制</a>
+                  
+                    <a href="/posts/3375308729.html" class="">18-GPIO子系统与引脚控制架构</a>
+                  
+                    <a href="/posts/413524861.html" class="">18-Linux网络驱动与收发流程</a>
+                  
+                    <a href="/posts/1787716189.html" class="">18-Socket网络编程与粘包处理</a>
+                  
+                    <a href="/posts/2536056501.html" class="">19-SPI总线驱动与设备树配置</a>
+                  
+                    <a href="/posts/1043009254.html" class="">19-TTY子系统架构与驱动</a>
+                  
+                    <a href="/posts/2820206790.html" class="">19-以太网MAC与PHY接口</a>
+                  
+                    <a href="/posts/1783654330.html" class="">20-Linux文本处理命令与实战</a>
+                  
+                    <a href="/posts/4179949671.html" class="">20-UART串口驱动与RS485应用</a>
+                  
+                    <a href="/posts/865986603.html" class="">21-USB总线驱动框架与设备枚举</a>
+                  
+                    <a href="/posts/3847399252.html" class="">21-无线网络基础与部署排查</a>
+                  
+                    <a href="/posts/4143405040.html" class="">22-看门狗机制与软硬死锁检测</a>
+                  
+                    <a href="/posts/2990894265.html" class="">22-系统掉电保护与日志文件系统</a>
+                  
+                    <a href="/posts/3047565199.html" class="">23-Linux用户与组权限管理</a>
+                  
+                    <a href="/posts/4251339438.html" class="">23-WiFi模块PEB-WLBT-01配置与排障</a>
+                  
+                    <a href="/posts/3144456274.html" class="">24-环境变量修改与生效方法</a>
+                  
+                    <a href="/posts/2406993733.html" class="">25-ADC基础知识与工程实现</a>
+                  
+                    <a href="/posts/901317427.html" class="">26-ADB设备调试命令指南</a>
+                  
+                    <a href="/posts/970239254.html" class="">27-ARM-DSP-FPGA技术对比</a>
+                  
+                    <a href="/posts/1599150771.html" class="">28-awk文本处理与实战</a>
+                  
+                    <a href="/posts/1554852273.html" class="">29-can总线协议与编程基础</a>
+                  
+                    <a href="/posts/3987772023.html" class="">30-diff与patch补丁实战</a>
+                  
+                    <a href="/posts/663676011.html" class="">Linux 技能总览与索引</a>
+                  
+                    <a href="/posts/212295555.html" class="">31-DMA工作原理与内核API</a>
+                  
+                    <a href="/posts/2335117280.html" class="">32-eMMC嵌入式存储原理与优化</a>
+                  
+                    <a href="/posts/3281658937.html" class="">33-Flash存储器原理与编程实例</a>
+                  
+                    <a href="/posts/449212517.html" class="">34-GPIO工作模式与寄存器控制</a>
+                  
+                    <a href="/posts/2802968252.html" class="">35-I2C总线协议与驱动编程</a>
+                  
+                    <a href="/posts/646183460.html" class="">36-I2S音频总线与时钟配置</a>
+                  
+                    <a href="/posts/3921515715.html" class="">37-iMX8处理器系列与型号对比</a>
+                  
+                    <a href="/posts/3676773691.html" class="">38-KVM架构与CPU内存中断虚拟化</a>
+                  
+                    <a href="/posts/2296163704.html" class="">39-xPico240网卡配置与固件升级</a>
+                  
+                    <a href="/posts/4048648752.html" class="">40-MMU地址转换与页表管理</a>
+                  
+                    <a href="/posts/3573195005.html" class="">41-RK平台开发流程与组件</a>
+                  
+                    <a href="/posts/1368966976.html" class="">42-Shell脚本编程与实用案例</a>
+                  
+                    <a href="/posts/3800580745.html" class="">43-SPI总线原理与驱动实战</a>
+                  
+                    <a href="/posts/4029932750.html" class="active">44-UART串口原理与通信实战</a>
+                  
+                    <a href="/posts/3428875847.html" class="">45-USB固件开发全流程</a>
+                  
+                    <a href="/posts/1079176846.html" class="">46-USB总线协议与驱动开发基础</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="apollo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/apollo/" class=""><span>🚗</span><span>apollo</span><span class="cnt">62</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 apollo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2818472804.html" class="">01-百度Apollo概述与生态</a>
+                  
+                    <a href="/posts/452198409.html" class="">02-版本发展与架构演进</a>
+                  
+                    <a href="/posts/1132755144.html" class="">03-自动驾驶技术基础</a>
+                  
+                    <a href="/posts/260457831.html" class="">04-开发环境搭建（Docker）</a>
+                  
+                    <a href="/posts/3892420017.html" class="">05-源码编译与部署</a>
+                  
+                    <a href="/posts/4189053877.html" class="">06-核心模块总览</a>
+                  
+                    <a href="/posts/2291656538.html" class="">07-高精地图HD Map</a>
+                  
+                    <a href="/posts/1640301657.html" class="">08-定位模块</a>
+                  
+                    <a href="/posts/2974331331.html" class="">09-传感器接入（相机激光雷达毫米波）</a>
+                  
+                    <a href="/posts/1455150168.html" class="">10-CAN总线与车辆控制接口</a>
+                  
+                    <a href="/posts/2682517011.html" class="">11-Apollo Cyber RT框架</a>
+                  
+                    <a href="/posts/1297150334.html" class="">12-Cyber消息通信与组件开发</a>
+                  
+                    <a href="/posts/3060441397.html" class="">13-Apollo配置文件与参数</a>
+                  
+                    <a href="/posts/1643555401.html" class="">14-调试与可视化工具（DreamView）</a>
+                  
+                    <a href="/posts/1298984781.html" class="">15-感知模块总览与点云感知</a>
+                  
+                    <a href="/posts/2907166516.html" class="">16-感知模块-视觉感知</a>
+                  
+                    <a href="/posts/4078895387.html" class="">17-感知模块-雷达感知</a>
+                  
+                    <a href="/posts/2013834045.html" class="">18-传感器标定与坐标转换</a>
+                  
+                    <a href="/posts/3984938707.html" class="">19-预测模块</a>
+                  
+                    <a href="/posts/1834975411.html" class="">20-规划模块</a>
+                  
+                    <a href="/posts/4019786798.html" class="">21-决策模块与场景决策</a>
+                  
+                    <a href="/posts/122258190.html" class="">22-控制模块</a>
+                  
+                    <a href="/posts/3133762148.html" class="">23-车辆动力学基础</a>
+                  
+                    <a href="/posts/1453710074.html" class="">24-仿真平台与场景数据</a>
+                  
+                    <a href="/posts/2673778811.html" class="">25-Cyber启动系统详解</a>
+                  
+                    <a href="/posts/2526415752.html" class="">26-Cyber调度系统详解</a>
+                  
+                    <a href="/posts/2588802797.html" class="">27-Cyber时间系统与定时器</a>
+                  
+                    <a href="/posts/3670574823.html" class="">28-Cyber异步调用机制</a>
+                  
+                    <a href="/posts/3931639321.html" class="">29-Cyber数据系统详解</a>
+                  
+                    <a href="/posts/2442147404.html" class="">30-Cyber网络IO详解</a>
+                  
+                    <a href="/posts/789481480.html" class="">apollo 90-资料索引指南</a>
+                  
+                    <a href="/posts/4180254357.html" class="">apollo 00-索引</a>
+                  
+                    <a href="/posts/4241092442.html" class="">31-Cyber Transform与坐标变换</a>
+                  
+                    <a href="/posts/1946355615.html" class="">32-历史版本模块演进（2.0-5.0）</a>
+                  
+                    <a href="/posts/460001587.html" class="">33-车道级导航与决策</a>
+                  
+                    <a href="/posts/2878817428.html" class="">34-红绿灯感知与通行</a>
+                  
+                    <a href="/posts/3264947560.html" class="">35-泊车场景</a>
+                  
+                    <a href="/posts/3477625335.html" class="">36-高速场景</a>
+                  
+                    <a href="/posts/2091754220.html" class="">37-城市道路场景</a>
+                  
+                    <a href="/posts/3677233744.html" class="">38-端到端自动驾驶与大模型</a>
+                  
+                    <a href="/posts/3012449597.html" class="">39-车路协同与V2X</a>
+                  
+                    <a href="/posts/2752057546.html" class="">40-安全机制与冗余设计</a>
+                  
+                    <a href="/posts/143389874.html" class="">41-性能优化与车规级部署</a>
+                  
+                    <a href="/posts/2080454184.html" class="">42-实战：搭建Demo自动驾驶演示</a>
+                  
+                    <a href="/posts/1558901718.html" class="">43-常见问题排查</a>
+                  
+                    <a href="/posts/711159921.html" class="">45-SLAM概述与开发指南</a>
+                  
+                    <a href="/posts/519418161.html" class="">44-Apollo与ROS对比及生态互通</a>
+                  
+                    <a href="/posts/1474075229.html" class="">46-激光雷达技术原理与发展</a>
+                  
+                    <a href="/posts/1848584950.html" class="">47-激光雷达算法与Lidar模块详解</a>
+                  
+                    <a href="/posts/2562893149.html" class="">48-自动驾驶数据集总览</a>
+                  
+                    <a href="/posts/1294651885.html" class="">49-KITTI与Waymo数据集实战</a>
+                  
+                    <a href="/posts/2011272759.html" class="">50-仿真平台对比与Gazebo-LGSVL实战</a>
+                  
+                    <a href="/posts/1352878638.html" class="">51-深度学习基础与CNN</a>
+                  
+                    <a href="/posts/48707843.html" class="">52-PyTorch与自动驾驶实践</a>
+                  
+                    <a href="/posts/2665165307.html" class="">53-TensorFlow与Caffe2在自动驾驶中的应用</a>
+                  
+                    <a href="/posts/2511406057.html" class="">54-自动驾驶测试方法</a>
+                  
+                    <a href="/posts/1279187638.html" class="">55-标注工具与数据闭环</a>
+                  
+                    <a href="/posts/370472885.html" class="">56-自动驾驶云服务与基础设施</a>
+                  
+                    <a href="/posts/140110120.html" class="">57-自动驾驶操作系统</a>
+                  
+                    <a href="/posts/664493653.html" class="">58-自动驾驶运行时框架对比</a>
+                  
+                    <a href="/posts/1203635596.html" class="">59-自动驾驶学习资源与链接</a>
+                  
+                    <a href="/posts/2049739451.html" class="">60-Audio模块与扩展开发</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FreeRTOS">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/FreeRTOS/" class=""><span>⏱️</span><span>FreeRTOS</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FreeRTOS 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1571422233.html" class="">01-FreeRTOS简介与内核特性</a>
+                  
+                    <a href="/posts/1616849365.html" class="">02-任务管理与调度</a>
+                  
+                    <a href="/posts/2794860845.html" class="">03-任务创建与删除</a>
+                  
+                    <a href="/posts/1110013041.html" class="">04-任务状态机</a>
+                  
+                    <a href="/posts/45138943.html" class="">05-优先级与时间片</a>
+                  
+                    <a href="/posts/586549084.html" class="">06-队列</a>
+                  
+                    <a href="/posts/129125089.html" class="">07-信号量</a>
+                  
+                    <a href="/posts/2081041408.html" class="">08-互斥量与优先级反转</a>
+                  
+                    <a href="/posts/3205967530.html" class="">09-事件组</a>
+                  
+                    <a href="/posts/1094377116.html" class="">10-任务通知</a>
+                  
+                    <a href="/posts/1628705678.html" class="">11-流缓冲与消息缓冲</a>
+                  
+                    <a href="/posts/479641272.html" class="">12-软件定时器</a>
+                  
+                    <a href="/posts/3143395966.html" class="">13-内存管理</a>
+                  
+                    <a href="/posts/359640070.html" class="">14-中断管理与临界区</a>
+                  
+                    <a href="/posts/339821033.html" class="">15-Tick与时间管理</a>
+                  
+                    <a href="/posts/224362852.html" class="">16-内核裁剪配置</a>
+                  
+                    <a href="/posts/1572534698.html" class="">17-任务栈溢出检测</a>
+                  
+                    <a href="/posts/670312188.html" class="">18-低功耗与tickless</a>
+                  
+                    <a href="/posts/544846964.html" class="">19-多核SMP</a>
+                  
+                    <a href="/posts/1505843641.html" class="">20-FreeRTOS+TCP</a>
+                  
+                    <a href="/posts/2850073665.html" class="">21-CMSIS-RTOS适配</a>
+                  
+                    <a href="/posts/2762677009.html" class="">22-常见移植实践</a>
+                  
+                    <a href="/posts/574731705.html" class="">23-调试与跟踪</a>
+                  
+                    <a href="/posts/1113963761.html" class="">24-内存保护MPU</a>
+                  
+                    <a href="/posts/1361167341.html" class="">25-FreeRTOS与C++</a>
+                  
+                    <a href="/posts/3732453393.html" class="">26-队列集与流操作</a>
+                  
+                    <a href="/posts/3895620481.html" class="">27-实战项目入门</a>
+                  
+                    <a href="/posts/2560978280.html" class="">28-常见问题排查</a>
+                  
+                    <a href="/posts/3215440781.html" class="">29-任务通知进阶</a>
+                  
+                    <a href="/posts/2405586932.html" class="">30-中断安全编程</a>
+                  
+                    <a href="/posts/3652009953.html" class="">FreeRTOS 00-索引</a>
+                  
+                    <a href="/posts/1437498579.html" class="">FreeRTOS 90-资料索引指南</a>
+                  
+                    <a href="/posts/182118895.html" class="">31-内存管理进阶</a>
+                  
+                    <a href="/posts/517617803.html" class="">32-看门狗与可靠性</a>
+                  
+                    <a href="/posts/4097610364.html" class="">33-电源管理实战</a>
+                  
+                    <a href="/posts/918463786.html" class="">34-多核任务设计</a>
+                  
+                    <a href="/posts/316568827.html" class="">35-TCP网络实战</a>
+                  
+                    <a href="/posts/944546225.html" class="">36-外设驱动集成</a>
+                  
+                    <a href="/posts/276185314.html" class="">37-系统测试与验证</a>
+                  
+                    <a href="/posts/2845406665.html" class="">38-任务间通信模式</a>
+                  
+                    <a href="/posts/271812983.html" class="">39-安全与认证</a>
+                  
+                    <a href="/posts/2988932715.html" class="">40-高级主题展望</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros1">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros1/" class=""><span>🐢</span><span>ros1</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros1 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1845556343.html" class="">01-ROS1概述与生态</a>
+                  
+                    <a href="/posts/76272331.html" class="">02-ROS1安装与环境配置</a>
+                  
+                    <a href="/posts/985253049.html" class="">03-核心概念</a>
+                  
+                    <a href="/posts/4040033312.html" class="">04-工作空间与catkin构建</a>
+                  
+                    <a href="/posts/2100167891.html" class="">05-命令行工具</a>
+                  
+                    <a href="/posts/949416713.html" class="">06-话题通信</a>
+                  
+                    <a href="/posts/735184866.html" class="">07-服务通信</a>
+                  
+                    <a href="/posts/1658567558.html" class="">08-动作通信actionlib</a>
+                  
+                    <a href="/posts/3193113578.html" class="">09-参数服务器</a>
+                  
+                    <a href="/posts/951743246.html" class="">10-roscpp编程</a>
+                  
+                    <a href="/posts/3615205173.html" class="">11-rospy编程</a>
+                  
+                    <a href="/posts/2474828684.html" class="">12-tf坐标变换</a>
+                  
+                    <a href="/posts/510479535.html" class="">13-URDF机器人建模</a>
+                  
+                    <a href="/posts/3467326343.html" class="">14-rviz可视化</a>
+                  
+                    <a href="/posts/178034368.html" class="">15-Gazebo仿真</a>
+                  
+                    <a href="/posts/1047193066.html" class="">16-launch启动文件</a>
+                  
+                    <a href="/posts/1386748878.html" class="">17-自定义消息与srv</a>
+                  
+                    <a href="/posts/78293504.html" class="">18-日志与调试</a>
+                  
+                    <a href="/posts/3580172094.html" class="">19-常用传感器驱动</a>
+                  
+                    <a href="/posts/107634443.html" class="">20-机器人运动学基础</a>
+                  
+                    <a href="/posts/1090496406.html" class="">21-导航框架move_base</a>
+                  
+                    <a href="/posts/3445109373.html" class="">22-建图</a>
+                  
+                    <a href="/posts/774536357.html" class="">23-路径规划与避障</a>
+                  
+                    <a href="/posts/2139127442.html" class="">24-AMCL定位</a>
+                  
+                    <a href="/posts/1373317896.html" class="">25-视觉处理</a>
+                  
+                    <a href="/posts/2932687442.html" class="">26-语音交互</a>
+                  
+                    <a href="/posts/1912127119.html" class="">27-MoveIt机械臂控制</a>
+                  
+                    <a href="/posts/2602875264.html" class="">28-多机器人协同</a>
+                  
+                    <a href="/posts/616282562.html" class="">29-rosbridge与Web端</a>
+                  
+                    <a href="/posts/1820681443.html" class="">30-ROS与Docker</a>
+                  
+                    <a href="/posts/1838862059.html" class="">ros1 00-索引</a>
+                  
+                    <a href="/posts/1752376526.html" class="">ros1 90-资料索引指南</a>
+                  
+                    <a href="/posts/520426601.html" class="">31-ROS与嵌入式平台</a>
+                  
+                    <a href="/posts/1774912468.html" class="">32-ROS1与ROS2对比迁移</a>
+                  
+                    <a href="/posts/3778090335.html" class="">33-仿真场景搭建</a>
+                  
+                    <a href="/posts/3561607965.html" class="">34-常见问题排查</a>
+                  
+                    <a href="/posts/1451115071.html" class="">35-性能优化</a>
+                  
+                    <a href="/posts/1856851824.html" class="">36-产品化实践</a>
+                  
+                    <a href="/posts/3405034604.html" class="">37-插件机制与自定义工具</a>
+                  
+                    <a href="/posts/3819213526.html" class="">38-ROS生态常用库</a>
+                  
+                    <a href="/posts/1488454277.html" class="">39-实战：小车自主导航</a>
+                  
+                    <a href="/posts/1504338169.html" class="">40-实战：机械臂抓取</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros2">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros2/" class=""><span>🐢</span><span>ros2</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros2 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1204306053.html" class="">01-ROS2概述与生态</a>
+                  
+                    <a href="/posts/1039368075.html" class="">02-ROS2安装与环境配置</a>
+                  
+                    <a href="/posts/3950396837.html" class="">04-工作空间与colcon构建</a>
+                  
+                    <a href="/posts/3022531917.html" class="">08-动作通信</a>
+                  
+                    <a href="/posts/3927300417.html" class="">09-参数机制</a>
+                  
+                    <a href="/posts/3825548204.html" class="">10-rclcpp编程</a>
+                  
+                    <a href="/posts/3191786011.html" class="">11-rclpy编程</a>
+                  
+                    <a href="/posts/3441056145.html" class="">12-生命周期节点</a>
+                  
+                    <a href="/posts/3898278822.html" class="">13-自定义消息接口</a>
+                  
+                    <a href="/posts/742500733.html" class="">14-执行器与回调组</a>
+                  
+                    <a href="/posts/201369509.html" class="">15-tf2坐标变换</a>
+                  
+                    <a href="/posts/1182880406.html" class="">16-URDF与xacro建模</a>
+                  
+                    <a href="/posts/1106872961.html" class="">17-rviz2可视化</a>
+                  
+                    <a href="/posts/2049131804.html" class="">18-Gazebo与Ignition仿真</a>
+                  
+                    <a href="/posts/3503988486.html" class="">19-launch系统</a>
+                  
+                    <a href="/posts/3559813711.html" class="">20-日志与调试工具</a>
+                  
+                    <a href="/posts/2378366256.html" class="">21-常用传感器驱动</a>
+                  
+                    <a href="/posts/2969019117.html" class="">22-导航2框架</a>
+                  
+                    <a href="/posts/2928992651.html" class="">23-SLAM建图</a>
+                  
+                    <a href="/posts/1486087179.html" class="">24-路径规划与避障</a>
+                  
+                    <a href="/posts/3827643133.html" class="">25-AMCL定位</a>
+                  
+                    <a href="/posts/767168211.html" class="">26-视觉处理</a>
+                  
+                    <a href="/posts/868393764.html" class="">27-语音交互</a>
+                  
+                    <a href="/posts/711846815.html" class="">28-MoveIt2机械臂控制</a>
+                  
+                    <a href="/posts/4265837254.html" class="">29-多机器人协同</a>
+                  
+                    <a href="/posts/1138612136.html" class="">30-rosbridge与Web端</a>
+                  
+                    <a href="/posts/4101548266.html" class="">ros2 00-索引</a>
+                  
+                    <a href="/posts/381645954.html" class="">ros2 03-核心概念</a>
+                  
+                    <a href="/posts/1488323843.html" class="">ros2 05-命令行工具</a>
+                  
+                    <a href="/posts/344998706.html" class="">ros2 06-话题通信</a>
+                  
+                    <a href="/posts/131381209.html" class="">ros2 07-服务通信</a>
+                  
+                    <a href="/posts/172068224.html" class="">ros2 40-实战：机械臂抓取</a>
+                  
+                    <a href="/posts/513154547.html" class="">ros2 90-资料索引指南</a>
+                  
+                    <a href="/posts/1661557767.html" class="">31-ROS2与Docker</a>
+                  
+                    <a href="/posts/1400569321.html" class="">32-ROS2与嵌入式平台</a>
+                  
+                    <a href="/posts/514195102.html" class="">33-实时性与QoS策略</a>
+                  
+                    <a href="/posts/26068340.html" class="">34-安全与权限</a>
+                  
+                    <a href="/posts/4284941043.html" class="">35-性能优化与Benchmark</a>
+                  
+                    <a href="/posts/512206225.html" class="">36-常见问题排查</a>
+                  
+                    <a href="/posts/103591067.html" class="">37-ROS2与ROS1桥接迁移</a>
+                  
+                    <a href="/posts/496626970.html" class="">38-产品化与部署实践</a>
+                  
+                    <a href="/posts/4258040718.html" class="">39-实战：自动驾驶小车</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="RT-Thread">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/RT-Thread/" class=""><span>🧵</span><span>RT-Thread</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 RT-Thread 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3906847031.html" class="">01-RT-Thread简介与生态</a>
+                  
+                    <a href="/posts/610362104.html" class="">02-内核架构</a>
+                  
+                    <a href="/posts/284852137.html" class="">03-线程管理与调度</a>
+                  
+                    <a href="/posts/1006179627.html" class="">04-线程创建与删除</a>
+                  
+                    <a href="/posts/2919135044.html" class="">05-线程状态机与优先级</a>
+                  
+                    <a href="/posts/357331050.html" class="">06-时钟与定时器</a>
+                  
+                    <a href="/posts/1414862789.html" class="">08-互斥量</a>
+                  
+                    <a href="/posts/3456321070.html" class="">09-事件集</a>
+                  
+                    <a href="/posts/2205341896.html" class="">10-邮箱</a>
+                  
+                    <a href="/posts/3843597198.html" class="">11-消息队列</a>
+                  
+                    <a href="/posts/643009288.html" class="">12-内存管理</a>
+                  
+                    <a href="/posts/2340600776.html" class="">13-内存池与内存堆</a>
+                  
+                    <a href="/posts/2027116276.html" class="">14-中断管理</a>
+                  
+                    <a href="/posts/4146654009.html" class="">15-临界区与线程同步</a>
+                  
+                    <a href="/posts/61094340.html" class="">16-设备驱动框架</a>
+                  
+                    <a href="/posts/2180335808.html" class="">17-I-O设备模型</a>
+                  
+                    <a href="/posts/3069243359.html" class="">18-FinSH控制台</a>
+                  
+                    <a href="/posts/3174840723.html" class="">19-组件与软件包</a>
+                  
+                    <a href="/posts/501684497.html" class="">20-Env与menuconfig配置</a>
+                  
+                    <a href="/posts/1358882682.html" class="">21-RT-Thread Studio</a>
+                  
+                    <a href="/posts/1974679192.html" class="">22-Scons构建</a>
+                  
+                    <a href="/posts/1558395596.html" class="">23-AT组件</a>
+                  
+                    <a href="/posts/4270916110.html" class="">24-网络组件lwIP</a>
+                  
+                    <a href="/posts/4025911074.html" class="">25-DFS文件系统</a>
+                  
+                    <a href="/posts/2437688169.html" class="">26-POSIX支持</a>
+                  
+                    <a href="/posts/1239645384.html" class="">27-动态模块加载</a>
+                  
+                    <a href="/posts/4089363247.html" class="">28-常见移植实践</a>
+                  
+                    <a href="/posts/849796471.html" class="">29-低功耗</a>
+                  
+                    <a href="/posts/47134548.html" class="">30-多核与SMP</a>
+                  
+                    <a href="/posts/2902895778.html" class="">RT-Thread 00-索引</a>
+                  
+                    <a href="/posts/4044683037.html" class="">RT-Thread 07-信号量</a>
+                  
+                    <a href="/posts/1755746755.html" class="">RT-Thread 40-高级主题展望</a>
+                  
+                    <a href="/posts/2924604793.html" class="">RT-Thread 90-资料索引指南</a>
+                  
+                    <a href="/posts/603515604.html" class="">31-微内核与混合微内核</a>
+                  
+                    <a href="/posts/1273830891.html" class="">32-调试与优化</a>
+                  
+                    <a href="/posts/2088952723.html" class="">33-安全</a>
+                  
+                    <a href="/posts/3972366794.html" class="">34-GUI组件与柿饼UI</a>
+                  
+                    <a href="/posts/4194237798.html" class="">35-传感器与驱动组件</a>
+                  
+                    <a href="/posts/1254828870.html" class="">36-实时性分析与优化</a>
+                  
+                    <a href="/posts/70811593.html" class="">37-电源管理</a>
+                  
+                    <a href="/posts/192380990.html" class="">38-实战项目入门</a>
+                  
+                    <a href="/posts/1645794736.html" class="">39-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="Zephyr">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Zephyr/" class=""><span>🍃</span><span>Zephyr</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Zephyr 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2998335701.html" class="">01-Zephyr简介与基金会</a>
+                  
+                    <a href="/posts/111570124.html" class="">02-安装与west工具</a>
+                  
+                    <a href="/posts/391350374.html" class="">03-工程结构</a>
+                  
+                    <a href="/posts/1788752700.html" class="">04-设备树Device Tree</a>
+                  
+                    <a href="/posts/2760731910.html" class="">05-Kconfig配置</a>
+                  
+                    <a href="/posts/2266609168.html" class="">06-内核与调度</a>
+                  
+                    <a href="/posts/2595343241.html" class="">07-线程管理</a>
+                  
+                    <a href="/posts/2487926311.html" class="">08-信号量</a>
+                  
+                    <a href="/posts/4159413018.html" class="">09-队列与消息</a>
+                  
+                    <a href="/posts/3342684069.html" class="">10-内存管理</a>
+                  
+                    <a href="/posts/1826938431.html" class="">11-中断处理</a>
+                  
+                    <a href="/posts/3296401581.html" class="">12-时钟与定时器</a>
+                  
+                    <a href="/posts/911217641.html" class="">13-驱动模型</a>
+                  
+                    <a href="/posts/1524886392.html" class="">14-GPIO驱动</a>
+                  
+                    <a href="/posts/497960377.html" class="">15-UART驱动</a>
+                  
+                    <a href="/posts/515235046.html" class="">16-SPI驱动</a>
+                  
+                    <a href="/posts/3496686401.html" class="">17-I2C驱动</a>
+                  
+                    <a href="/posts/2457140616.html" class="">18-ADC驱动</a>
+                  
+                    <a href="/posts/2991435572.html" class="">19-传感器子系统</a>
+                  
+                    <a href="/posts/819898526.html" class="">20-网络栈</a>
+                  
+                    <a href="/posts/551898650.html" class="">21-蓝牙BLE</a>
+                  
+                    <a href="/posts/686766330.html" class="">22-USB支持</a>
+                  
+                    <a href="/posts/4032698702.html" class="">23-文件系统</a>
+                  
+                    <a href="/posts/2833611844.html" class="">24-Shell子系统</a>
+                  
+                    <a href="/posts/2017556036.html" class="">25-日志系统</a>
+                  
+                    <a href="/posts/80085439.html" class="">26-ztest测试框架</a>
+                  
+                    <a href="/posts/3382284514.html" class="">27-twister测试</a>
+                  
+                    <a href="/posts/2853899551.html" class="">28-构建系统CMake</a>
+                  
+                    <a href="/posts/3766947609.html" class="">29-多架构支持</a>
+                  
+                    <a href="/posts/608772131.html" class="">Zephyr 00-索引</a>
+                  
+                    <a href="/posts/2374992791.html" class="">Zephyr 90-资料索引指南</a>
+                  
+                    <a href="/posts/2085179778.html" class="">30-移植新板卡</a>
+                  
+                    <a href="/posts/2023471085.html" class="">31-低功耗管理</a>
+                  
+                    <a href="/posts/447085682.html" class="">32-安全机制</a>
+                  
+                    <a href="/posts/2755005965.html" class="">33-OTA升级</a>
+                  
+                    <a href="/posts/3554942251.html" class="">34-QEMU模拟器</a>
+                  
+                    <a href="/posts/2564223040.html" class="">35-native模拟器</a>
+                  
+                    <a href="/posts/66503584.html" class="">36-调试与追踪</a>
+                  
+                    <a href="/posts/2974884396.html" class="">37-CMake模块</a>
+                  
+                    <a href="/posts/1879468777.html" class="">38-发布与版本管理</a>
+                  
+                    <a href="/posts/1364311534.html" class="">39-实战项目</a>
+                  
+                    <a href="/posts/4081303068.html" class="">40-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ubuntu24.04">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ubuntu24-04/" class=""><span>🐧</span><span>ubuntu24.04</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ubuntu24.04 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2909325257.html" class="">01-apt 与 dpkg</a>
+                  
+                    <a href="/posts/912530846.html" class="">snap</a>
+                  
+                    <a href="/posts/3939215804.html" class="">03-systemctl 与 service</a>
+                  
+                    <a href="/posts/719879336.html" class="">04-journalctl</a>
+                  
+                    <a href="/posts/3351581332.html" class="">05-htop 与 top</a>
+                  
+                    <a href="/posts/3990143705.html" class="">06-ps 与 kill</a>
+                  
+                    <a href="/posts/585076020.html" class="">07-vim 与 nano</a>
+                  
+                    <a href="/posts/1568442627.html" class="">08-grep</a>
+                  
+                    <a href="/posts/1977677039.html" class="">09-awk 与 sed</a>
+                  
+                    <a href="/posts/4049174153.html" class="">10-find 与 locate</a>
+                  
+                    <a href="/posts/3717903947.html" class="">11-tar 与 zip 与 rsync</a>
+                  
+                    <a href="/posts/2237282420.html" class="">12-ssh 与 scp</a>
+                  
+                    <a href="/posts/1707164187.html" class="">13-ufw</a>
+                  
+                    <a href="/posts/55246962.html" class="">14-cron</a>
+                  
+                    <a href="/posts/651339923.html" class="">15-systemd 定时器</a>
+                  
+                    <a href="/posts/3732393277.html" class="">16-netstat 与 ss 与 ip</a>
+                  
+                    <a href="/posts/2075061187.html" class="">17-curl 与 wget</a>
+                  
+                    <a href="/posts/321014113.html" class="">18-git</a>
+                  
+                    <a href="/posts/2822540859.html" class="">19-docker</a>
+                  
+                    <a href="/posts/3712678695.html" class="">20-python3 与 pip</a>
+                  
+                    <a href="/posts/2522287106.html" class="">21-gcc 与 make</a>
+                  
+                    <a href="/posts/635533000.html" class="">22-磁盘与日志排错工具集</a>
+                  
+                    <a href="/posts/1019958619.html" class="">ubuntu24.04 00-索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="windows">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/windows/" class=""><span>🪟</span><span>windows</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 windows 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2345133774.html" class="">01-PowerShell</a>
+                  
+                    <a href="/posts/746402433.html" class="">02-Windows Terminal</a>
+                  
+                    <a href="/posts/119374108.html" class="">03-任务管理器</a>
+                  
+                    <a href="/posts/3593758667.html" class="">04-资源监视器</a>
+                  
+                    <a href="/posts/279260672.html" class="">05-事件查看器</a>
+                  
+                    <a href="/posts/861959827.html" class="">06-注册表编辑器</a>
+                  
+                    <a href="/posts/1682198913.html" class="">07-磁盘管理</a>
+                  
+                    <a href="/posts/2304893546.html" class="">08-系统配置(msconfig)</a>
+                  
+                    <a href="/posts/143523753.html" class="">09-性能监视器</a>
+                  
+                    <a href="/posts/3851129891.html" class="">10-备份与还原</a>
+                  
+                    <a href="/posts/3417706708.html" class="">11-Windows Defender</a>
+                  
+                    <a href="/posts/2900354160.html" class="">12-Sysinternals 套件</a>
+                  
+                    <a href="/posts/569218026.html" class="">13-winget</a>
+                  
+                    <a href="/posts/1864485545.html" class="">14-PowerToys</a>
+                  
+                    <a href="/posts/1859880826.html" class="">15-剪贴板历史与截图工具</a>
+                  
+                    <a href="/posts/2173435638.html" class="">16-远程桌面</a>
+                  
+                    <a href="/posts/388811029.html" class="">17-Hyper-V</a>
+                  
+                    <a href="/posts/987941398.html" class="">18-WSL</a>
+                  
+                    <a href="/posts/2454912129.html" class="">19-BitLocker</a>
+                  
+                    <a href="/posts/2195244691.html" class="">20-任务计划程序与服务管理器</a>
+                  
+                    <a href="/posts/979849589.html" class="">21-组策略与系统还原</a>
+                  
+                    <a href="/posts/4259947464.html" class="">22-命令行工具集</a>
+                  
+                    <a href="/posts/1775093485.html" class="">windows 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/">🤖 操作系统与机器人</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/">🐧 Linux</a> / <span>44-UART串口原理与通信实战</span></div>
+
+<h1>44-UART串口原理与通信实战</h1>
+<div class="subtitle">UART 大概是嵌入式工程师最熟悉也最容易低估的接口。我调试时第一反应永远是先把串口打通，它简单、可靠，几个参数对了就能打印日志。</div>
+<div class="article-meta">
+  <span>📅 2026-10-08</span><span>· 更新于 2026-10-08</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 10615 字 · 约 27 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/Linux/">#Linux</a><a class="tagchip" href="/tags/%E6%A6%82%E5%BF%B5/">#概念</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/4029932750.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="UART串口原理与通信实战"><a href="#UART串口原理与通信实战" class="headerlink" title="UART串口原理与通信实战"></a>UART串口原理与通信实战</h1><p>UART 大概是嵌入式工程师最熟悉也最容易低估的接口。我调试时第一反应永远是先把串口打通，它简单、可靠，几个参数对了就能打印日志。但真要把波特率误差、电平匹配和流控制这些细节理顺，还是得系统过一遍。这篇从数据帧结构一路写到编程实例和故障排查，把我平时踩过的坑也标在了对应章节里。</p>
+<p><strong>一图看懂</strong>：UART 用起始位到停止位组成数据帧，异步点对点通信。</p>
+<div class="mermaid">
+graph LR
+    TX[发送端] --&gt; FR["数据帧 起始位 数据位 校验位 停止位"]
+    FR --&gt; BAUD[波特率匹配]
+    BAUD --&gt; RX[接收端]
+    RX --&gt; MODE[轮询 中断 DMA 三种处理]
+</div>
+
+<h2 id="1-异步点对点串口：UART-的定位与演进">1. 异步点对点串口：UART 的定位与演进<a class="hlink" data-h="1-异步点对点串口：UART-的定位与演进" href="#1-异步点对点串口：UART-的定位与演进" title="跳到本节">¶</a></h2><p>说白了 UART 就是两根线加一个约定好的波特率，没有时钟线反而让它最容易上手，也最容易因为参数不一致翻车。</p>
+<p>UART（Universal Asynchronous Receiver&#x2F;Transmitter，通用异步收发器）是一种广泛应用于嵌入式系统和计算机外设通信的串行通信协议。作为计算机历史上最早的外设通信接口之一，UART以其简单性、可靠性和通用性，成为连接微控制器与外部设备的重要桥梁。</p>
+<h3 id="1-1-UART的发展历史">1.1 UART的发展历史<a class="hlink" data-h="1-1-UART的发展历史" href="#1-1-UART的发展历史" title="跳到本节">¶</a></h3><ul>
+<li><strong>1960年代初期</strong>：串行通信接口最早在电传打字机和计算机终端中使用</li>
+<li><strong>1969年</strong>：RS-232C标准发布，定义了串行通信的电气特性</li>
+<li><strong>1970年代</strong>：UART作为集成电路出现，如Intel 8250</li>
+<li><strong>1980年代</strong>：PC采用16550 UART芯片，增加缓冲功能</li>
+<li><strong>1990年代</strong>：嵌入式微控制器集成UART外设</li>
+<li><strong>2000年代至今</strong>：USB转UART接口普及，UART仍是嵌入式系统的标准接口</li>
+</ul>
+<h3 id="1-2-UART的基本特性">1.2 UART的基本特性<a class="hlink" data-h="1-2-UART的基本特性" href="#1-2-UART的基本特性" title="跳到本节">¶</a></h3><p>UART是一种点对点的串行通信协议，具有以下主要特性：</p>
+<ul>
+<li><strong>异步通信</strong>：发送方和接收方使用各自的时钟，不需要共享时钟信号</li>
+<li><strong>双线传输</strong>：基本实现只需RX（接收）和TX（发送）两条数据线</li>
+<li><strong>起始位和停止位</strong>：用于标记数据帧的开始和结束</li>
+<li><strong>可配置性</strong>：支持灵活的数据位数、停止位、奇偶校验等配置</li>
+<li><strong>全双工通信</strong>：可以同时发送和接收数据</li>
+<li><strong>多种波特率</strong>：支持多种通信速率，常见为9600、115200bps等</li>
+<li><strong>简单性</strong>：硬件实现简单，易于编程控制</li>
+<li><strong>无寻址机制</strong>：基本UART没有设备寻址能力，是点对点通信</li>
+<li><strong>非差分信号</strong>：标准UART使用单端信号，抗干扰能力有限</li>
+</ul>
+<p>UART凭借其简单且灵活的特性，被广泛应用于从简单调试到复杂设备间通信的各种场景。尽管现代系统出现了许多更高速的通信接口，UART仍然是嵌入式系统中不可或缺的基础通信方式。</p>
+<h2 id="2-起始位到停止位：UART-数据帧与波特率">2. 起始位到停止位：UART 数据帧与波特率<a class="hlink" data-h="2-起始位到停止位：UART-数据帧与波特率" href="#2-起始位到停止位：UART-数据帧与波特率" title="跳到本节">¶</a></h2><p>收发双方必须先把波特率、数据位、停止位和校验都约定一致，我遇到过的乱码十有八九是参数没对上。</p>
+<h3 id="2-1-基本通信方式">2.1 基本通信方式<a class="hlink" data-h="2-1-基本通信方式" href="#2-1-基本通信方式" title="跳到本节">¶</a></h3><p>UART采用异步串行通信方式，数据以位(bit)为单位按时间顺序依次传输。其基本通信原理为：</p>
+<ol>
+<li><strong>空闲状态</strong>：线路处于高电平（逻辑1）</li>
+<li><strong>数据发送</strong>：<ul>
+<li>发送起始位（逻辑0）标记数据帧开始</li>
+<li>依次发送数据位（通常为5-9位）</li>
+<li>发送可选的奇偶校验位</li>
+<li>发送停止位（逻辑1，可以是1、1.5或2位）标记数据帧结束</li>
+</ul>
+</li>
+<li><strong>接收过程</strong>：<ul>
+<li>检测到起始位后，接收器开始采样</li>
+<li>根据预设波特率在每个位的中间时刻采样</li>
+<li>接收完所有位后，进行可能的校验，并送入接收缓冲区</li>
+</ul>
+</li>
+</ol>
+<p>UART通信的一个重要特点是，发送方和接收方必须预先约定好通信参数（波特率、数据位数、校验方式、停止位数），否则将无法正确通信。</p>
+<h3 id="2-2-数据帧结构">2.2 数据帧结构<a class="hlink" data-h="2-2-数据帧结构" href="#2-2-数据帧结构" title="跳到本节">¶</a></h3><p>标准UART数据帧由以下部分组成：</p>
+<ol>
+<li><p>**起始位(Start Bit)**：</p>
+<ul>
+<li>固定为逻辑0（低电平）</li>
+<li>表示数据传输开始</li>
+<li>长度为1位</li>
+</ul>
+</li>
+<li><p>**数据位(Data Bits)**：</p>
+<ul>
+<li>可以是5、6、7、8或9位</li>
+<li>通常使用8位（一个字节）</li>
+<li>可以选择LSB（最低有效位）或MSB（最高有效位）先传</li>
+</ul>
+</li>
+<li><p>**奇偶校验位(Parity Bit)**：</p>
+<ul>
+<li>可选部分，用于错误检测</li>
+<li>可以是奇校验、偶校验、固定0、固定1或无校验</li>
+<li>长度为1位（如果使用）</li>
+</ul>
+</li>
+<li><p>**停止位(Stop Bit)**：</p>
+<ul>
+<li>固定为逻辑1（高电平）</li>
+<li>表示数据传输结束</li>
+<li>长度可以是1位、1.5位或2位</li>
+</ul>
+</li>
+</ol>
+<p>完整数据帧的结构可表示为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[空闲高电平] → [起始位(0)] → [数据位(5-9位)] → [校验位(可选)] → [停止位(1-2位)] → [空闲高电平]</span><br></pre></td></tr></table></figure>
+
+<p>一个典型的8N1（8数据位、无校验、1停止位）UART帧示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">      起始位  D0  D1  D2  D3  D4  D5  D6  D7  停止位</span><br><span class="line">线路状态: 1    0   X   X   X   X   X   X   X   X    1</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-波特率与时钟">2.3 波特率与时钟<a class="hlink" data-h="2-3-波特率与时钟" href="#2-3-波特率与时钟" title="跳到本节">¶</a></h3><p>波特率（Baud Rate）是UART通信中的关键参数，表示每秒传输的符号数。在UART中，通常一个符号对应一个位，因此波特率也等同于位率（bit rate）。</p>
+<h4 id="2-3-1-常用波特率"><a href="#2-3-1-常用波特率" class="headerlink" title="2.3.1 常用波特率"></a>2.3.1 常用波特率</h4><p>标准波特率包括：</p>
+<ul>
+<li>1200、2400、4800、9600、19200、38400、57600、115200 bps等</li>
+</ul>
+<p>较低波特率提供更好的信号完整性和更长的通信距离，较高波特率则提供更快的数据传输。</p>
+<h4 id="2-3-2-波特率生成"><a href="#2-3-2-波特率生成" class="headerlink" title="2.3.2 波特率生成"></a>2.3.2 波特率生成</h4><p>UART控制器通过一个波特率发生器（通常是一个可编程分频器）从系统时钟生成所需的波特率：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">波特率 = 系统时钟频率 / 分频系数</span><br></pre></td></tr></table></figure>
+
+<p>例如，如果系统时钟为16MHz，要生成9600波特率，则分频系数为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">分频系数 = 16,000,000 / 9600 = 1666.67</span><br></pre></td></tr></table></figure>
+
+<p>大多数UART控制器支持非整数分频，以获得更准确的波特率。</p>
+<h4 id="2-3-3-采样率"><a href="#2-3-3-采样率" class="headerlink" title="2.3.3 采样率"></a>2.3.3 采样率</h4><p>接收器通常以波特率的16倍(16×采样)或8倍(8×采样)对接收信号进行采样，以确保在位的中间点进行采样，提高抗干扰能力。</p>
+<h3 id="2-4-奇偶校验与错误检测">2.4 奇偶校验与错误检测<a class="hlink" data-h="2-4-奇偶校验与错误检测" href="#2-4-奇偶校验与错误检测" title="跳到本节">¶</a></h3><p>UART提供基本的错误检测机制，帮助确保数据完整性：</p>
+<h4 id="2-4-1-奇偶校验（Parity-Check）"><a href="#2-4-1-奇偶校验（Parity-Check）" class="headerlink" title="2.4.1 奇偶校验（Parity Check）"></a>2.4.1 奇偶校验（Parity Check）</h4><ul>
+<li>**奇校验(Odd Parity)**：校验位使数据位加校验位中”1”的总数为奇数</li>
+<li>**偶校验(Even Parity)**：校验位使数据位加校验位中”1”的总数为偶数</li>
+<li>**固定校验(Mark&#x2F;Space Parity)**：校验位固定为1（标记）或0（空格）</li>
+</ul>
+<h4 id="2-4-2-帧错误（Framing-Error）"><a href="#2-4-2-帧错误（Framing-Error）" class="headerlink" title="2.4.2 帧错误（Framing Error）"></a>2.4.2 帧错误（Framing Error）</h4><p>当接收器未在预期位置检测到停止位时，发生帧错误，通常表示波特率设置不匹配或线路干扰。</p>
+<h4 id="2-4-3-溢出错误（Overflow-Error）"><a href="#2-4-3-溢出错误（Overflow-Error）" class="headerlink" title="2.4.3 溢出错误（Overflow Error）"></a>2.4.3 溢出错误（Overflow Error）</h4><p>当接收缓冲区已满但仍有新数据到达时，发生溢出错误，表示软件未及时读取数据。</p>
+<h4 id="2-4-4-噪声错误（Noise-Error）"><a href="#2-4-4-噪声错误（Noise-Error）" class="headerlink" title="2.4.4 噪声错误（Noise Error）"></a>2.4.4 噪声错误（Noise Error）</h4><p>在16×采样模式下，如果在一个位期间的多个样本不一致，则检测到噪声错误。</p>
+<h2 id="3-数据寄存器与移位器：UART-控制器架构与电平标准">3. 数据寄存器与移位器：UART 控制器架构与电平标准<a class="hlink" data-h="3-数据寄存器与移位器：UART-控制器架构与电平标准" href="#3-数据寄存器与移位器：UART-控制器架构与电平标准" title="跳到本节">¶</a></h2><p>TTL、RS-232 和 RS-485 的区别在电平不在协议，我接线前一定先确认两边电平标准，3.3V 直接怼 5V 或 RS-232 会出问题。</p>
+<h3 id="3-1-UART控制器架构">3.1 UART控制器架构<a class="hlink" data-h="3-1-UART控制器架构" href="#3-1-UART控制器架构" title="跳到本节">¶</a></h3><p>典型的UART控制器包含以下核心组件：</p>
+<ol>
+<li><p><strong>数据寄存器</strong>：</p>
+<ul>
+<li>发送数据寄存器(TDR)：存放待发送的数据</li>
+<li>接收数据寄存器(RDR)：存放接收到的数据</li>
+</ul>
+</li>
+<li><p><strong>移位寄存器</strong>：</p>
+<ul>
+<li>发送移位寄存器：将并行数据转换为串行输出</li>
+<li>接收移位寄存器：将串行输入转换为并行数据</li>
+</ul>
+</li>
+<li><p><strong>波特率发生器</strong>：</p>
+<ul>
+<li>可编程分频器：根据系统时钟生成所需波特率</li>
+</ul>
+</li>
+<li><p><strong>控制寄存器</strong>：</p>
+<ul>
+<li>配置数据位数、停止位、校验方式等</li>
+<li>启用&#x2F;禁用发送器和接收器</li>
+<li>启用&#x2F;禁用中断</li>
+</ul>
+</li>
+<li><p><strong>状态寄存器</strong>：</p>
+<ul>
+<li>指示发送器和接收器状态</li>
+<li>报告错误条件（帧错误、奇偶校验错误等）</li>
+<li>指示缓冲区状态（满&#x2F;空）</li>
+</ul>
+</li>
+<li><p><strong>中断控制逻辑</strong>：</p>
+<ul>
+<li>生成各种中断信号（接收完成、发送完成等）</li>
+</ul>
+</li>
+</ol>
+<p>一个简化的UART控制器框图：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">+----------------+    +----------------+    +---------------+</span><br><span class="line">|                |    |                |    |               |</span><br><span class="line">| 配置寄存器     |---&gt;| 控制逻辑       |---&gt;| 状态寄存器    |</span><br><span class="line">|                |    |                |    |               |</span><br><span class="line">+----------------+    +-------+--------+    +---------------+</span><br><span class="line">                             |</span><br><span class="line">                             v</span><br><span class="line">+----------------+    +-----+------+    +----------------+</span><br><span class="line">|                |    |            |    |                |</span><br><span class="line">| 波特率发生器   |---&gt;| 时钟控制   |    | 中断控制       |</span><br><span class="line">|                |    |            |    |                |</span><br><span class="line">+----------------+    +-----+------+    +-------+--------+</span><br><span class="line">                             |                   |</span><br><span class="line">                             v                   |</span><br><span class="line">+----------------+    +-----+------+    +-------v--------+</span><br><span class="line">|                |    |            |    |                |</span><br><span class="line">| 发送数据寄存器 |---&gt;| 发送移位器 |---&gt;| TX引脚         |</span><br><span class="line">|                |    |            |    |                |</span><br><span class="line">+----------------+    +------------+    +----------------+</span><br><span class="line"></span><br><span class="line">+----------------+    +------------+    +----------------+</span><br><span class="line">|                |    |            |    |                |</span><br><span class="line">| 接收数据寄存器 |&lt;---| 接收移位器 |&lt;---| RX引脚         |</span><br><span class="line">|                |    |            |    |                |</span><br><span class="line">+----------------+    +------------+    +----------------+</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-UART信号线及连接">3.2 UART信号线及连接<a class="hlink" data-h="3-2-UART信号线及连接" href="#3-2-UART信号线及连接" title="跳到本节">¶</a></h3><h4 id="3-2-1-基本信号线"><a href="#3-2-1-基本信号线" class="headerlink" title="3.2.1 基本信号线"></a>3.2.1 基本信号线</h4><p>最简单的UART连接仅需两条信号线：</p>
+<ul>
+<li>**TX (Transmit)**：发送数据的线路</li>
+<li>**RX (Receive)**：接收数据的线路</li>
+</ul>
+<p>完整的UART接口可能还包括以下信号线：</p>
+<ul>
+<li>**RTS (Request to Send)**：流控制信号，表示设备准备好接收数据</li>
+<li>**CTS (Clear to Send)**：流控制信号，表示对方可以发送数据</li>
+<li>**DTR (Data Terminal Ready)**：表示终端设备已准备好通信</li>
+<li>**DSR (Data Set Ready)**：表示数据设备已准备好通信</li>
+<li>**DCD (Data Carrier Detect)**：表示检测到载波信号</li>
+<li>**RI (Ring Indicator)**：表示检测到振铃信号</li>
+</ul>
+<h4 id="3-2-2-连接方式"><a href="#3-2-2-连接方式" class="headerlink" title="3.2.2 连接方式"></a>3.2.2 连接方式</h4><p>两个UART设备连接时，TX和RX需要交叉连接：</p>
+<ul>
+<li>设备A的TX连接到设备B的RX</li>
+<li>设备A的RX连接到设备B的TX</li>
+</ul>
+<p>基本连接图示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">设备A                  设备B</span><br><span class="line">+------+              +------+</span><br><span class="line">|      |  TX    RX    |      |</span><br><span class="line">|  U   |-------&gt;------|  U   |</span><br><span class="line">|  A   |              |  A   |</span><br><span class="line">|  R   |  RX    TX    |  R   |</span><br><span class="line">|  T   |-------&lt;------|  T   |</span><br><span class="line">+------+              +------+</span><br></pre></td></tr></table></figure>
+
+<p>使用硬件流控制的连接：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">设备A                  设备B</span><br><span class="line">+------+              +------+</span><br><span class="line">|      |  TX    RX    |      |</span><br><span class="line">|      |-------&gt;------|      |</span><br><span class="line">|      |              |      |</span><br><span class="line">|  U   |  RX    TX    |  U   |</span><br><span class="line">|  A   |-------&lt;------|  A   |</span><br><span class="line">|  R   |              |  R   |</span><br><span class="line">|  T   |  RTS   CTS   |  T   |</span><br><span class="line">|      |-------&gt;------|      |</span><br><span class="line">|      |              |      |</span><br><span class="line">|      |  CTS   RTS   |      |</span><br><span class="line">|      |-------&lt;------|      |</span><br><span class="line">+------+              +------+</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-电气标准与接口">3.3 电气标准与接口<a class="hlink" data-h="3-3-电气标准与接口" href="#3-3-电气标准与接口" title="跳到本节">¶</a></h3><p>UART通信协议定义了逻辑时序，但没有规定具体的电气特性。在实际应用中，UART常与以下电气标准结合使用：</p>
+<h4 id="3-3-1-TTL-CMOS电平"><a href="#3-3-1-TTL-CMOS电平" class="headerlink" title="3.3.1 TTL&#x2F;CMOS电平"></a>3.3.1 TTL&#x2F;CMOS电平</h4><ul>
+<li>直接使用微控制器的电平信号（通常为3.3V或5V）</li>
+<li>逻辑”1”为VCC电平（高电平）</li>
+<li>逻辑”0”为GND电平（低电平）</li>
+<li>适用于短距离、同电平系统间通信</li>
+<li>无噪声抑制能力，传输距离通常限制在几厘米到几米</li>
+</ul>
+<h4 id="3-3-2-RS-232标准"><a href="#3-3-2-RS-232标准" class="headerlink" title="3.3.2 RS-232标准"></a>3.3.2 RS-232标准</h4><ul>
+<li>广泛应用于PC和工业设备的串行接口标准</li>
+<li>使用反相逻辑：<ul>
+<li>逻辑”1”为-3V至-15V（通常为-12V）</li>
+<li>逻辑”0”为+3V至+15V（通常为+12V）</li>
+</ul>
+</li>
+<li>提供更好的噪声抗扰度和更长的传输距离（最多15米）</li>
+<li>需要电平转换芯片（如MAX232）将TTL电平转换为RS-232电平</li>
+</ul>
+<h4 id="3-3-3-RS-485标准"><a href="#3-3-3-RS-485标准" class="headerlink" title="3.3.3 RS-485标准"></a>3.3.3 RS-485标准</h4><ul>
+<li>用于工业环境的串行通信标准</li>
+<li>使用差分信号传输，具有极高的抗噪能力</li>
+<li>支持多点通信（最多32个节点）</li>
+<li>传输距离可达1200米</li>
+<li>常用于工业现场总线和远距离通信</li>
+</ul>
+<h4 id="3-3-4-其他衍生标准"><a href="#3-3-4-其他衍生标准" class="headerlink" title="3.3.4 其他衍生标准"></a>3.3.4 其他衍生标准</h4><ul>
+<li><strong>RS-422</strong>：与RS-485类似的差分传输标准，但通常用于点对点通信</li>
+<li><strong>TTL-USB转换器</strong>：使用专用芯片（如CH340、CP2102、FT232）将UART转换为USB接口</li>
+<li><strong>蓝牙SPP</strong>：通过蓝牙连接提供虚拟串口服务</li>
+</ul>
+<h3 id="3-4-接口电路示例">3.4 接口电路示例<a class="hlink" data-h="3-4-接口电路示例" href="#3-4-接口电路示例" title="跳到本节">¶</a></h3><h4 id="3-4-1-TTL-UART直接连接"><a href="#3-4-1-TTL-UART直接连接" class="headerlink" title="3.4.1 TTL UART直接连接"></a>3.4.1 TTL UART直接连接</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">      MCU A                   MCU B</span><br><span class="line">      +----+                 +----+</span><br><span class="line">VCC---|Vcc |                 |Vcc |---VCC</span><br><span class="line">      |    |                 |    |</span><br><span class="line">      |    |     TX    RX    |    |</span><br><span class="line">      |    |------&gt;----------|    |</span><br><span class="line">      |UART|                 |UART|</span><br><span class="line">      |    |     RX    TX    |    |</span><br><span class="line">      |    |------&lt;----------|    |</span><br><span class="line">      |    |                 |    |</span><br><span class="line">GND---|Gnd |                 |Gnd |---GND</span><br><span class="line">      +----+                 +----+</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-4-2-TTL转RS-232接口电路"><a href="#3-4-2-TTL转RS-232接口电路" class="headerlink" title="3.4.2 TTL转RS-232接口电路"></a>3.4.2 TTL转RS-232接口电路</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">       MCU                          RS-232设备</span><br><span class="line">      +----+       MAX232          +----+</span><br><span class="line">VCC---|Vcc |       +----+          |    |</span><br><span class="line">      |    |  TX   |    |    TX    |    |</span><br><span class="line">      |    |------&gt;|    |---------&gt;|    |</span><br><span class="line">      |UART|       |    |          |    |</span><br><span class="line">      |    |  RX   |    |    RX    |    |</span><br><span class="line">      |    |&lt;------|    |&lt;---------|    |</span><br><span class="line">      |    |       |    |          |    |</span><br><span class="line">GND---|Gnd |       |    |          |    |</span><br><span class="line">      +----+       +----+          +----+</span><br><span class="line">                   |    |</span><br><span class="line">                +--|    |--+</span><br><span class="line">                |  +----+  |</span><br><span class="line">                |          |</span><br><span class="line">               === C1-C4  ===</span><br><span class="line">                |          |</span><br><span class="line">                +----------+</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-4-3-TTL转RS-485接口电路"><a href="#3-4-3-TTL转RS-485接口电路" class="headerlink" title="3.4.3 TTL转RS-485接口电路"></a>3.4.3 TTL转RS-485接口电路</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">       MCU                    RS-485总线</span><br><span class="line">      +----+       MAX485     +----+</span><br><span class="line">VCC---|Vcc |       +----+     |    |</span><br><span class="line">      |    |  TX   |    |  A  |    |</span><br><span class="line">      |    |------&gt;|    |-----|    |</span><br><span class="line">      |UART|       |    |     | 终 |</span><br><span class="line">      |    |  RX   |    |  B  | 端 |</span><br><span class="line">      |    |&lt;------|    |-----|    |</span><br><span class="line">      |    |       |    |     |    |</span><br><span class="line">      |    |  DIR  |    |     |    |</span><br><span class="line">      |    |------&gt;|    |     +----+</span><br><span class="line">GND---|Gnd |       +----+</span><br><span class="line">      +----+</span><br></pre></td></tr></table></figure>
+
+<h2 id="4-全双工、轮询与-DMA：UART-的传输与处理模式">4. 全双工、轮询与 DMA：UART 的传输与处理模式<a class="hlink" data-h="4-全双工、轮询与-DMA：UART-的传输与处理模式" href="#4-全双工、轮询与-DMA：UART-的传输与处理模式" title="跳到本节">¶</a></h2><p>简单应用轮询就够，数据量一上来我就换中断或 DMA，轮询最省事但也最吃 CPU。</p>
+<h3 id="4-1-传输模式">4.1 传输模式<a class="hlink" data-h="4-1-传输模式" href="#4-1-传输模式" title="跳到本节">¶</a></h3><p>UART支持多种传输模式，适应不同应用场景的需求：</p>
+<h4 id="4-1-1-全双工-Full-Duplex-模式"><a href="#4-1-1-全双工-Full-Duplex-模式" class="headerlink" title="4.1.1 全双工(Full Duplex)模式"></a>4.1.1 全双工(Full Duplex)模式</h4><ul>
+<li>同时可以发送和接收数据</li>
+<li>需要独立的TX和RX线</li>
+<li>是UART最常用的工作模式</li>
+<li>适用于需要双向实时通信的应用</li>
+</ul>
+<h4 id="4-1-2-半双工-Half-Duplex-模式"><a href="#4-1-2-半双工-Half-Duplex-模式" class="headerlink" title="4.1.2 半双工(Half Duplex)模式"></a>4.1.2 半双工(Half Duplex)模式</h4><ul>
+<li>可以发送和接收数据，但在同一时刻只能进行一种操作</li>
+<li>通常使用单线加方向控制实现</li>
+<li>适用于RS-485等总线系统</li>
+<li>需要额外的方向控制逻辑</li>
+</ul>
+<h4 id="4-1-3-单工-Simplex-模式"><a href="#4-1-3-单工-Simplex-模式" class="headerlink" title="4.1.3 单工(Simplex)模式"></a>4.1.3 单工(Simplex)模式</h4><ul>
+<li>数据只能朝一个方向传输</li>
+<li>仅使用TX或RX其中一条线</li>
+<li>适用于单向数据传输场景，如简单传感器</li>
+</ul>
+<h3 id="4-2-数据处理模式">4.2 数据处理模式<a class="hlink" data-h="4-2-数据处理模式" href="#4-2-数据处理模式" title="跳到本节">¶</a></h3><p>UART数据处理有几种典型实现方式：</p>
+<h4 id="4-2-1-轮询模式"><a href="#4-2-1-轮询模式" class="headerlink" title="4.2.1 轮询模式"></a>4.2.1 轮询模式</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 发送数据(轮询模式)</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">uart_send_byte_polling</span><span class="params">(UART_TypeDef *uart, <span class="type">uint8_t</span> data)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待发送缓冲区为空</span></span><br><span class="line">    <span class="keyword">while</span>(!(uart-&gt;SR &amp; UART_SR_TXE));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 写入数据</span></span><br><span class="line">    uart-&gt;DR = data;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 接收数据(轮询模式)</span></span><br><span class="line"><span class="type">uint8_t</span> <span class="title function_">uart_receive_byte_polling</span><span class="params">(UART_TypeDef *uart)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待接收到数据</span></span><br><span class="line">    <span class="keyword">while</span>(!(uart-&gt;SR &amp; UART_SR_RXNE));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 读取数据</span></span><br><span class="line">    <span class="keyword">return</span> uart-&gt;DR;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>优点：简单，不需要中断处理</li>
+<li>缺点：占用CPU时间，效率低</li>
+<li>适用场景：简单应用，数据量小</li>
+</ul>
+<h4 id="4-2-2-中断模式"><a href="#4-2-2-中断模式" class="headerlink" title="4.2.2 中断模式"></a>4.2.2 中断模式</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 中断处理函数</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_IRQHandler</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span>(UART-&gt;SR &amp; UART_SR_RXNE) &#123;</span><br><span class="line">        <span class="comment">// 数据接收中断</span></span><br><span class="line">        <span class="type">uint8_t</span> data = UART-&gt;DR;</span><br><span class="line">        <span class="comment">// 处理接收到的数据</span></span><br><span class="line">        process_received_data(data);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span>(UART-&gt;SR &amp; UART_SR_TXE) &#123;</span><br><span class="line">        <span class="keyword">if</span>(tx_buffer_empty()) &#123;</span><br><span class="line">            <span class="comment">// 禁用发送中断</span></span><br><span class="line">            UART-&gt;CR1 &amp;= ~UART_CR1_TXEIE;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 发送下一个字节</span></span><br><span class="line">            UART-&gt;DR = get_next_tx_byte();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>优点：CPU效率高，响应及时</li>
+<li>缺点：中断处理复杂度增加</li>
+<li>适用场景：一般数据通信，中等数据量</li>
+</ul>
+<h4 id="4-2-3-DMA模式"><a href="#4-2-3-DMA模式" class="headerlink" title="4.2.3 DMA模式"></a>4.2.3 DMA模式</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 初始化DMA发送</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">uart_dma_transmit</span><span class="params">(UART_TypeDef *uart, <span class="type">uint8_t</span> *data, <span class="type">uint16_t</span> size)</span> &#123;</span><br><span class="line">    <span class="comment">// 配置DMA</span></span><br><span class="line">    DMA_Channel-&gt;CPAR = (<span class="type">uint32_t</span>)&amp;uart-&gt;DR;    <span class="comment">// 外设地址</span></span><br><span class="line">    DMA_Channel-&gt;CMAR = (<span class="type">uint32_t</span>)data;         <span class="comment">// 内存地址</span></span><br><span class="line">    DMA_Channel-&gt;CNDTR = size;                  <span class="comment">// 数据量</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置传输方向、优先级等</span></span><br><span class="line">    DMA_Channel-&gt;CCR = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_PSIZE_0 | DMA_CCR_MSIZE_0;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使能DMA</span></span><br><span class="line">    DMA_Channel-&gt;CCR |= DMA_CCR_EN;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使能UART DMA发送</span></span><br><span class="line">    uart-&gt;CR3 |= UART_CR3_DMAT;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>优点：CPU负担最小，适合大数据量传输</li>
+<li>缺点：初始化复杂，资源占用多</li>
+<li>适用场景：大数据量传输，如串口屏、数据记录</li>
+</ul>
+<h3 id="4-3-多处理器通信模式">4.3 多处理器通信模式<a class="hlink" data-h="4-3-多处理器通信模式" href="#4-3-多处理器通信模式" title="跳到本节">¶</a></h3><p>除了基本通信模式，一些高级UART还支持多处理器通信：</p>
+<h4 id="4-3-1-地址标记模式"><a href="#4-3-1-地址标记模式" class="headerlink" title="4.3.1 地址标记模式"></a>4.3.1 地址标记模式</h4><ul>
+<li>允许在公共总线上连接多个UART设备</li>
+<li>每个数据帧的第9位作为地址&#x2F;数据标记</li>
+<li>设备只处理地址匹配的或广播的数据帧</li>
+<li>适用于简单的总线网络</li>
+</ul>
+<h4 id="4-3-2-LIN总线模式"><a href="#4-3-2-LIN总线模式" class="headerlink" title="4.3.2 LIN总线模式"></a>4.3.2 LIN总线模式</h4><ul>
+<li>Local Interconnect Network，用于汽车内部网络</li>
+<li>UART的扩展，使用单主多从模式</li>
+<li>包含同步字段和增强的错误检测</li>
+<li>低速(20kbps)，低成本</li>
+</ul>
+<h3 id="4-4-低功耗模式">4.4 低功耗模式<a class="hlink" data-h="4-4-低功耗模式" href="#4-4-低功耗模式" title="跳到本节">¶</a></h3><p>现代UART控制器通常提供以下低功耗特性：</p>
+<ul>
+<li><strong>自动唤醒</strong>：检测到起始位时从低功耗模式唤醒</li>
+<li><strong>空闲检测</strong>：检测到一定时间无活动后自动进入低功耗模式</li>
+<li><strong>时钟门控</strong>：在不需要时关闭UART时钟</li>
+<li><strong>部分唤醒</strong>：只有地址匹配时才完全唤醒接收器</li>
+</ul>
+<h2 id="5-STM32-上的-UART-初始化与收发代码">5. STM32 上的 UART 初始化与收发代码<a class="hlink" data-h="5-STM32-上的-UART-初始化与收发代码" href="#5-STM32-上的-UART-初始化与收发代码" title="跳到本节">¶</a></h2><p>初始化时我习惯先把波特率寄存器算清楚再配 GPIO 复用，偏差大的话后面调试全是坑。</p>
+<h3 id="5-1-基本初始化">5.1 基本初始化<a class="hlink" data-h="5-1-基本初始化" href="#5-1-基本初始化" title="跳到本节">¶</a></h3><p>以STM32微控制器为例的UART初始化代码：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_Init</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint32_t</span> baud)</span> &#123;</span><br><span class="line">    <span class="comment">// 使能UART时钟和GPIO时钟</span></span><br><span class="line">    <span class="keyword">if</span>(USARTx == USART1) &#123;</span><br><span class="line">        RCC-&gt;APB2ENR |= RCC_APB2ENR_USART1EN | RCC_APB2ENR_IOPAEN;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 配置GPIO引脚</span></span><br><span class="line">        <span class="comment">// PA9 as TX</span></span><br><span class="line">        GPIOA-&gt;CRH &amp;= ~(GPIO_CRH_CNF9 | GPIO_CRH_MODE9);</span><br><span class="line">        GPIOA-&gt;CRH |= GPIO_CRH_CNF9_1 | GPIO_CRH_MODE9;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// PA10 as RX</span></span><br><span class="line">        GPIOA-&gt;CRH &amp;= ~(GPIO_CRH_CNF10 | GPIO_CRH_MODE10);</span><br><span class="line">        GPIOA-&gt;CRH |= GPIO_CRH_CNF10_0;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 复位UART</span></span><br><span class="line">    USARTx-&gt;CR1 = <span class="number">0</span>;</span><br><span class="line">    USARTx-&gt;CR2 = <span class="number">0</span>;</span><br><span class="line">    USARTx-&gt;CR3 = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置波特率</span></span><br><span class="line">    <span class="type">uint32_t</span> pclk = SystemCoreClock;</span><br><span class="line">    <span class="keyword">if</span>(USARTx != USART1) &#123;</span><br><span class="line">        pclk /= <span class="number">2</span>;  <span class="comment">// USART2,3,4,5 connected to APB1</span></span><br><span class="line">    &#125;</span><br><span class="line">    USARTx-&gt;BRR = (pclk + baud/<span class="number">2</span>) / baud;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置UART参数：8数据位，1停止位，无校验</span></span><br><span class="line">    USARTx-&gt;CR1 |= USART_CR1_TE | USART_CR1_RE;  <span class="comment">// 使能发送和接收</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使能UART</span></span><br><span class="line">    USARTx-&gt;CR1 |= USART_CR1_UE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-发送数据的多种方法">5.2 发送数据的多种方法<a class="hlink" data-h="5-2-发送数据的多种方法" href="#5-2-发送数据的多种方法" title="跳到本节">¶</a></h3><h4 id="5-2-1-轮询方式发送"><a href="#5-2-1-轮询方式发送" class="headerlink" title="5.2.1 轮询方式发送"></a>5.2.1 轮询方式发送</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_SendChar</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint8_t</span> data)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待上一次发送完成</span></span><br><span class="line">    <span class="keyword">while</span>(!(USARTx-&gt;SR &amp; USART_SR_TXE));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送数据</span></span><br><span class="line">    USARTx-&gt;DR = data;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_SendString</span><span class="params">(USART_TypeDef* USARTx, <span class="type">const</span> <span class="type">char</span>* str)</span> &#123;</span><br><span class="line">    <span class="keyword">while</span>(*str) &#123;</span><br><span class="line">        UART_SendChar(USARTx, *str++);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="5-2-2-中断方式发送"><a href="#5-2-2-中断方式发送" class="headerlink" title="5.2.2 中断方式发送"></a>5.2.2 中断方式发送</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> TX_BUFFER_SIZE  64</span></span><br><span class="line"><span class="type">uint8_t</span> tx_buffer[TX_BUFFER_SIZE];</span><br><span class="line"><span class="type">uint8_t</span> tx_write_ptr = <span class="number">0</span>;</span><br><span class="line"><span class="type">uint8_t</span> tx_read_ptr = <span class="number">0</span>;</span><br><span class="line"><span class="type">uint8_t</span> tx_count = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_SendChar_IT</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint8_t</span> data)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待缓冲区有空间</span></span><br><span class="line">    <span class="keyword">while</span>(tx_count &gt;= TX_BUFFER_SIZE);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 关闭中断以保护共享变量</span></span><br><span class="line">    __disable_irq();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 将数据放入缓冲区</span></span><br><span class="line">    tx_buffer[tx_write_ptr++] = data;</span><br><span class="line">    <span class="keyword">if</span>(tx_write_ptr &gt;= TX_BUFFER_SIZE) tx_write_ptr = <span class="number">0</span>;</span><br><span class="line">    tx_count++;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用发送中断</span></span><br><span class="line">    USARTx-&gt;CR1 |= USART_CR1_TXEIE;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 恢复中断</span></span><br><span class="line">    __enable_irq();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 中断处理函数</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">USART1_IRQHandler</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span>(USART1-&gt;SR &amp; USART_SR_TXE) &#123;</span><br><span class="line">        <span class="keyword">if</span>(tx_count &gt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="comment">// 发送下一个字节</span></span><br><span class="line">            USART1-&gt;DR = tx_buffer[tx_read_ptr++];</span><br><span class="line">            <span class="keyword">if</span>(tx_read_ptr &gt;= TX_BUFFER_SIZE) tx_read_ptr = <span class="number">0</span>;</span><br><span class="line">            tx_count--;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 无数据待发送，禁用发送中断</span></span><br><span class="line">            USART1-&gt;CR1 &amp;= ~USART_CR1_TXEIE;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="5-2-3-DMA方式发送"><a href="#5-2-3-DMA方式发送" class="headerlink" title="5.2.3 DMA方式发送"></a>5.2.3 DMA方式发送</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_SendBuffer_DMA</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint8_t</span>* data, <span class="type">uint16_t</span> size)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待上一次DMA传输完成</span></span><br><span class="line">    <span class="keyword">while</span>(DMA1_Channel4-&gt;CCR &amp; DMA_CCR_EN);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置DMA</span></span><br><span class="line">    DMA1_Channel4-&gt;CCR &amp;= ~DMA_CCR_EN;  <span class="comment">// 禁用DMA通道</span></span><br><span class="line">    DMA1_Channel4-&gt;CPAR = (<span class="type">uint32_t</span>)&amp;(USARTx-&gt;DR);  <span class="comment">// 外设地址</span></span><br><span class="line">    DMA1_Channel4-&gt;CMAR = (<span class="type">uint32_t</span>)data;  <span class="comment">// 内存地址</span></span><br><span class="line">    DMA1_Channel4-&gt;CNDTR = size;  <span class="comment">// 数据量</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置DMA模式</span></span><br><span class="line">    DMA1_Channel4-&gt;CCR = DMA_CCR_DIR |     <span class="comment">// 从内存到外设</span></span><br><span class="line">                        DMA_CCR_MINC |     <span class="comment">// 内存地址递增</span></span><br><span class="line">                        DMA_CCR_PSIZE_0 |  <span class="comment">// 外设数据宽度8位</span></span><br><span class="line">                        DMA_CCR_MSIZE_0;   <span class="comment">// 内存数据宽度8位</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用DMA</span></span><br><span class="line">    DMA1_Channel4-&gt;CCR |= DMA_CCR_EN;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用UART的DMA发送请求</span></span><br><span class="line">    USARTx-&gt;CR3 |= USART_CR3_DMAT;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-接收数据的多种方法">5.3 接收数据的多种方法<a class="hlink" data-h="5-3-接收数据的多种方法" href="#5-3-接收数据的多种方法" title="跳到本节">¶</a></h3><h4 id="5-3-1-轮询方式接收"><a href="#5-3-1-轮询方式接收" class="headerlink" title="5.3.1 轮询方式接收"></a>5.3.1 轮询方式接收</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">uint8_t</span> <span class="title function_">UART_ReceiveChar</span><span class="params">(USART_TypeDef* USARTx)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待接收到数据</span></span><br><span class="line">    <span class="keyword">while</span>(!(USARTx-&gt;SR &amp; USART_SR_RXNE));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 读取并返回数据</span></span><br><span class="line">    <span class="keyword">return</span> USARTx-&gt;DR;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_ReceiveString</span><span class="params">(USART_TypeDef* USARTx, <span class="type">char</span>* buffer, <span class="type">uint16_t</span> max_size)</span> &#123;</span><br><span class="line">    <span class="type">uint16_t</span> i = <span class="number">0</span>;</span><br><span class="line">    <span class="type">char</span> c;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        c = UART_ReceiveChar(USARTx);</span><br><span class="line">        buffer[i++] = c;</span><br><span class="line">    &#125; <span class="keyword">while</span>(c != <span class="string">&#x27;\n&#x27;</span> &amp;&amp; i &lt; max_size - <span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">    buffer[i] = <span class="string">&#x27;\0&#x27;</span>;  <span class="comment">// 字符串结束符</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="5-3-2-中断方式接收"><a href="#5-3-2-中断方式接收" class="headerlink" title="5.3.2 中断方式接收"></a>5.3.2 中断方式接收</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> RX_BUFFER_SIZE  64</span></span><br><span class="line"><span class="type">uint8_t</span> rx_buffer[RX_BUFFER_SIZE];</span><br><span class="line"><span class="type">uint8_t</span> rx_write_ptr = <span class="number">0</span>;</span><br><span class="line"><span class="type">uint8_t</span> rx_read_ptr = <span class="number">0</span>;</span><br><span class="line"><span class="type">uint8_t</span> rx_count = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_Init_IT</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint32_t</span> baud)</span> &#123;</span><br><span class="line">    <span class="comment">// 基本初始化</span></span><br><span class="line">    UART_Init(USARTx, baud);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用接收中断</span></span><br><span class="line">    USARTx-&gt;CR1 |= USART_CR1_RXNEIE;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置NVIC</span></span><br><span class="line">    <span class="keyword">if</span>(USARTx == USART1) &#123;</span><br><span class="line">        NVIC_EnableIRQ(USART1_IRQn);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">uint8_t</span> <span class="title function_">UART_ReceiveChar_IT</span><span class="params">(USART_TypeDef* USARTx)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待缓冲区有数据</span></span><br><span class="line">    <span class="keyword">while</span>(rx_count == <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 关闭中断以保护共享变量</span></span><br><span class="line">    __disable_irq();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 从缓冲区读取数据</span></span><br><span class="line">    <span class="type">uint8_t</span> data = rx_buffer[rx_read_ptr++];</span><br><span class="line">    <span class="keyword">if</span>(rx_read_ptr &gt;= RX_BUFFER_SIZE) rx_read_ptr = <span class="number">0</span>;</span><br><span class="line">    rx_count--;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 恢复中断</span></span><br><span class="line">    __enable_irq();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> data;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 扩展中断处理函数，添加接收处理</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">USART1_IRQHandler</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="comment">// 发送中断处理代码...</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span>(USART1-&gt;SR &amp; USART_SR_RXNE) &#123;</span><br><span class="line">        <span class="comment">// 接收到数据</span></span><br><span class="line">        <span class="type">uint8_t</span> data = USART1-&gt;DR;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 将数据放入环形缓冲区</span></span><br><span class="line">        <span class="keyword">if</span>(rx_count &lt; RX_BUFFER_SIZE) &#123;</span><br><span class="line">            rx_buffer[rx_write_ptr++] = data;</span><br><span class="line">            <span class="keyword">if</span>(rx_write_ptr &gt;= RX_BUFFER_SIZE) rx_write_ptr = <span class="number">0</span>;</span><br><span class="line">            rx_count++;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="5-3-3-DMA方式接收"><a href="#5-3-3-DMA方式接收" class="headerlink" title="5.3.3 DMA方式接收"></a>5.3.3 DMA方式接收</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> DMA_RX_BUFFER_SIZE 64</span></span><br><span class="line"><span class="type">uint8_t</span> dma_rx_buffer[DMA_RX_BUFFER_SIZE];</span><br><span class="line"><span class="type">uint8_t</span> dma_rx_buffer_tail = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_ReceiveBuffer_DMA</span><span class="params">(USART_TypeDef* USARTx)</span> &#123;</span><br><span class="line">    <span class="comment">// 配置DMA</span></span><br><span class="line">    DMA1_Channel5-&gt;CCR &amp;= ~DMA_CCR_EN;  <span class="comment">// 禁用DMA通道</span></span><br><span class="line">    DMA1_Channel5-&gt;CPAR = (<span class="type">uint32_t</span>)&amp;(USARTx-&gt;DR);  <span class="comment">// 外设地址</span></span><br><span class="line">    DMA1_Channel5-&gt;CMAR = (<span class="type">uint32_t</span>)dma_rx_buffer;  <span class="comment">// 内存地址</span></span><br><span class="line">    DMA1_Channel5-&gt;CNDTR = DMA_RX_BUFFER_SIZE;  <span class="comment">// 数据量</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置DMA模式</span></span><br><span class="line">    DMA1_Channel5-&gt;CCR = DMA_CCR_MINC |     <span class="comment">// 内存地址递增</span></span><br><span class="line">                        DMA_CCR_PSIZE_0 |  <span class="comment">// 外设数据宽度8位</span></span><br><span class="line">                        DMA_CCR_MSIZE_0 |  <span class="comment">// 内存数据宽度8位</span></span><br><span class="line">                        DMA_CCR_CIRC;      <span class="comment">// 循环模式</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用DMA</span></span><br><span class="line">    DMA1_Channel5-&gt;CCR |= DMA_CCR_EN;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用UART的DMA接收请求</span></span><br><span class="line">    USARTx-&gt;CR3 |= USART_CR3_DMAR;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">uint16_t</span> <span class="title function_">UART_Available_DMA</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="type">uint16_t</span> head = DMA_RX_BUFFER_SIZE - DMA1_Channel5-&gt;CNDTR;</span><br><span class="line">    <span class="keyword">if</span>(head &gt;= dma_rx_buffer_tail) &#123;</span><br><span class="line">        <span class="keyword">return</span> head - dma_rx_buffer_tail;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> DMA_RX_BUFFER_SIZE + head - dma_rx_buffer_tail;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">uint8_t</span> <span class="title function_">UART_ReadByte_DMA</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待有数据可读</span></span><br><span class="line">    <span class="keyword">while</span>(UART_Available_DMA() == <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 读取数据</span></span><br><span class="line">    <span class="type">uint8_t</span> data = dma_rx_buffer[dma_rx_buffer_tail++];</span><br><span class="line">    <span class="keyword">if</span>(dma_rx_buffer_tail &gt;= DMA_RX_BUFFER_SIZE) &#123;</span><br><span class="line">        dma_rx_buffer_tail = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> data;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-4-流控制实现">5.4 流控制实现<a class="hlink" data-h="5-4-流控制实现" href="#5-4-流控制实现" title="跳到本节">¶</a></h3><h4 id="5-4-1-软件流控制（XON-XOFF）"><a href="#5-4-1-软件流控制（XON-XOFF）" class="headerlink" title="5.4.1 软件流控制（XON&#x2F;XOFF）"></a>5.4.1 软件流控制（XON&#x2F;XOFF）</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> ASCII_XON  0x11  <span class="comment">// DC1</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> ASCII_XOFF 0x13  <span class="comment">// DC3</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">bool</span> xoff_received = <span class="literal">false</span>;  <span class="comment">// 是否收到XOFF</span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_Process_Flow_Control</span><span class="params">(<span class="type">uint8_t</span> data)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span>(data == ASCII_XOFF) &#123;</span><br><span class="line">        xoff_received = <span class="literal">true</span>;  <span class="comment">// 接收方请求暂停发送</span></span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span>(data == ASCII_XON) &#123;</span><br><span class="line">        xoff_received = <span class="literal">false</span>;  <span class="comment">// 接收方允许继续发送</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_SendChar_With_Flow_Control</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint8_t</span> data)</span> &#123;</span><br><span class="line">    <span class="comment">// 等待允许发送</span></span><br><span class="line">    <span class="keyword">while</span>(xoff_received);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送数据</span></span><br><span class="line">    UART_SendChar(USARTx, data);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_Check_Buffer_Status</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="type">static</span> <span class="type">bool</span> xoff_sent = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 缓冲区接近满，发送XOFF</span></span><br><span class="line">    <span class="keyword">if</span>(rx_count &gt; RX_BUFFER_SIZE * <span class="number">0.8</span> &amp;&amp; !xoff_sent) &#123;</span><br><span class="line">        UART_SendChar(USART1, ASCII_XOFF);</span><br><span class="line">        xoff_sent = <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 缓冲区有足够空间，发送XON</span></span><br><span class="line">    <span class="keyword">if</span>(rx_count &lt; RX_BUFFER_SIZE * <span class="number">0.2</span> &amp;&amp; xoff_sent) &#123;</span><br><span class="line">        UART_SendChar(USART1, ASCII_XON);</span><br><span class="line">        xoff_sent = <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="5-4-2-硬件流控制（RTS-CTS）"><a href="#5-4-2-硬件流控制（RTS-CTS）" class="headerlink" title="5.4.2 硬件流控制（RTS&#x2F;CTS）"></a>5.4.2 硬件流控制（RTS&#x2F;CTS）</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_Init_With_Hardware_Flow_Control</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint32_t</span> baud)</span> &#123;</span><br><span class="line">    <span class="comment">// 基本初始化</span></span><br><span class="line">    UART_Init(USARTx, baud);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置RTS/CTS引脚</span></span><br><span class="line">    <span class="comment">// PA11 as CTS</span></span><br><span class="line">    GPIOA-&gt;CRH &amp;= ~(GPIO_CRH_CNF11 | GPIO_CRH_MODE11);</span><br><span class="line">    GPIOA-&gt;CRH |= GPIO_CRH_CNF11_0;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// PA12 as RTS</span></span><br><span class="line">    GPIOA-&gt;CRH &amp;= ~(GPIO_CRH_CNF12 | GPIO_CRH_MODE12);</span><br><span class="line">    GPIOA-&gt;CRH |= GPIO_CRH_CNF12_1 | GPIO_CRH_MODE12;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用硬件流控制</span></span><br><span class="line">    USARTx-&gt;CR3 |= USART_CR3_RTSE | USART_CR3_CTSE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="6-调试、设备互联与协议之上的-UART">6. 调试、设备互联与协议之上的 UART<a class="hlink" data-h="6-调试、设备互联与协议之上的-UART" href="#6-调试、设备互联与协议之上的-UART" title="跳到本节">¶</a></h2><p>调试口是 UART 最不可替代的场景，哪怕板上跑着高速接口，我也会留一路串口打日志。</p>
+<h3 id="6-1-调试与开发">6.1 调试与开发<a class="hlink" data-h="6-1-调试与开发" href="#6-1-调试与开发" title="跳到本节">¶</a></h3><p>UART是嵌入式系统开发中最常用的调试接口：</p>
+<ul>
+<li><strong>调试信息输出</strong>：打印系统状态、错误信息</li>
+<li><strong>命令行接口</strong>：通过串口命令控制系统</li>
+<li><strong>实时监控</strong>：监控传感器数据、系统参数</li>
+<li><strong>代码下载</strong>：某些系统通过UART下载固件</li>
+</ul>
+<p>实现简单的调试日志功能：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">LogLevel</span> &#123;</span></span><br><span class="line">    LOG_DEBUG,</span><br><span class="line">    LOG_INFO,</span><br><span class="line">    LOG_WARNING,</span><br><span class="line">    LOG_ERROR</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">log_printf</span><span class="params">(<span class="keyword">enum</span> LogLevel level, <span class="type">const</span> <span class="type">char</span>* format, ...)</span> &#123;</span><br><span class="line">    <span class="type">static</span> <span class="type">const</span> <span class="type">char</span>* level_prefix[] = &#123;</span><br><span class="line">        <span class="string">&quot;[DEBUG] &quot;</span>,</span><br><span class="line">        <span class="string">&quot;[INFO] &quot;</span>,</span><br><span class="line">        <span class="string">&quot;[WARN] &quot;</span>,</span><br><span class="line">        <span class="string">&quot;[ERROR] &quot;</span></span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 输出日志级别前缀</span></span><br><span class="line">    UART_SendString(USART1, level_prefix[level]);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 处理可变参数</span></span><br><span class="line">    va_list args;</span><br><span class="line">    va_start(args, format);</span><br><span class="line"></span><br><span class="line">    <span class="type">char</span> buffer[<span class="number">128</span>];</span><br><span class="line">    vsnprintf(buffer, <span class="keyword">sizeof</span>(buffer), format, args);</span><br><span class="line">    UART_SendString(USART1, buffer);</span><br><span class="line">    UART_SendString(USART1, <span class="string">&quot;\r\n&quot;</span>);</span><br><span class="line"></span><br><span class="line">    va_end(args);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-设备间通信">6.2 设备间通信<a class="hlink" data-h="6-2-设备间通信" href="#6-2-设备间通信" title="跳到本节">¶</a></h3><p>UART作为设备间通信接口的应用：</p>
+<ul>
+<li><strong>传感器接口</strong>：连接各种串口传感器（GPS、气体传感器等）</li>
+<li><strong>模块通信</strong>：蓝牙模块、WiFi模块、GSM&#x2F;GPRS模块</li>
+<li><strong>主机与外设</strong>：PC与外设的通信</li>
+<li><strong>工控系统</strong>：PLC与智能仪表的通信</li>
+</ul>
+<h3 id="6-3-通信协议实现">6.3 通信协议实现<a class="hlink" data-h="6-3-通信协议实现" href="#6-3-通信协议实现" title="跳到本节">¶</a></h3><p>在UART基础上构建的通信协议：</p>
+<h4 id="6-3-1-Modbus协议"><a href="#6-3-1-Modbus协议" class="headerlink" title="6.3.1 Modbus协议"></a>6.3.1 Modbus协议</h4><p>Modbus RTU是工业控制中广泛使用的协议：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">    <span class="type">uint8_t</span> address;        <span class="comment">// 设备地址</span></span><br><span class="line">    <span class="type">uint8_t</span> function;       <span class="comment">// 功能码</span></span><br><span class="line">    <span class="type">uint8_t</span> data[<span class="number">252</span>];      <span class="comment">// 数据域</span></span><br><span class="line">    <span class="type">uint16_t</span> crc;           <span class="comment">// CRC校验</span></span><br><span class="line">&#125; ModbusRTUFrame;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 计算CRC16</span></span><br><span class="line"><span class="type">uint16_t</span> <span class="title function_">ModbusRTU_CRC16</span><span class="params">(<span class="type">uint8_t</span> *buffer, <span class="type">uint16_t</span> length)</span> &#123;</span><br><span class="line">    <span class="type">uint16_t</span> crc = <span class="number">0xFFFF</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">uint16_t</span> i = <span class="number">0</span>; i &lt; length; i++) &#123;</span><br><span class="line">        crc ^= buffer[i];</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span>(<span class="type">uint8_t</span> j = <span class="number">0</span>; j &lt; <span class="number">8</span>; j++) &#123;</span><br><span class="line">            <span class="keyword">if</span>(crc &amp; <span class="number">0x0001</span>) &#123;</span><br><span class="line">                crc &gt;&gt;= <span class="number">1</span>;</span><br><span class="line">                crc ^= <span class="number">0xA001</span>;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                crc &gt;&gt;= <span class="number">1</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> crc;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 发送Modbus帧</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">ModbusRTU_SendFrame</span><span class="params">(USART_TypeDef* USARTx, ModbusRTUFrame* frame, <span class="type">uint16_t</span> data_length)</span> &#123;</span><br><span class="line">    <span class="type">uint8_t</span> buffer[<span class="number">256</span>];</span><br><span class="line">    <span class="type">uint16_t</span> index = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 组装帧</span></span><br><span class="line">    buffer[index++] = frame-&gt;address;</span><br><span class="line">    buffer[index++] = frame-&gt;function;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">uint16_t</span> i = <span class="number">0</span>; i &lt; data_length; i++) &#123;</span><br><span class="line">        buffer[index++] = frame-&gt;data[i];</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 计算CRC</span></span><br><span class="line">    <span class="type">uint16_t</span> crc = ModbusRTU_CRC16(buffer, index);</span><br><span class="line">    buffer[index++] = crc &amp; <span class="number">0xFF</span>;         <span class="comment">// CRC低字节</span></span><br><span class="line">    buffer[index++] = (crc &gt;&gt; <span class="number">8</span>) &amp; <span class="number">0xFF</span>;  <span class="comment">// CRC高字节</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送数据</span></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">uint16_t</span> i = <span class="number">0</span>; i &lt; index; i++) &#123;</span><br><span class="line">        UART_SendChar(USARTx, buffer[i]);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="6-3-2-NMEA-0183协议（GPS）"><a href="#6-3-2-NMEA-0183协议（GPS）" class="headerlink" title="6.3.2 NMEA-0183协议（GPS）"></a>6.3.2 NMEA-0183协议（GPS）</h4><p>GPS模块使用的标准协议：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> NMEA_BUFFER_SIZE 128</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">    <span class="type">char</span> message[NMEA_BUFFER_SIZE];</span><br><span class="line">    <span class="type">uint8_t</span> length;</span><br><span class="line">    <span class="type">bool</span> valid;</span><br><span class="line">&#125; NMEA_Sentence;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 验证NMEA校验和</span></span><br><span class="line"><span class="type">bool</span> <span class="title function_">NMEA_Validate_Checksum</span><span class="params">(<span class="type">const</span> <span class="type">char</span>* sentence)</span> &#123;</span><br><span class="line">    <span class="type">uint8_t</span> checksum = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 校验从&#x27;$&#x27;后到&#x27;*&#x27;前的所有字符</span></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i = <span class="number">1</span>; sentence[i] != <span class="string">&#x27;*&#x27;</span> &amp;&amp; sentence[i] != <span class="string">&#x27;\0&#x27;</span>; i++) &#123;</span><br><span class="line">        checksum ^= sentence[i];</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 提取消息中的校验和</span></span><br><span class="line">    <span class="type">char</span> *asterisk = <span class="built_in">strchr</span>(sentence, <span class="string">&#x27;*&#x27;</span>);</span><br><span class="line">    <span class="keyword">if</span>(!asterisk) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">uint8_t</span> msg_checksum;</span><br><span class="line">    <span class="built_in">sscanf</span>(asterisk + <span class="number">1</span>, <span class="string">&quot;%2hhx&quot;</span>, &amp;msg_checksum);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> checksum == msg_checksum;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 解析GGA语句（位置信息）</span></span><br><span class="line"><span class="type">bool</span> <span class="title function_">NMEA_Parse_GGA</span><span class="params">(<span class="type">const</span> <span class="type">char</span>* sentence, <span class="type">double</span>* latitude, <span class="type">double</span>* longitude)</span> &#123;</span><br><span class="line">    <span class="comment">// 检查是否为GGA语句</span></span><br><span class="line">    <span class="keyword">if</span>(<span class="built_in">strncmp</span>(sentence + <span class="number">3</span>, <span class="string">&quot;GGA&quot;</span>, <span class="number">3</span>) != <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 验证校验和</span></span><br><span class="line">    <span class="keyword">if</span>(!NMEA_Validate_Checksum(sentence)) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 提取数据</span></span><br><span class="line">    <span class="type">char</span> lat_str[<span class="number">15</span>], lon_str[<span class="number">15</span>];</span><br><span class="line">    <span class="type">char</span> lat_dir, lon_dir;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 范例: $GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47</span></span><br><span class="line">    <span class="built_in">sscanf</span>(sentence, <span class="string">&quot;$GPGGA,%*[^,],%[^,],%c,%[^,],%c&quot;</span>,</span><br><span class="line">           lat_str, &amp;lat_dir, lon_str, &amp;lon_dir);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 转换格式：从DDMM.MMMM到DD.DDDDDD</span></span><br><span class="line">    <span class="type">double</span> lat_dm = atof(lat_str);</span><br><span class="line">    <span class="type">double</span> lon_dm = atof(lon_str);</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> lat_d = (<span class="type">int</span>)(lat_dm / <span class="number">100</span>);</span><br><span class="line">    <span class="type">int</span> lon_d = (<span class="type">int</span>)(lon_dm / <span class="number">100</span>);</span><br><span class="line"></span><br><span class="line">    *latitude = lat_d + (lat_dm - lat_d * <span class="number">100</span>) / <span class="number">60.0</span>;</span><br><span class="line">    *longitude = lon_d + (lon_dm - lon_d * <span class="number">100</span>) / <span class="number">60.0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 处理方向</span></span><br><span class="line">    <span class="keyword">if</span>(lat_dir == <span class="string">&#x27;S&#x27;</span>) *latitude = -*latitude;</span><br><span class="line">    <span class="keyword">if</span>(lon_dir == <span class="string">&#x27;W&#x27;</span>) *longitude = -*longitude;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-4-引导加载程序">6.4 引导加载程序<a class="hlink" data-h="6-4-引导加载程序" href="#6-4-引导加载程序" title="跳到本节">¶</a></h3><p>许多嵌入式系统使用UART实现引导加载器：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> BOOTLOADER_TIMEOUT 5000  <span class="comment">// 超时时间(ms)</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FLASH_BASE_ADDR    0x08000000  <span class="comment">// Flash起始地址</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> APP_OFFSET         0x4000      <span class="comment">// 应用程序偏移</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 进入引导加载模式</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">bootloader_enter</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="type">uint32_t</span> timeout = BOOTLOADER_TIMEOUT;</span><br><span class="line">    <span class="type">bool</span> update_requested = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 初始化UART</span></span><br><span class="line">    UART_Init(USART1, <span class="number">115200</span>);</span><br><span class="line">    UART_SendString(USART1, <span class="string">&quot;Bootloader v1.0\r\n&quot;</span>);</span><br><span class="line">    UART_SendString(USART1, <span class="string">&quot;Press &#x27;U&#x27; for update mode...\r\n&quot;</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 等待用户输入</span></span><br><span class="line">    <span class="keyword">while</span>(timeout &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span>(UART_Available()) &#123;</span><br><span class="line">            <span class="type">char</span> c = UART_ReceiveChar(USART1);</span><br><span class="line">            <span class="keyword">if</span>(c == <span class="string">&#x27;U&#x27;</span> || c == <span class="string">&#x27;u&#x27;</span>) &#123;</span><br><span class="line">                update_requested = <span class="literal">true</span>;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        delay_ms(<span class="number">1</span>);</span><br><span class="line">        timeout--;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span>(update_requested) &#123;</span><br><span class="line">        UART_SendString(USART1, <span class="string">&quot;Update mode, waiting for data...\r\n&quot;</span>);</span><br><span class="line">        receive_and_flash_firmware();</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        UART_SendString(USART1, <span class="string">&quot;Booting application...\r\n&quot;</span>);</span><br><span class="line">        boot_application();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 跳转到应用程序</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">boot_application</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="comment">// 检查应用程序是否有效</span></span><br><span class="line">    <span class="type">uint32_t</span> app_addr = FLASH_BASE_ADDR + APP_OFFSET;</span><br><span class="line">    <span class="type">uint32_t</span> sp_value = *(<span class="type">uint32_t</span>*)app_addr;</span><br><span class="line">    <span class="type">uint32_t</span> pc_value = *(<span class="type">uint32_t</span>*)(app_addr + <span class="number">4</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 检查栈指针是否有效</span></span><br><span class="line">    <span class="keyword">if</span>((sp_value &amp; <span class="number">0xFFFFF000</span>) == <span class="number">0x20000000</span>) &#123;</span><br><span class="line">        <span class="comment">// 禁用中断</span></span><br><span class="line">        __disable_irq();</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 重置外设</span></span><br><span class="line">        RCC-&gt;APB1RSTR = <span class="number">0xFFFFFFFF</span>;</span><br><span class="line">        RCC-&gt;APB1RSTR = <span class="number">0</span>;</span><br><span class="line">        RCC-&gt;APB2RSTR = <span class="number">0xFFFFFFFF</span>;</span><br><span class="line">        RCC-&gt;APB2RSTR = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 设置栈指针</span></span><br><span class="line">        __set_MSP(sp_value);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 跳转到应用程序</span></span><br><span class="line">        <span class="type">void</span> (*app_entry)(<span class="type">void</span>) = (<span class="type">void</span> (*)(<span class="type">void</span>))pc_value;</span><br><span class="line">        app_entry();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果无效，留在引导加载器中</span></span><br><span class="line">    UART_SendString(USART1, <span class="string">&quot;Error: Invalid application!\r\n&quot;</span>);</span><br><span class="line">    <span class="keyword">while</span>(<span class="number">1</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="7-UART-与-SPI、I²C、USB、CAN-的取舍">7. UART 与 SPI、I²C、USB、CAN 的取舍<a class="hlink" data-h="7-UART-与-SPI、I²C、USB、CAN-的取舍" href="#7-UART-与-SPI、I²C、USB、CAN-的取舍" title="跳到本节">¶</a></h2><p>要不要流控制是我选 UART 时最纠结的点，数据量不确定时宁可一开始就上 RTS&#x2F;CTS。</p>
+<h3 id="7-1-UART-vs-SPI">7.1 UART vs SPI<a class="hlink" data-h="7-1-UART-vs-SPI" href="#7-1-UART-vs-SPI" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>UART</th>
+<th>SPI</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>信号线数量</td>
+<td>2线（RX&#x2F;TX）</td>
+<td>4线（MOSI&#x2F;MISO&#x2F;SCK&#x2F;CS）</td>
+</tr>
+<tr>
+<td>时钟同步</td>
+<td>异步（无时钟线）</td>
+<td>同步（有独立时钟线）</td>
+</tr>
+<tr>
+<td>通信方向</td>
+<td>全双工</td>
+<td>全双工</td>
+</tr>
+<tr>
+<td>数据传输速率</td>
+<td>低至中（最高几Mbps）</td>
+<td>高（最高数十Mbps）</td>
+</tr>
+<tr>
+<td>点对点&#x2F;多设备</td>
+<td>点对点（单主机单从机）</td>
+<td>单主机多从机</td>
+</tr>
+<tr>
+<td>协议复杂度</td>
+<td>简单</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>距离限制</td>
+<td>中等（RS-232&#x2F;485可延长）</td>
+<td>短（板级通信）</td>
+</tr>
+<tr>
+<td>数据帧格式</td>
+<td>定长（起始位+数据位+校验位+停止位）</td>
+<td>灵活</td>
+</tr>
+<tr>
+<td>错误检测</td>
+<td>基本（校验位）</td>
+<td>无内置机制</td>
+</tr>
+<tr>
+<td>常用场景</td>
+<td>调试、简单外设连接</td>
+<td>高速传感器、存储器</td>
+</tr>
+</tbody></table>
+<h3 id="7-2-UART-vs-I²C">7.2 UART vs I²C<a class="hlink" data-h="7-2-UART-vs-I²C" href="#7-2-UART-vs-I²C" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>UART</th>
+<th>I²C</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>信号线数量</td>
+<td>2线（RX&#x2F;TX）</td>
+<td>2线（SDA&#x2F;SCL）</td>
+</tr>
+<tr>
+<td>时钟同步</td>
+<td>异步（无时钟线）</td>
+<td>同步（有时钟线）</td>
+</tr>
+<tr>
+<td>通信方向</td>
+<td>全双工</td>
+<td>半双工</td>
+</tr>
+<tr>
+<td>数据传输速率</td>
+<td>低至中</td>
+<td>低至中（100kHz-5MHz）</td>
+</tr>
+<tr>
+<td>点对点&#x2F;多设备</td>
+<td>点对点</td>
+<td>多主机多从机</td>
+</tr>
+<tr>
+<td>寻址机制</td>
+<td>无</td>
+<td>有（7位或10位地址）</td>
+</tr>
+<tr>
+<td>协议复杂度</td>
+<td>简单</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>距离限制</td>
+<td>中等</td>
+<td>短（板级通信）</td>
+</tr>
+<tr>
+<td>数据确认机制</td>
+<td>无</td>
+<td>有（ACK&#x2F;NACK）</td>
+</tr>
+<tr>
+<td>常用场景</td>
+<td>点对点通信</td>
+<td>多设备总线系统</td>
+</tr>
+</tbody></table>
+<h3 id="7-3-UART-vs-USB">7.3 UART vs USB<a class="hlink" data-h="7-3-UART-vs-USB" href="#7-3-UART-vs-USB" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>UART</th>
+<th>USB</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>信号线数量</td>
+<td>2线（RX&#x2F;TX）</td>
+<td>4线（D+&#x2F;D-&#x2F;VBUS&#x2F;GND）</td>
+</tr>
+<tr>
+<td>拓扑结构</td>
+<td>点对点</td>
+<td>层级结构（主机&#x2F;集线器&#x2F;设备）</td>
+</tr>
+<tr>
+<td>数据传输速率</td>
+<td>低至中（最高几Mbps）</td>
+<td>高（1.5Mbps-40Gbps）</td>
+</tr>
+<tr>
+<td>复杂度</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>供电能力</td>
+<td>无</td>
+<td>有（最高100W）</td>
+</tr>
+<tr>
+<td>标准化程度</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>即插即用</td>
+<td>否</td>
+<td>是</td>
+</tr>
+<tr>
+<td>协议栈大小</td>
+<td>小</td>
+<td>大</td>
+</tr>
+<tr>
+<td>应用场景</td>
+<td>简单设备通信</td>
+<td>高速设备连接，复杂外设</td>
+</tr>
+</tbody></table>
+<h3 id="7-4-UART-vs-CAN">7.4 UART vs CAN<a class="hlink" data-h="7-4-UART-vs-CAN" href="#7-4-UART-vs-CAN" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>UART</th>
+<th>CAN</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>信号线数量</td>
+<td>2线（RX&#x2F;TX）</td>
+<td>2线（CAN_H&#x2F;CAN_L）</td>
+</tr>
+<tr>
+<td>传输机制</td>
+<td>点对点（串口级联需转发）</td>
+<td>总线（广播机制）</td>
+</tr>
+<tr>
+<td>通信距离</td>
+<td>有限（RS-485可延长）</td>
+<td>长（可达1km）</td>
+</tr>
+<tr>
+<td>通信速率</td>
+<td>低至中</td>
+<td>低至中（最高1Mbps）</td>
+</tr>
+<tr>
+<td>抗干扰能力</td>
+<td>一般</td>
+<td>强（差分信号）</td>
+</tr>
+<tr>
+<td>优先级机制</td>
+<td>无</td>
+<td>有（ID优先级仲裁）</td>
+</tr>
+<tr>
+<td>错误检测</td>
+<td>基本</td>
+<td>强大（5种错误检测）</td>
+</tr>
+<tr>
+<td>应用场景</td>
+<td>一般通信</td>
+<td>汽车、工业现场总线</td>
+</tr>
+</tbody></table>
+<h2 id="8-自动波特率、LIN、IrDA-与智能卡：UART-的扩展功能">8. 自动波特率、LIN、IrDA 与智能卡：UART 的扩展功能<a class="hlink" data-h="8-自动波特率、LIN、IrDA-与智能卡：UART-的扩展功能" href="#8-自动波特率、LIN、IrDA-与智能卡：UART-的扩展功能" title="跳到本节">¶</a></h2><p>自动波特率检测在某些场景很省事，但它依赖特定训练字符（比如 0x55），用之前得确认对端会发。</p>
+<h3 id="8-1-自动波特率检测">8.1 自动波特率检测<a class="hlink" data-h="8-1-自动波特率检测" href="#8-1-自动波特率检测" title="跳到本节">¶</a></h3><p>某些高级UART控制器提供自动波特率检测功能：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_AutoBaudRate_Init</span><span class="params">(USART_TypeDef* USARTx)</span> &#123;</span><br><span class="line">    <span class="comment">// 基本UART初始化，不设置波特率</span></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置自动波特率检测</span></span><br><span class="line">    USARTx-&gt;CR2 &amp;= ~USART_CR2_ABREN;  <span class="comment">// 暂时关闭</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 选择检测方法（通常检测首字符为0x55或&#x27;U&#x27;的起始位到第一个0跳变）</span></span><br><span class="line">    USARTx-&gt;CR2 &amp;= ~USART_CR2_ABRMODE;</span><br><span class="line">    USARTx-&gt;CR2 |= USART_CR2_ABRMODE_0;  <span class="comment">// 0x1: 测量起始位到第一个跳变</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用自动波特率检测</span></span><br><span class="line">    USARTx-&gt;CR2 |= USART_CR2_ABREN;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 启用UART</span></span><br><span class="line">    USARTx-&gt;CR1 |= USART_CR1_UE;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 等待检测完成</span></span><br><span class="line">    <span class="keyword">while</span>(!(USARTx-&gt;ISR &amp; USART_ISR_ABRF));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 自动波特率检测成功后，BRR已被自动设置</span></span><br><span class="line">    <span class="type">uint32_t</span> detected_baud = SystemCoreClock / USARTx-&gt;BRR;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;检测到波特率: %lu\r\n&quot;</span>, detected_baud);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-2-LIN总线功能">8.2 LIN总线功能<a class="hlink" data-h="8-2-LIN总线功能" href="#8-2-LIN总线功能" title="跳到本节">¶</a></h3><p>LIN(本地互联网络)是汽车行业使用的串行通信协议：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_LIN_Init</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint32_t</span> baud)</span> &#123;</span><br><span class="line">    <span class="comment">// 基本UART初始化</span></span><br><span class="line">    UART_Init(USARTx, baud);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置LIN模式</span></span><br><span class="line">    USARTx-&gt;CR2 |= USART_CR2_LINEN;  <span class="comment">// 启用LIN模式</span></span><br><span class="line">    USARTx-&gt;CR2 |= USART_CR2_LBDL;   <span class="comment">// 11位断开检测</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置中断</span></span><br><span class="line">    USARTx-&gt;CR2 |= USART_CR2_LBDIE;  <span class="comment">// 使能LIN断开检测中断</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 在NVIC中配置中断</span></span><br><span class="line">    NVIC_EnableIRQ(USART1_IRQn);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 发送LIN断开字段</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_LIN_SendBreak</span><span class="params">(USART_TypeDef* USARTx)</span> &#123;</span><br><span class="line">    USARTx-&gt;CR1 |= USART_CR1_SBK;  <span class="comment">// 发送断开</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 中断处理</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">USART1_IRQHandler</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span>(USART1-&gt;SR &amp; USART_SR_LBD) &#123;</span><br><span class="line">        <span class="comment">// 清除LIN断开检测标志</span></span><br><span class="line">        USART1-&gt;SR &amp;= ~USART_SR_LBD;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 处理LIN断开事件</span></span><br><span class="line">        LIN_HandleBreakDetection();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 其他中断处理...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-3-红外遥控功能-IrDA">8.3 红外遥控功能(IrDA)<a class="hlink" data-h="8-3-红外遥控功能-IrDA" href="#8-3-红外遥控功能-IrDA" title="跳到本节">¶</a></h3><p>UART的IrDA功能用于红外通信：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_IrDA_Init</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint32_t</span> baud)</span> &#123;</span><br><span class="line">    <span class="comment">// 基本UART初始化</span></span><br><span class="line">    UART_Init(USARTx, baud);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置IrDA模式</span></span><br><span class="line">    USARTx-&gt;CR3 |= USART_CR3_IREN;  <span class="comment">// 启用IrDA模式</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 选择功率模式（低功率或正常功率）</span></span><br><span class="line">    USARTx-&gt;CR3 |= USART_CR3_IRLP;  <span class="comment">// 低功率模式</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置IrDA脉冲宽度（由外设预分频器控制）</span></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 发送数据（与标准UART发送相同）</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_IrDA_SendChar</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint8_t</span> data)</span> &#123;</span><br><span class="line">    UART_SendChar(USARTx, data);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 接收数据（与标准UART接收相同）</span></span><br><span class="line"><span class="type">uint8_t</span> <span class="title function_">UART_IrDA_ReceiveChar</span><span class="params">(USART_TypeDef* USARTx)</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> UART_ReceiveChar(USARTx);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-4-智能卡接口-ISO-7816">8.4 智能卡接口(ISO 7816)<a class="hlink" data-h="8-4-智能卡接口-ISO-7816" href="#8-4-智能卡接口-ISO-7816" title="跳到本节">¶</a></h3><p>某些UART控制器支持与智能卡通信的ISO 7816协议：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_SmartCard_Init</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint32_t</span> baud)</span> &#123;</span><br><span class="line">    <span class="comment">// 基本UART初始化</span></span><br><span class="line">    UART_Init(USARTx, baud);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置智能卡模式</span></span><br><span class="line">    USARTx-&gt;CR3 |= USART_CR3_SCEN;   <span class="comment">// 启用智能卡模式</span></span><br><span class="line">    USARTx-&gt;GTPR = (<span class="number">2</span> &lt;&lt; <span class="number">8</span>) | <span class="number">5</span>;     <span class="comment">// 设置保护时间和预分频</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置1.5个停止位</span></span><br><span class="line">    USARTx-&gt;CR2 &amp;= ~USART_CR2_STOP;</span><br><span class="line">    USARTx-&gt;CR2 |= USART_CR2_STOP_0 | USART_CR2_STOP_1;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置奇校验</span></span><br><span class="line">    USARTx-&gt;CR1 |= USART_CR1_PCE | USART_CR1_PS;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置时钟输出</span></span><br><span class="line">    USARTx-&gt;CR2 |= USART_CR2_CLKEN;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 智能卡复位</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_SmartCard_Reset</span><span class="params">(USART_TypeDef* USARTx)</span> &#123;</span><br><span class="line">    <span class="comment">// 使用NACK产生复位</span></span><br><span class="line">    USARTx-&gt;CR3 |= USART_CR3_NACK;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 等待一段时间后清除NACK</span></span><br><span class="line">    delay_ms(<span class="number">10</span>);</span><br><span class="line">    USARTx-&gt;CR3 &amp;= ~USART_CR3_NACK;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 接收ATR(应答复位)</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">UART_SmartCard_ReceiveATR</span><span class="params">(USART_TypeDef* USARTx, <span class="type">uint8_t</span>* buffer, <span class="type">uint8_t</span>* length)</span> &#123;</span><br><span class="line">    <span class="type">uint8_t</span> i = <span class="number">0</span>;</span><br><span class="line">    <span class="type">uint32_t</span> timeout = SMARTCARD_TIMEOUT;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 等待接收第一个字节(TS)</span></span><br><span class="line">    <span class="keyword">while</span>(!(USARTx-&gt;SR &amp; USART_SR_RXNE) &amp;&amp; timeout--);</span><br><span class="line">    <span class="keyword">if</span>(timeout == <span class="number">0</span>) &#123;</span><br><span class="line">        *length = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">return</span>;  <span class="comment">// 超时错误</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    buffer[i++] = USARTx-&gt;DR;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 接收剩余ATR</span></span><br><span class="line">    timeout = SMARTCARD_TIMEOUT;</span><br><span class="line">    <span class="keyword">while</span>(timeout--) &#123;</span><br><span class="line">        <span class="keyword">if</span>(USARTx-&gt;SR &amp; USART_SR_RXNE) &#123;</span><br><span class="line">            buffer[i++] = USARTx-&gt;DR;</span><br><span class="line">            timeout = SMARTCARD_TIMEOUT;  <span class="comment">// 重置超时计数器</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 检测ATR接收完成(通过等待一段静默时间)</span></span><br><span class="line">        <span class="keyword">if</span>(i &gt; <span class="number">1</span> &amp;&amp; timeout &lt; SMARTCARD_TIMEOUT - <span class="number">1000</span>) &#123;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    *length = i;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>智能卡通信有特定的时序和协议要求，包括：</p>
+<ul>
+<li>特定的电气参数和电平</li>
+<li>专用的复位序列</li>
+<li>ATR(应答复位)消息</li>
+<li>T&#x3D;0(字节级)或T&#x3D;1(块级)协议</li>
+</ul>
+<h2 id="9-不通、乱码与流控失效：UART-排错思路">9. 不通、乱码与流控失效：UART 排错思路<a class="hlink" data-h="9-不通、乱码与流控失效：UART-排错思路" href="#9-不通、乱码与流控失效：UART-排错思路" title="跳到本节">¶</a></h2><p>UART 不通我先查三样，TX&#x2F;RX 有没有交叉、地有没有共、波特率是不是一致，这三项能解决绝大多数问题。</p>
+<h3 id="9-1-常见UART通信问题">9.1 常见UART通信问题<a class="hlink" data-h="9-1-常见UART通信问题" href="#9-1-常见UART通信问题" title="跳到本节">¶</a></h3><h4 id="9-1-1-无法通信"><a href="#9-1-1-无法通信" class="headerlink" title="9.1.1 无法通信"></a>9.1.1 无法通信</h4><p>当UART设备无法通信时，常见原因包括：</p>
+<ul>
+<li><p><strong>硬件连接问题</strong>：</p>
+<ul>
+<li>TX&#x2F;RX交叉连接错误</li>
+<li>地线未连接</li>
+<li>引脚损坏</li>
+</ul>
+</li>
+<li><p><strong>配置不匹配</strong>：</p>
+<ul>
+<li>波特率不一致</li>
+<li>数据格式不匹配(数据位、停止位、校验位)</li>
+<li>流控制设置不一致</li>
+</ul>
+</li>
+<li><p><strong>电平不兼容</strong>：</p>
+<ul>
+<li>3.3V与5V系统互连时无电平转换</li>
+<li>RS-232与TTL电平混用</li>
+</ul>
+</li>
+</ul>
+<p><strong>解决方案</strong>：</p>
+<ul>
+<li>使用万用表检查硬件连接</li>
+<li>确认并统一通信参数</li>
+<li>添加必要的电平转换电路</li>
+</ul>
+<h4 id="9-1-2-数据错误"><a href="#9-1-2-数据错误" class="headerlink" title="9.1.2 数据错误"></a>9.1.2 数据错误</h4><p>数据错误的常见原因：</p>
+<ul>
+<li><p><strong>波特率误差过大</strong>：</p>
+<ul>
+<li>晶振偏差导致时钟不准</li>
+<li>使用不标准的波特率值</li>
+</ul>
+</li>
+<li><p><strong>噪声干扰</strong>：</p>
+<ul>
+<li>信号线过长</li>
+<li>电源噪声</li>
+<li>附近高功率设备干扰</li>
+</ul>
+</li>
+<li><p><strong>缓冲区溢出</strong>：</p>
+<ul>
+<li>接收处理不及时</li>
+<li>缓冲区设计不足</li>
+</ul>
+</li>
+</ul>
+<p><strong>解决方案</strong>：</p>
+<ul>
+<li>使用标准波特率，确保时钟准确</li>
+<li>缩短信号线，加装屏蔽或滤波</li>
+<li>增大接收缓冲区，优化处理代码</li>
+</ul>
+<h4 id="9-1-3-流控制问题"><a href="#9-1-3-流控制问题" class="headerlink" title="9.1.3 流控制问题"></a>9.1.3 流控制问题</h4><p>使用流控制时的常见问题：</p>
+<ul>
+<li><strong>硬件流控制线未连接</strong>：CTS&#x2F;RTS引脚悬空</li>
+<li><strong>软件流控制字符被误识别为数据</strong></li>
+<li><strong>流控制机制配置不一致</strong></li>
+</ul>
+<p><strong>解决方案</strong>：</p>
+<ul>
+<li>检查流控制线连接</li>
+<li>确保XON&#x2F;XOFF字符不出现在数据流中</li>
+<li>统一流控制策略</li>
+</ul>
+<h3 id="9-2-调试工具与技巧">9.2 调试工具与技巧<a class="hlink" data-h="9-2-调试工具与技巧" href="#9-2-调试工具与技巧" title="跳到本节">¶</a></h3><h4 id="9-2-1-硬件调试工具"><a href="#9-2-1-硬件调试工具" class="headerlink" title="9.2.1 硬件调试工具"></a>9.2.1 硬件调试工具</h4><ul>
+<li><p><strong>逻辑分析仪</strong>：</p>
+<ul>
+<li>捕获和分析UART信号</li>
+<li>检查时序和波特率问题</li>
+<li>验证数据内容</li>
+</ul>
+</li>
+<li><p><strong>示波器</strong>：</p>
+<ul>
+<li>观察信号质量和电平</li>
+<li>检测异常电气噪声</li>
+<li>测量信号时序参数</li>
+</ul>
+</li>
+<li><p><strong>USB-UART转换器</strong>：</p>
+<ul>
+<li>作为已知良好的参考设备</li>
+<li>连接计算机进行测试</li>
+<li>结合串口调试软件使用</li>
+</ul>
+</li>
+</ul>
+<h4 id="9-2-2-软件调试工具"><a href="#9-2-2-软件调试工具" class="headerlink" title="9.2.2 软件调试工具"></a>9.2.2 软件调试工具</h4><ul>
+<li><p><strong>串口监视软件</strong>：</p>
+<ul>
+<li>如Putty、TeraTerm、SecureCRT等</li>
+<li>发送和接收数据</li>
+<li>查看十六进制数据流</li>
+</ul>
+</li>
+<li><p><strong>串口抓包工具</strong>：</p>
+<ul>
+<li>分析和记录串口通信</li>
+<li>支持协议解析</li>
+<li>统计通信错误</li>
+</ul>
+</li>
+<li><p><strong>回环测试程序</strong>：</p>
+<ul>
+<li>将TX连接到RX进行自测</li>
+<li>验证收发功能正常</li>
+<li>测试不同波特率和配置</li>
+</ul>
+</li>
+</ul>
+<h4 id="9-2-3-实用调试技巧"><a href="#9-2-3-实用调试技巧" class="headerlink" title="9.2.3 实用调试技巧"></a>9.2.3 实用调试技巧</h4><ol>
+<li><p><strong>分阶段调试</strong>：</p>
+<ul>
+<li>先验证物理层(信号电平、连接)</li>
+<li>再确认数据链路层(帧格式、校验)</li>
+<li>最后测试应用层(协议解析)</li>
+</ul>
+</li>
+<li><p><strong>已知良好替换法</strong>：</p>
+<ul>
+<li>用已知正常的设备替换可疑设备</li>
+<li>逐步缩小故障范围</li>
+</ul>
+</li>
+<li><p><strong>参数退阶测试</strong>：</p>
+<ul>
+<li>从低波特率开始测试</li>
+<li>从简单配置开始(8N1)</li>
+<li>逐步增加复杂性</li>
+</ul>
+</li>
+<li><p><strong>编写专用测试程序</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">UART_DiagnosticTest</span><span class="params">(USART_TypeDef* USARTx)</span> &#123;</span><br><span class="line">    <span class="type">char</span> test_pattern[] = <span class="string">&quot;UART TEST: 0123456789ABCDEF\r\n&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 发送测试序列</span></span><br><span class="line">    UART_SendString(USARTx, test_pattern);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 等待回显</span></span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;请将TX和RX短接，然后按任意键继续...\n&quot;</span>);</span><br><span class="line">    getchar();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 进行回环测试</span></span><br><span class="line">    UART_SendString(USARTx, <span class="string">&quot;LOOPBACK TEST: &quot;</span>);</span><br><span class="line">    <span class="type">uint32_t</span> timeout = UART_TIMEOUT;</span><br><span class="line">    <span class="type">bool</span> success = <span class="literal">true</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i = <span class="number">0</span>; test_pattern[i] != <span class="string">&#x27;\0&#x27;</span>; i++) &#123;</span><br><span class="line">        UART_SendChar(USARTx, test_pattern[i]);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 等待接收</span></span><br><span class="line">        <span class="keyword">while</span>(!(USARTx-&gt;SR &amp; USART_SR_RXNE) &amp;&amp; timeout--);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span>(timeout == <span class="number">0</span> || UART_ReceiveChar(USARTx) != test_pattern[i]) &#123;</span><br><span class="line">            success = <span class="literal">false</span>;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        timeout = UART_TIMEOUT;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;\nLoopback test %s\n&quot;</span>, success ? <span class="string">&quot;PASSED&quot;</span> : <span class="string">&quot;FAILED&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="10-控制台、物联网与虚拟串口：UART-的现代表现">10. 控制台、物联网与虚拟串口：UART 的现代表现<a class="hlink" data-h="10-控制台、物联网与虚拟串口：UART-的现代表现" href="#10-控制台、物联网与虚拟串口：UART-的现代表现" title="跳到本节">¶</a></h2><p>现在 PC 基本没有原生串口，CH340、CP2102 这类 USB 转 UART 芯片几乎成了必备，装驱动时容易踩坑。</p>
+<h3 id="10-1-开发与调试接口">10.1 开发与调试接口<a class="hlink" data-h="10-1-开发与调试接口" href="#10-1-开发与调试接口" title="跳到本节">¶</a></h3><p>现代电子设备中，UART作为调试接口的应用：</p>
+<ul>
+<li><p><strong>系统控制台</strong>：</p>
+<ul>
+<li>操作系统引导信息输出</li>
+<li>内核日志记录</li>
+<li>Shell终端访问</li>
+</ul>
+</li>
+<li><p><strong>调试端口</strong>：</p>
+<ul>
+<li>JTAG&#x2F;SWD调试器配合使用</li>
+<li>GDB串口调试</li>
+<li>系统诊断信息</li>
+</ul>
+</li>
+<li><p><strong>固件更新接口</strong>：</p>
+<ul>
+<li>启动加载器串口模式</li>
+<li>FOTA (Firmware Over The Air)备用通道</li>
+<li>恢复模式入口</li>
+</ul>
+</li>
+</ul>
+<h3 id="10-2-嵌入式系统应用">10.2 嵌入式系统应用<a class="hlink" data-h="10-2-嵌入式系统应用" href="#10-2-嵌入式系统应用" title="跳到本节">¶</a></h3><h4 id="10-2-1-物联网设备"><a href="#10-2-1-物联网设备" class="headerlink" title="10.2.1 物联网设备"></a>10.2.1 物联网设备</h4><p>UART在物联网设备中的应用：</p>
+<ul>
+<li><p><strong>无线模块接口</strong>：</p>
+<ul>
+<li>Wi-Fi模块(ESP8266&#x2F;ESP32)</li>
+<li>蓝牙模块</li>
+<li>LoRa&#x2F;Zigbee模块</li>
+</ul>
+</li>
+<li><p><strong>传感器网络</strong>：</p>
+<ul>
+<li>环境传感器</li>
+<li>定位模块(GPS&#x2F;GNSS)</li>
+<li>数据采集设备</li>
+</ul>
+</li>
+<li><p><strong>网关设备</strong>：</p>
+<ul>
+<li>多协议转换</li>
+<li>设备间通信桥接</li>
+<li>远程监控接口</li>
+</ul>
+</li>
+</ul>
+<h4 id="10-2-2-工业控制"><a href="#10-2-2-工业控制" class="headerlink" title="10.2.2 工业控制"></a>10.2.2 工业控制</h4><p>工业环境中的UART应用：</p>
+<ul>
+<li><p><strong>现场总线接口</strong>：</p>
+<ul>
+<li>Modbus RTU协议</li>
+<li>PROFIBUS接口</li>
+<li>设备间通信</li>
+</ul>
+</li>
+<li><p><strong>智能仪表</strong>：</p>
+<ul>
+<li>流量计、温度计等仪表通信</li>
+<li>参数配置和读取</li>
+<li>远程校准接口</li>
+</ul>
+</li>
+<li><p><strong>机器人控制</strong>：</p>
+<ul>
+<li>伺服驱动器命令接口</li>
+<li>传感器数据采集</li>
+<li>调试和监控接口</li>
+</ul>
+</li>
+</ul>
+<h3 id="10-3-虚拟串口技术">10.3 虚拟串口技术<a class="hlink" data-h="10-3-虚拟串口技术" href="#10-3-虚拟串口技术" title="跳到本节">¶</a></h3><p>随着技术发展，UART被虚拟化应用于多种场合：</p>
+<ul>
+<li><p><strong>USB-UART转换</strong>：</p>
+<ul>
+<li>使用FTDI、CH340、CP2102等芯片</li>
+<li>为现代计算机提供串口功能</li>
+<li>驱动程序提供虚拟COM端口</li>
+</ul>
+</li>
+<li><p><strong>蓝牙SPP配置文件</strong>：</p>
+<ul>
+<li>通过蓝牙提供虚拟串口</li>
+<li>无线替代传统串口线缆</li>
+<li>兼容现有串口应用程序</li>
+</ul>
+</li>
+<li><p><strong>TCP&#x2F;IP串口服务器</strong>：</p>
+<ul>
+<li>将串口数据封装到网络数据包</li>
+<li>远程访问串口设备</li>
+<li>虚拟网络串口软件</li>
+</ul>
+</li>
+<li><p><strong>操作系统虚拟串口</strong>：</p>
+<ul>
+<li>Linux的&#x2F;dev&#x2F;ttyS、&#x2F;dev&#x2F;ttyUSB设备</li>
+<li>Windows的COM端口虚拟化</li>
+<li>应用程序间通信的虚拟串口对</li>
+</ul>
+</li>
+</ul>
+<h3 id="10-4-未来发展趋势">10.4 未来发展趋势<a class="hlink" data-h="10-4-未来发展趋势" href="#10-4-未来发展趋势" title="跳到本节">¶</a></h3><p>UART技术的未来发展方向：</p>
+<ul>
+<li><p><strong>更高速率</strong>：</p>
+<ul>
+<li>超过现有速率限制的高速UART</li>
+<li>改进的时序和信号处理</li>
+</ul>
+</li>
+<li><p><strong>增强安全性</strong>：</p>
+<ul>
+<li>带加密功能的UART控制器</li>
+<li>安全引导和身份验证特性</li>
+</ul>
+</li>
+<li><p><strong>低功耗优化</strong>：</p>
+<ul>
+<li>针对电池供电设备的更高效UART</li>
+<li>智能功耗管理</li>
+</ul>
+</li>
+<li><p><strong>智能特性</strong>：</p>
+<ul>
+<li>自适应参数设置</li>
+<li>先进的错误检测和恢复</li>
+<li>协议感知处理</li>
+</ul>
+</li>
+</ul>
+<h2 id="11-落地建议：参数一致优先于一切优化">11. 落地建议：参数一致优先于一切优化<a class="hlink" data-h="11-落地建议：参数一致优先于一切优化" href="#11-落地建议：参数一致优先于一切优化" title="跳到本节">¶</a></h2><p>调试 UART 我有个固定顺序：先确认双方波特率、数据位、停止位和校验完全一致，再查 TX&#x2F;RX 有没有交叉、地有没有共，最后才看电平匹配和流控制。这套走完还不通，再去翻控制器的寄存器配置——把这几个参数钉死，UART 几乎不会出问题。</p>
+<h2 id="参考资料">参考资料<a class="hlink" data-h="参考资料" href="#参考资料" title="跳到本节">¶</a></h2><ol>
+<li>“Serial Port Complete” by Jan Axelson</li>
+<li>“Embedded Systems Architecture” by Tammy Noergaard</li>
+<li>STMicroelectronics STM32 Reference Manual</li>
+<li>Texas Instruments MSP430 Technical Reference Manual</li>
+<li>“The Art of Electronics” by Horowitz and Hill</li>
+<li>“Serial Communications” by Klaus Wehrle et al.</li>
+<li>EIA&#x2F;TIA-232-F Standard</li>
+<li>Universal Asynchronous Receiver&#x2F;Transmitter Controller Specifications, Intel 8250&#x2F;16550</li>
+<li>Maxim Integrated Application Notes on RS-232&#x2F;RS-485 Communications</li>
+<li>Texas Instruments Application Reports on UART Communications</li>
+<li>“Troubleshooting Serial Communication Issues” by Silicon Labs</li>
+</ol>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"44-UART串口原理与通信实战","description":"UART 大概是嵌入式工程师最熟悉也最容易低估的接口。我调试时第一反应永远是先把串口打通，它简单、可靠，几个参数对了就能打印日志。","datePublished":"2026-10-08T00:00:00+08:00","dateModified":"2026-10-08T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/4029932750.html"},"url":"https://zeek-zhao.github.io/posts/4029932750.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"操作系统与机器人","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/"},{"@type":"ListItem","position":4,"name":"Linux","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/"},{"@type":"ListItem","position":5,"name":"44-UART串口原理与通信实战","item":"https://zeek-zhao.github.io/posts/4029932750.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#1-异步点对点串口：UART-的定位与演进" data-h="1-异步点对点串口：UART-的定位与演进" class="">1. 异步点对点串口：UART 的定位与演进</a>
+      
+        <a href="#1-1-UART的发展历史" data-h="1-1-UART的发展历史" class="l2">1.1 UART的发展历史</a>
+      
+        <a href="#1-2-UART的基本特性" data-h="1-2-UART的基本特性" class="l2">1.2 UART的基本特性</a>
+      
+        <a href="#2-起始位到停止位：UART-数据帧与波特率" data-h="2-起始位到停止位：UART-数据帧与波特率" class="">2. 起始位到停止位：UART 数据帧与波特率</a>
+      
+        <a href="#2-1-基本通信方式" data-h="2-1-基本通信方式" class="l2">2.1 基本通信方式</a>
+      
+        <a href="#2-2-数据帧结构" data-h="2-2-数据帧结构" class="l2">2.2 数据帧结构</a>
+      
+        <a href="#2-3-波特率与时钟" data-h="2-3-波特率与时钟" class="l2">2.3 波特率与时钟</a>
+      
+        <a href="#2-4-奇偶校验与错误检测" data-h="2-4-奇偶校验与错误检测" class="l2">2.4 奇偶校验与错误检测</a>
+      
+        <a href="#3-数据寄存器与移位器：UART-控制器架构与电平标准" data-h="3-数据寄存器与移位器：UART-控制器架构与电平标准" class="">3. 数据寄存器与移位器：UART 控制器架构与电平标准</a>
+      
+        <a href="#3-1-UART控制器架构" data-h="3-1-UART控制器架构" class="l2">3.1 UART控制器架构</a>
+      
+        <a href="#3-2-UART信号线及连接" data-h="3-2-UART信号线及连接" class="l2">3.2 UART信号线及连接</a>
+      
+        <a href="#3-3-电气标准与接口" data-h="3-3-电气标准与接口" class="l2">3.3 电气标准与接口</a>
+      
+        <a href="#3-4-接口电路示例" data-h="3-4-接口电路示例" class="l2">3.4 接口电路示例</a>
+      
+        <a href="#4-全双工、轮询与-DMA：UART-的传输与处理模式" data-h="4-全双工、轮询与-DMA：UART-的传输与处理模式" class="">4. 全双工、轮询与 DMA：UART 的传输与处理模式</a>
+      
+        <a href="#4-1-传输模式" data-h="4-1-传输模式" class="l2">4.1 传输模式</a>
+      
+        <a href="#4-2-数据处理模式" data-h="4-2-数据处理模式" class="l2">4.2 数据处理模式</a>
+      
+        <a href="#4-3-多处理器通信模式" data-h="4-3-多处理器通信模式" class="l2">4.3 多处理器通信模式</a>
+      
+        <a href="#4-4-低功耗模式" data-h="4-4-低功耗模式" class="l2">4.4 低功耗模式</a>
+      
+        <a href="#5-STM32-上的-UART-初始化与收发代码" data-h="5-STM32-上的-UART-初始化与收发代码" class="">5. STM32 上的 UART 初始化与收发代码</a>
+      
+        <a href="#5-1-基本初始化" data-h="5-1-基本初始化" class="l2">5.1 基本初始化</a>
+      
+        <a href="#5-2-发送数据的多种方法" data-h="5-2-发送数据的多种方法" class="l2">5.2 发送数据的多种方法</a>
+      
+        <a href="#5-3-接收数据的多种方法" data-h="5-3-接收数据的多种方法" class="l2">5.3 接收数据的多种方法</a>
+      
+        <a href="#5-4-流控制实现" data-h="5-4-流控制实现" class="l2">5.4 流控制实现</a>
+      
+        <a href="#6-调试、设备互联与协议之上的-UART" data-h="6-调试、设备互联与协议之上的-UART" class="">6. 调试、设备互联与协议之上的 UART</a>
+      
+        <a href="#6-1-调试与开发" data-h="6-1-调试与开发" class="l2">6.1 调试与开发</a>
+      
+        <a href="#6-2-设备间通信" data-h="6-2-设备间通信" class="l2">6.2 设备间通信</a>
+      
+        <a href="#6-3-通信协议实现" data-h="6-3-通信协议实现" class="l2">6.3 通信协议实现</a>
+      
+        <a href="#6-4-引导加载程序" data-h="6-4-引导加载程序" class="l2">6.4 引导加载程序</a>
+      
+        <a href="#7-UART-与-SPI、I²C、USB、CAN-的取舍" data-h="7-UART-与-SPI、I²C、USB、CAN-的取舍" class="">7. UART 与 SPI、I²C、USB、CAN 的取舍</a>
+      
+        <a href="#7-1-UART-vs-SPI" data-h="7-1-UART-vs-SPI" class="l2">7.1 UART vs SPI</a>
+      
+        <a href="#7-2-UART-vs-I²C" data-h="7-2-UART-vs-I²C" class="l2">7.2 UART vs I²C</a>
+      
+        <a href="#7-3-UART-vs-USB" data-h="7-3-UART-vs-USB" class="l2">7.3 UART vs USB</a>
+      
+        <a href="#7-4-UART-vs-CAN" data-h="7-4-UART-vs-CAN" class="l2">7.4 UART vs CAN</a>
+      
+        <a href="#8-自动波特率、LIN、IrDA-与智能卡：UART-的扩展功能" data-h="8-自动波特率、LIN、IrDA-与智能卡：UART-的扩展功能" class="">8. 自动波特率、LIN、IrDA 与智能卡：UART 的扩展功能</a>
+      
+        <a href="#8-1-自动波特率检测" data-h="8-1-自动波特率检测" class="l2">8.1 自动波特率检测</a>
+      
+        <a href="#8-2-LIN总线功能" data-h="8-2-LIN总线功能" class="l2">8.2 LIN总线功能</a>
+      
+        <a href="#8-3-红外遥控功能-IrDA" data-h="8-3-红外遥控功能-IrDA" class="l2">8.3 红外遥控功能(IrDA)</a>
+      
+        <a href="#8-4-智能卡接口-ISO-7816" data-h="8-4-智能卡接口-ISO-7816" class="l2">8.4 智能卡接口(ISO 7816)</a>
+      
+        <a href="#9-不通、乱码与流控失效：UART-排错思路" data-h="9-不通、乱码与流控失效：UART-排错思路" class="">9. 不通、乱码与流控失效：UART 排错思路</a>
+      
+        <a href="#9-1-常见UART通信问题" data-h="9-1-常见UART通信问题" class="l2">9.1 常见UART通信问题</a>
+      
+        <a href="#9-2-调试工具与技巧" data-h="9-2-调试工具与技巧" class="l2">9.2 调试工具与技巧</a>
+      
+        <a href="#10-控制台、物联网与虚拟串口：UART-的现代表现" data-h="10-控制台、物联网与虚拟串口：UART-的现代表现" class="">10. 控制台、物联网与虚拟串口：UART 的现代表现</a>
+      
+        <a href="#10-1-开发与调试接口" data-h="10-1-开发与调试接口" class="l2">10.1 开发与调试接口</a>
+      
+        <a href="#10-2-嵌入式系统应用" data-h="10-2-嵌入式系统应用" class="l2">10.2 嵌入式系统应用</a>
+      
+        <a href="#10-3-虚拟串口技术" data-h="10-3-虚拟串口技术" class="l2">10.3 虚拟串口技术</a>
+      
+        <a href="#10-4-未来发展趋势" data-h="10-4-未来发展趋势" class="l2">10.4 未来发展趋势</a>
+      
+        <a href="#11-落地建议：参数一致优先于一切优化" data-h="11-落地建议：参数一致优先于一切优化" class="">11. 落地建议：参数一致优先于一切优化</a>
+      
+        <a href="#参考资料" data-h="参考资料" class="">参考资料</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

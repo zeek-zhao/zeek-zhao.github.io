@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>13-性能优化与构建加速 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="接着上一篇 12-GitHub-Actions自动部署 说上线之后的事。性能优化分两条线：让访客更快打开页面（压缩、懒加载、CDN），让构建更快出结果（缓存、增量、并行）。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/3821111926.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="13-性能优化与构建加速">
+<meta property="og:description" content="接着上一篇 12-GitHub-Actions自动部署 说上线之后的事。性能优化分两条线：让访客更快打开页面（压缩、懒加载、CDN），让构建更快出结果（缓存、增量、并行）。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3821111926.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="13-性能优化与构建加速">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-07T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="知识工具">
+          <div class="sg-head">
+            <span>📚</span><span>知识工具</span><span class="cnt">104 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Tools">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/Tools/" class=""><span>🧰</span><span>Tools</span><span class="cnt">54</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Tools 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/15845467.html" class="">工具集总览</a>
+                  
+                    <a href="/posts/999821108.html" class="">Docker 是什么</a>
+                  
+                    <a href="/posts/1633604084.html" class="">Docker 安装与卸载</a>
+                  
+                    <a href="/posts/2855893417.html" class="">Docker 运行 Nginx</a>
+                  
+                    <a href="/posts/914084312.html" class="">Docker 运行 Java 项目</a>
+                  
+                    <a href="/posts/4059019427.html" class="">Docker 常用命令</a>
+                  
+                    <a href="/posts/497525747.html" class="">Docker 认证私有仓库的密码安全问题</a>
+                  
+                    <a href="/posts/3922591498.html" class="">Docker 基于容器创建一个新的镜像</a>
+                  
+                    <a href="/posts/3114215801.html" class="">Docker 导入导出镜像</a>
+                  
+                    <a href="/posts/3510959746.html" class="">Docker 镜像推送</a>
+                  
+                    <a href="/posts/1790479743.html" class="">Docker 配置远程连接 2375 端口</a>
+                  
+                    <a href="/posts/2659167884.html" class="">Docker 容器和宿主机文件互传</a>
+                  
+                    <a href="/posts/3259379516.html" class="">Docker 容器中执行宿主机 Docker 命令</a>
+                  
+                    <a href="/posts/2537658426.html" class="">Docker镜像与容器自动更新之Watchtower</a>
+                  
+                    <a href="/posts/1839237922.html" class="">解决Docker容器内无法访问外网问题</a>
+                  
+                    <a href="/posts/1273189425.html" class="">Dockerfile构建应用镜像之Java</a>
+                  
+                    <a href="/posts/1472645885.html" class="">Dockerfile构建应用镜像之Vue</a>
+                  
+                    <a href="/posts/774806936.html" class="">Harbor私服部署</a>
+                  
+                    <a href="/posts/2707978365.html" class="">docker-compose快速编排多容器应用</a>
+                  
+                    <a href="/posts/316667080.html" class="">Docker Swarm集群部署与实战</a>
+                  
+                    <a href="/posts/3511226946.html" class="">Docker Compose 入门学习</a>
+                  
+                    <a href="/posts/1431083159.html" class="">Harbor Docker 仓库安装使用说明</a>
+                  
+                    <a href="/posts/3932776294.html" class="">x86 运行与编译 arm 架构镜像</a>
+                  
+                    <a href="/posts/2642241751.html" class="">分析工具概述</a>
+                  
+                    <a href="/posts/3007374237.html" class="">开发工具概述</a>
+                  
+                    <a href="/posts/816999167.html" class="">FreeFileSync 用户指南</a>
+                  
+                    <a href="/posts/529503140.html" class="">访问 GitHub 用户指南</a>
+                  
+                    <a href="/posts/2910438856.html" class="">Docker 用户指南</a>
+                  
+                    <a href="/posts/925157604.html" class="">Docker Compose 参数指南</a>
+                  
+                    <a href="/posts/3244083793.html" class="">Git 常用命令手册</a>
+                  
+                    <a href="/posts/2720520273.html" class="">GitHub Copilot 使用指南</a>
+                  
+                    <a href="/posts/582917546.html" class="">Repo 多仓库管理工具</a>
+                  
+                    <a href="/posts/2816664305.html" class="">SQLite3 使用笔记</a>
+                  
+                    <a href="/posts/3622734612.html" class="">Tmux 用户指南</a>
+                  
+                    <a href="/posts/1683588338.html" class="">Ubuntu 必备软件指南</a>
+                  
+                    <a href="/posts/3055583744.html" class="">Ubuntu 安装 Samba 用户指南</a>
+                  
+                    <a href="/posts/1629799805.html" class="">Vim 使用指南</a>
+                  
+                    <a href="/posts/1654748739.html" class="">Windows 必备软件指南</a>
+                  
+                    <a href="/posts/1204693542.html" class="">WindTerm 用户指南</a>
+                  
+                    <a href="/posts/1640536705.html" class="">Zsh 使用指南</a>
+                  
+                    <a href="/posts/3046003441.html" class="">科学上网用户指南</a>
+                  
+                    <a href="/posts/889281703.html" class="">内网穿透用户指南</a>
+                  
+                    <a href="/posts/2615811346.html" class="">Ethtool 用户指南</a>
+                  
+                    <a href="/posts/1449135917.html" class="">RSS用户指南</a>
+                  
+                    <a href="/posts/1510948437.html" class="">Telegram值得关注的频道、群组和机器人指南</a>
+                  
+                    <a href="/posts/3728981604.html" class="">浏览器必备插件指南</a>
+                  
+                    <a href="/posts/3194512871.html" class="">生产力工具概述</a>
+                  
+                    <a href="/posts/753707022.html" class="">GPT常用提示词指南</a>
+                  
+                    <a href="/posts/2146350315.html" class="">Resilio Sync 用户指南</a>
+                  
+                    <a href="/posts/435044916.html" class="">虚拟机清除缓存与空间优化指南</a>
+                  
+                    <a href="/posts/1060502842.html" class="">虚拟机硬盘扩容指南</a>
+                  
+                    <a href="/posts/3047978551.html" class="">虚拟机网络设置指南</a>
+                  
+                    <a href="/posts/1135299603.html" class="">Ubuntu 22.04 常用软件安装指南</a>
+                  
+                    <a href="/posts/2510758593.html" class="">Ubuntu忘记密码修复指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="obsidian">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/obsidian/" class=""><span>💎</span><span>obsidian</span><span class="cnt">27</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 obsidian 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1862910963.html" class="">01-Obsidian简介与安装</a>
+                  
+                    <a href="/posts/24957100.html" class="">02-核心概念-笔记与链接</a>
+                  
+                    <a href="/posts/3424778452.html" class="">03-笔记组织与文件夹</a>
+                  
+                    <a href="/posts/3578305145.html" class="">04-双向链接与图谱</a>
+                  
+                    <a href="/posts/418772866.html" class="">05-属性元数据与标签</a>
+                  
+                    <a href="/posts/1078640850.html" class="">06-Bases数据库视图</a>
+                  
+                    <a href="/posts/1557756930.html" class="">07-模板与快捷键</a>
+                  
+                    <a href="/posts/1143600279.html" class="">08-插件生态总览</a>
+                  
+                    <a href="/posts/256372853.html" class="">09-Dataview数据查询</a>
+                  
+                    <a href="/posts/1769681572.html" class="">10-Templater自动化</a>
+                  
+                    <a href="/posts/2435891588.html" class="">11-任务与看板管理</a>
+                  
+                    <a href="/posts/1275438752.html" class="">12-Excalidraw与图表可视化</a>
+                  
+                    <a href="/posts/484559417.html" class="">13-Canvas白板与关系可视化</a>
+                  
+                    <a href="/posts/2674584049.html" class="">Obsidian 语法模板与转换体检</a>
+                  
+                    <a href="/posts/4272258672.html" class="">14-日记与周期笔记</a>
+                  
+                    <a href="/posts/1965898256.html" class="">15-表格与数据管理</a>
+                  
+                    <a href="/posts/4048444062.html" class="">16-阅读与知识内化</a>
+                  
+                    <a href="/posts/784641569.html" class="">17-同步发布与分享</a>
+                  
+                    <a href="/posts/2899142556.html" class="">18-界面美化与主题</a>
+                  
+                    <a href="/posts/3659188267.html" class="">19-搜索与效率工具</a>
+                  
+                    <a href="/posts/1787633817.html" class="">20-维护与清理</a>
+                  
+                    <a href="/posts/2516645563.html" class="">21-移动端与多设备</a>
+                  
+                    <a href="/posts/1560989563.html" class="">22-工作流与笔记方法</a>
+                  
+                    <a href="/posts/2315711624.html" class="">23-性能优化与版本管理</a>
+                  
+                    <a href="/posts/2293052005.html" class="">24-AI与自动化前沿</a>
+                  
+                    <a href="/posts/2588243057.html" class="">obsidian 00-索引</a>
+                  
+                    <a href="/posts/254939683.html" class="">obsidian 90-资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="hexo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/hexo/" class=""><span>✍️</span><span>hexo</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 hexo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1955208098.html" class="">01-Hexo简介与核心概念</a>
+                  
+                    <a href="/posts/1843097718.html" class="">02-环境搭建与站点初始化</a>
+                  
+                    <a href="/posts/2648076327.html" class="">03-写作与内容管理</a>
+                  
+                    <a href="/posts/659282165.html" class="">04-配置文件详解</a>
+                  
+                    <a href="/posts/3015114669.html" class="">05-主题推荐与对比</a>
+                  
+                    <a href="/posts/2435984331.html" class="">06-Butterfly主题全面指南</a>
+                  
+                    <a href="/posts/1534335169.html" class="">07-Butterfly自定义侧边栏</a>
+                  
+                    <a href="/posts/2437194236.html" class="">08-Butterfly分类与标签系统</a>
+                  
+                    <a href="/posts/558813137.html" class="">09-插件生态总览</a>
+                  
+                    <a href="/posts/248363474.html" class="">10-博客加密与内容保护</a>
+                  
+                    <a href="/posts/1457481153.html" class="">11-部署方式总览</a>
+                  
+                    <a href="/posts/3268776159.html" class="">12-GitHub Actions自动部署</a>
+                  
+                    <a href="/posts/3821111926.html" class="active">13-性能优化与构建加速</a>
+                  
+                    <a href="/posts/2200908506.html" class="">14-SEO与站点分析</a>
+                  
+                    <a href="/posts/2792968302.html" class="">15-评论系统与互动</a>
+                  
+                    <a href="/posts/4207768079.html" class="">16-图片与资源管理</a>
+                  
+                    <a href="/posts/128124392.html" class="">17-数学公式与图表渲染</a>
+                  
+                    <a href="/posts/87229897.html" class="">18-PWA与进阶功能</a>
+                  
+                    <a href="/posts/3667851364.html" class="">19-Obsidian与Hexo发布工作流</a>
+                  
+                    <a href="/posts/51139743.html" class="">20-实战：从零到上线完整流程</a>
+                  
+                    <a href="/posts/1612284060.html" class="">21-常见问题排查</a>
+                  
+                    <a href="/posts/3088718870.html" class="">hexo 00-索引</a>
+                  
+                    <a href="/posts/1576507193.html" class="">hexo 90-资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/">📚 知识工具</a> / <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/hexo/">✍️ hexo</a> / <span>13-性能优化与构建加速</span></div>
+
+<h1>13-性能优化与构建加速</h1>
+<div class="subtitle">接着上一篇 12-GitHub-Actions自动部署 说上线之后的事。性能优化分两条线：让访客更快打开页面（压缩、懒加载、CDN），让构建更快出结果（缓存、增量、并行）。</div>
+<div class="article-meta">
+  <span>📅 2026-11-07</span><span>· 更新于 2026-11-07</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 1336 字 · 约 4 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/hexo/">#hexo</a><a class="tagchip" href="/tags/%E6%8C%87%E5%8D%97/">#指南</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/3821111926.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="性能优化与构建加速"><a href="#性能优化与构建加速" class="headerlink" title="性能优化与构建加速"></a>性能优化与构建加速</h1><p>接着上一篇 <a href="/posts/3268776159.html">12-GitHub-Actions自动部署</a> 说上线之后的事。性能优化分两条线：让访客更快打开页面（压缩、懒加载、CDN），让构建更快出结果（缓存、增量、并行）。两条线别混着做，我一般先动访客侧。</p>
+<h2 id="优化前先量一次基线">优化前先量一次基线<a class="hlink" data-h="优化前先量一次基线" href="#优化前先量一次基线" title="跳到本节">¶</a></h2><p>动手前先用 Lighthouse 或 PageSpeed Insights 跑一次基准分数，记录 FCP（首次内容绘制）、LCP（最大内容绘制）、CLS（布局偏移）三项核心指标。没有基线数据的优化是盲目的：很多时候瓶颈不是 CSS 太大，而是一张没压缩的头图，或者一段同步加载的第三方脚本。优化后复测对比，才能确认投入有回报。</p>
+<h2 id="Gulp-压缩链能把静态资源再瘦一圈">Gulp 压缩链能把静态资源再瘦一圈<a class="hlink" data-h="Gulp-压缩链能把静态资源再瘦一圈" href="#Gulp-压缩链能把静态资源再瘦一圈" title="跳到本节">¶</a></h2><p>Hexo 生成的 HTML&#x2F;CSS&#x2F;JS 含有大量空白与注释，用 Gulp 构建后处理链可以再压缩 20%-50%。安装核心依赖：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">npm install gulp gulp-clean-css gulp-uglify gulp-htmlclean gulp-concat --save-dev</span><br></pre></td></tr></table></figure>
+
+<p>编写 <code>gulpfile.js</code>，按类型分别压缩：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> gulp = <span class="built_in">require</span>(<span class="string">&#x27;gulp&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> cleanCSS = <span class="built_in">require</span>(<span class="string">&#x27;gulp-clean-css&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> uglify = <span class="built_in">require</span>(<span class="string">&#x27;gulp-uglify&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> htmlclean = <span class="built_in">require</span>(<span class="string">&#x27;gulp-htmlclean&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> concat = <span class="built_in">require</span>(<span class="string">&#x27;gulp-concat&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 压缩 CSS</span></span><br><span class="line">gulp.<span class="title function_">task</span>(<span class="string">&#x27;minify-css&#x27;</span>, <span class="function">() =&gt;</span></span><br><span class="line">  gulp.<span class="title function_">src</span>(<span class="string">&#x27;./public/**/*.css&#x27;</span>)</span><br><span class="line">    .<span class="title function_">pipe</span>(<span class="title function_">cleanCSS</span>(&#123; <span class="attr">compatibility</span>: <span class="string">&#x27;ie11&#x27;</span> &#125;))</span><br><span class="line">    .<span class="title function_">pipe</span>(gulp.<span class="title function_">dest</span>(<span class="string">&#x27;./public&#x27;</span>))</span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 压缩并合并 JS</span></span><br><span class="line">gulp.<span class="title function_">task</span>(<span class="string">&#x27;minify-js&#x27;</span>, <span class="function">() =&gt;</span></span><br><span class="line">  gulp.<span class="title function_">src</span>(<span class="string">&#x27;./public/js/**/*.js&#x27;</span>)</span><br><span class="line">    .<span class="title function_">pipe</span>(<span class="title function_">uglify</span>())</span><br><span class="line">    .<span class="title function_">pipe</span>(<span class="title function_">concat</span>(<span class="string">&#x27;bundle.js&#x27;</span>))</span><br><span class="line">    .<span class="title function_">pipe</span>(gulp.<span class="title function_">dest</span>(<span class="string">&#x27;./public/js&#x27;</span>))</span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 清理 HTML 冗余</span></span><br><span class="line">gulp.<span class="title function_">task</span>(<span class="string">&#x27;minify-html&#x27;</span>, <span class="function">() =&gt;</span></span><br><span class="line">  gulp.<span class="title function_">src</span>([<span class="string">&#x27;./public/**/*.html&#x27;</span>, <span class="string">&#x27;!./public/**/*.min.html&#x27;</span>])</span><br><span class="line">    .<span class="title function_">pipe</span>(<span class="title function_">htmlclean</span>())</span><br><span class="line">    .<span class="title function_">pipe</span>(gulp.<span class="title function_">dest</span>(<span class="string">&#x27;./public&#x27;</span>))</span><br><span class="line">);</span><br><span class="line"></span><br><span class="line">gulp.<span class="title function_">task</span>(<span class="string">&#x27;default&#x27;</span>, gulp.<span class="title function_">parallel</span>(<span class="string">&#x27;minify-css&#x27;</span>, <span class="string">&#x27;minify-js&#x27;</span>, <span class="string">&#x27;minify-html&#x27;</span>));</span><br></pre></td></tr></table></figure>
+
+<p>发布流程改为 <code>hexo clean &amp;&amp; hexo generate &amp;&amp; gulp</code>，把 <code>public/</code> 交付给部署步骤时就是压缩后的产物。如果不想引入 Gulp，也可以用更轻量的 <code>hexo-neat</code> 插件一键压缩：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">npm install hexo-neat --save</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># _config.yml</span></span><br><span class="line"><span class="attr">neat_enable:</span> <span class="literal">true</span></span><br><span class="line"><span class="attr">neat_html:</span></span><br><span class="line">  <span class="attr">enable:</span> <span class="literal">true</span></span><br><span class="line"><span class="attr">neat_css:</span></span><br><span class="line">  <span class="attr">enable:</span> <span class="literal">true</span></span><br><span class="line"><span class="attr">neat_js:</span></span><br><span class="line">  <span class="attr">enable:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">mangle:</span> <span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+<p><code>hexo-neat</code> 的 JS 压缩偶尔会误伤含特殊语法的主题脚本，出现渲染异常时优先怀疑压缩器。稳妥策略是先只开 HTML&#x2F;CSS 压缩，JS 逐个排除问题文件（<code>exclude</code> 配置）。我就踩过一次主题脚本被压坏的坑，后来索性 JS 就不让插件动。</p>
+<h2 id="图片是页面体积的大头，优先处理">图片是页面体积的大头，优先处理<a class="hlink" data-h="图片是页面体积的大头，优先处理" href="#图片是页面体积的大头，优先处理" title="跳到本节">¶</a></h2><p>图片通常占据页面字节数的 60% 以上，是投入产出比最高的优化点：</p>
+<ol>
+<li><strong>懒加载</strong>：Butterfly 主题内置 <code>lazyload</code> 配置，打开后图片进入视口才加载，首屏体积立减。</li>
+<li><strong>WebP 格式</strong>：同等画质下比 JPEG 小 25%-35%，可用 <code>cwebp</code> 或图床服务自动转换，<code>&lt;picture&gt;</code> 标签做降级兜底。</li>
+<li><strong>构建期压缩</strong>：用 <code>gulp-imagemin</code> 或脚手架脚本在发布前统一压图，顺便清除 EXIF 信息保护隐私。</li>
+<li><strong>CDN 分发</strong>：图片走独立 CDN 域名，与 HTML 主域分离，充分利用浏览器并发连接。</li>
+<li><strong>画廊与预览</strong>：用主题的 <code>&#123;% gallery %&#125;</code> 标签组织多图，配合预览图减少一次性加载。</li>
+</ol>
+<h2 id="加载策略比资源本身更影响体感">加载策略比资源本身更影响体感<a class="hlink" data-h="加载策略比资源本身更影响体感" href="#加载策略比资源本身更影响体感" title="跳到本节">¶</a></h2><p>除了资源本身，加载策略同样关键：开启主题的 <strong>Pjax</strong>（局部刷新 + 页面预取），用户站内跳转几乎瞬时完成；对第三方统计、评论脚本统一<strong>异步加载</strong>（<code>async</code>&#x2F;<code>defer</code>），避免阻塞渲染；字体文件用 <code>font-display: swap</code> 防止文字白屏；对确定不变的资源配置长缓存（Cache-Control 一年 + 文件名指纹），命中缓存后二次访问接近秒开。</p>
+<p>如果只做三件事：开懒加载、压缩图片、上 CDN。这三项通常能把 LCP 从 4 秒压到 2 秒以内，而配置成本不到半小时——这是我给新站的第一优先级。</p>
+<h2 id="构建加速靠缓存和少折腾">构建加速靠缓存和少折腾<a class="hlink" data-h="构建加速靠缓存和少折腾" href="#构建加速靠缓存和少折腾" title="跳到本节">¶</a></h2><p>站点文章多了以后，构建本身也会变慢，优化方向与站点性能不同：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># GitHub Actions 中的依赖缓存（完整用法见上篇）</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">name:</span> <span class="string">Cache</span> <span class="string">Node</span> <span class="string">Modules</span></span><br><span class="line">  <span class="attr">uses:</span> <span class="string">actions/cache@v3</span></span><br><span class="line">  <span class="attr">with:</span></span><br><span class="line">    <span class="attr">path:</span> <span class="string">|</span></span><br><span class="line"><span class="string">      **/node_modules</span></span><br><span class="line"><span class="string"></span>    <span class="attr">key:</span> <span class="string">$&#123;&#123;</span> <span class="string">runner.os</span> <span class="string">&#125;&#125;-node-$&#123;&#123;</span> <span class="string">hashFiles(&#x27;**/package-lock.json&#x27;)</span> <span class="string">&#125;&#125;</span></span><br><span class="line">    <span class="attr">restore-keys:</span> <span class="string">|</span></span><br><span class="line">      <span class="string">$&#123;&#123;</span> <span class="string">runner.os</span> <span class="string">&#125;&#125;-node-</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>缓存 node_modules</strong>：跳过每次全量 <code>npm install</code>，省下 1-2 分钟。</li>
+<li><strong>减少 hexo clean</strong>：无异常时不清缓存，Hexo 的增量渲染比全量快数倍。</li>
+<li><strong>拆分重插件</strong>：搜索索引、sitemap 生成放在独立步骤或定时任务，而非每次提交都跑。</li>
+<li><strong>控制文章数量</strong>：把早期低价值草稿归档到不渲染的目录，构建时间与文章数线性相关。</li>
+</ul>
+<h2 id="上线后还得持续盯指标">上线后还得持续盯指标<a class="hlink" data-h="上线后还得持续盯指标" href="#上线后还得持续盯指标" title="跳到本节">¶</a></h2><p>优化不是一次性的。把 Lighthouse 检查接入 CI（如 <code>lhci autorun</code>），每次大改主题后自动跑分；用 Google Search Console 观察核心网页指标的真实用户数据；若集成了访问统计，留意”跳出率突然升高”这类性能劣化信号。性能是一场与内容增长的长期赛跑，见 <a href="/posts/1612284060.html">21-常见问题排查</a> 中的监控手段。</p>
+<hr>
+<p><em><a href="/posts/3088718870.html">返回索引</a> · 下一篇：<a href="/posts/2200908506.html">14-SEO与站点分析</a></em></p>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <a class="next" href="/posts/2200908506.html" title="系列 · 下一篇"><span class="pg-label">下一篇 →</span>14-SEO与站点分析</a>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"13-性能优化与构建加速","description":"接着上一篇 12-GitHub-Actions自动部署 说上线之后的事。性能优化分两条线：让访客更快打开页面（压缩、懒加载、CDN），让构建更快出结果（缓存、增量、并行）。","datePublished":"2026-11-07T00:00:00+08:00","dateModified":"2026-11-07T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/3821111926.html"},"url":"https://zeek-zhao.github.io/posts/3821111926.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"知识工具","item":"https://zeek-zhao.github.io/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/"},{"@type":"ListItem","position":4,"name":"hexo","item":"https://zeek-zhao.github.io/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/hexo/"},{"@type":"ListItem","position":5,"name":"13-性能优化与构建加速","item":"https://zeek-zhao.github.io/posts/3821111926.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#优化前先量一次基线" data-h="优化前先量一次基线" class="">优化前先量一次基线</a>
+      
+        <a href="#Gulp-压缩链能把静态资源再瘦一圈" data-h="Gulp-压缩链能把静态资源再瘦一圈" class="">Gulp 压缩链能把静态资源再瘦一圈</a>
+      
+        <a href="#图片是页面体积的大头，优先处理" data-h="图片是页面体积的大头，优先处理" class="">图片是页面体积的大头，优先处理</a>
+      
+        <a href="#加载策略比资源本身更影响体感" data-h="加载策略比资源本身更影响体感" class="">加载策略比资源本身更影响体感</a>
+      
+        <a href="#构建加速靠缓存和少折腾" data-h="构建加速靠缓存和少折腾" class="">构建加速靠缓存和少折腾</a>
+      
+        <a href="#上线后还得持续盯指标" data-h="上线后还得持续盯指标" class="">上线后还得持续盯指标</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

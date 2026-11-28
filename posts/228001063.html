@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>01-基础工具排查内存泄漏 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="生产环境上不好随便装 Valgrind 或者挂 AddressSanitizer，我一般就是靠系统自带那几样——top、ps、free、pmap，再加 /proc 目录，先把是不是泄漏、哪个进程在涨、涨在哪块这三个问题回答掉。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/228001063.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="01-基础工具排查内存泄漏">
+<meta property="og:description" content="生产环境上不好随便装 Valgrind 或者挂 AddressSanitizer，我一般就是靠系统自带那几样——top、ps、free、pmap，再加 /proc 目录，先把是不是泄漏、哪个进程在涨、涨在哪块这三个问题回答掉。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/228001063.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="01-基础工具排查内存泄漏">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-20T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="操作系统与机器人">
+          <div class="sg-head">
+            <span>🤖</span><span>操作系统与机器人</span><span class="cnt">447 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Linux">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/" class=""><span>🐧</span><span>Linux</span><span class="cnt">129</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Linux 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1681936644.html" class="">01-EC20模块4G拨号与GPS定位开发</a>
+                  
+                    <a href="/posts/4083254943.html" class="">01-Linux安全子系统访问控制与隔离</a>
+                  
+                    <a href="/posts/2415137652.html" class="">01-Linux常用命令速查</a>
+                  
+                    <a href="/posts/533232104.html" class="">01-U-Boot基础与启动流程</a>
+                  
+                    <a href="/posts/3075951192.html" class="">01-Systemd核心组件架构与功能</a>
+                  
+                    <a href="/posts/228001063.html" class="active">01-基础工具排查内存泄漏</a>
+                  
+                    <a href="/posts/2735785623.html" class="">01-工业控制器软硬件测试方案</a>
+                  
+                    <a href="/posts/419018602.html" class="">01-裸机开发流程与硬件操控</a>
+                  
+                    <a href="/posts/1072254920.html" class="">02-Linux系统网络配置方法与排障</a>
+                  
+                    <a href="/posts/299621239.html" class="">02-Linux电源管理子系统架构与调优</a>
+                  
+                    <a href="/posts/1221451.html" class="">02-U-Boot新板移植适配流程</a>
+                  
+                    <a href="/posts/4128798125.html" class="">02-systemd-analyze启动性能分析</a>
+                  
+                    <a href="/posts/3888100408.html" class="">02-内核功能与模块管理命令</a>
+                  
+                    <a href="/posts/1471709349.html" class="">02-外设接口测试指南</a>
+                  
+                    <a href="/posts/609416877.html" class="">02-嵌入式开发板硬件接口速查</a>
+                  
+                    <a href="/posts/711801502.html" class="">02-磁盘与文件系统管理</a>
+                  
+                    <a href="/posts/2990991122.html" class="">03-Linux进程管理调度与IPC机制</a>
+                  
+                    <a href="/posts/2680037132.html" class="">03-U-Boot源码结构与启动流程</a>
+                  
+                    <a href="/posts/101579121.html" class="">03-mmap内存映射原理与驱动实现</a>
+                  
+                    <a href="/posts/4216171518.html" class="">03-systemd服务配置与管理</a>
+                  
+                    <a href="/posts/2319334978.html" class="">03-内核基础编译与模块开发</a>
+                  
+                    <a href="/posts/3923580784.html" class="">03-各类工具代理配置</a>
+                  
+                    <a href="/posts/3161741332.html" class="">03-开发板SSH默认端口修改与安全连接</a>
+                  
+                    <a href="/posts/3641886687.html" class="">03-网络测试指南</a>
+                  
+                    <a href="/posts/3785836924.html" class="">04-systemd核心概念与基础</a>
+                  
+                    <a href="/posts/3734120973.html" class="">04-内存管理子系统的层次与机制</a>
+                  
+                    <a href="/posts/972888713.html" class="">04-内核编译与模块功能定制</a>
+                  
+                    <a href="/posts/3751178843.html" class="">04-开发板Linux下修改MAC地址</a>
+                  
+                    <a href="/posts/1112658189.html" class="">04-根文件系统开发实践</a>
+                  
+                    <a href="/posts/1854171497.html" class="">04-芯片四大组件性能测试与选型</a>
+                  
+                    <a href="/posts/262344998.html" class="">04-驱动开发概念分类与架构流程</a>
+                  
+                    <a href="/posts/1094537113.html" class="">05-IMA完整性测量架构与配置</a>
+                  
+                    <a href="/posts/2881050404.html" class="">05-kmemleak内核内存泄漏检测</a>
+                  
+                    <a href="/posts/1992174196.html" class="">05-systemd启动流程与机制</a>
+                  
+                    <a href="/posts/3908546189.html" class="">05-内核架构与子系统协作</a>
+                  
+                    <a href="/posts/3140138007.html" class="">05-根文件系统类型与构建方法</a>
+                  
+                    <a href="/posts/2172472796.html" class="">05-音频设备测试与故障排查</a>
+                  
+                    <a href="/posts/2557508733.html" class="">05-驱动开发框架与通用子系统</a>
+                  
+                    <a href="/posts/862017958.html" class="">06-ICM20608六轴传感器驱动移植</a>
+                  
+                    <a href="/posts/4115811846.html" class="">06-Linux基础术语与核心概念</a>
+                  
+                    <a href="/posts/2015394678.html" class="">06-S3C2440时钟体系与寄存器配置</a>
+                  
+                    <a href="/posts/1758255262.html" class="">06-journald日志查询与管理</a>
+                  
+                    <a href="/posts/45575455.html" class="">06-mtrace内存泄漏分析技巧</a>
+                  
+                    <a href="/posts/3755082214.html" class="">06-内核同步机制与并发控制</a>
+                  
+                    <a href="/posts/3813382677.html" class="">07-Linux计划任务配置与选型</a>
+                  
+                    <a href="/posts/1886591968.html" class="">07-Linux设备驱动模型核心机制</a>
+                  
+                    <a href="/posts/3144201791.html" class="">07-Sanitizer内存泄漏分析</a>
+                  
+                    <a href="/posts/1893451115.html" class="">07-systemd架构与服务管理</a>
+                  
+                    <a href="/posts/992563292.html" class="">07-内核子系统总览</a>
+                  
+                    <a href="/posts/2252012541.html" class="">07-裸机点亮LED与GPIO寄存器操作</a>
+                  
+                    <a href="/posts/2494136140.html" class="">08-Linux图像设备V4L2开发</a>
+                  
+                    <a href="/posts/2551125294.html" class="">08-TCMalloc内存分配器与内存泄漏分析</a>
+                  
+                    <a href="/posts/286299626.html" class="">08-网络协议与通信原理</a>
+                  
+                    <a href="/posts/2856475980.html" class="">08-裸机交叉编译工具链与链接脚本</a>
+                  
+                    <a href="/posts/423458188.html" class="">08-设备驱动模型与开发实践</a>
+                  
+                    <a href="/posts/4014961628.html" class="">09-Linux网卡流量统计工具选型与用法</a>
+                  
+                    <a href="/posts/4142321600.html" class="">09-Ubuntu2004禁止自动休眠的几种方式</a>
+                  
+                    <a href="/posts/1114536982.html" class="">09-内存管理基础</a>
+                  
+                    <a href="/posts/1702870561.html" class="">09-时间子系统原理与实现</a>
+                  
+                    <a href="/posts/729158944.html" class="">09-设备树DTS语法与内核解析</a>
+                  
+                    <a href="/posts/1720365042.html" class="">10-GPIO三种操作方式与设备树配置</a>
+                  
+                    <a href="/posts/1524901879.html" class="">10-Valgrind内存泄漏分析实战</a>
+                  
+                    <a href="/posts/683186726.html" class="">10-内存泄漏分析与定位流程</a>
+                  
+                    <a href="/posts/1370598446.html" class="">10-图形子系统架构与渲染栈</a>
+                  
+                    <a href="/posts/1626889410.html" class="">10-设备树架构与内核处理流程</a>
+                  
+                    <a href="/posts/1631881322.html" class="">11-CAN总线SocketCAN与CANopen开发</a>
+                  
+                    <a href="/posts/3507320406.html" class="">11-内存泄漏概念检测与修复</a>
+                  
+                    <a href="/posts/2395844944.html" class="">11-网络子系统架构与数据包流程</a>
+                  
+                    <a href="/posts/3827344601.html" class="">11-设备树开发流程与驱动实践</a>
+                  
+                    <a href="/posts/2542203250.html" class="">12-Flash驱动开发与MTD测试体系</a>
+                  
+                    <a href="/posts/3601506011.html" class="">12-嵌入式设备烧录与自动烧录SD卡</a>
+                  
+                    <a href="/posts/1249611102.html" class="">12-文件系统VFS架构与调优</a>
+                  
+                    <a href="/posts/3302243246.html" class="">12-设备树语法规则与节点属性</a>
+                  
+                    <a href="/posts/4232086438.html" class="">13-I2C协议与驱动开发调试</a>
+                  
+                    <a href="/posts/1745770341.html" class="">13-系统调用接口与陷入机制</a>
+                  
+                    <a href="/posts/3541193669.html" class="">13-设备树源码与内核实现</a>
+                  
+                    <a href="/posts/1932562151.html" class="">13-软件包管理工具与依赖排障</a>
+                  
+                    <a href="/posts/3679683762.html" class="">14-kmod工具集与内核模块管理</a>
+                  
+                    <a href="/posts/204754706.html" class="">14-内核调试工具与方法</a>
+                  
+                    <a href="/posts/337401038.html" class="">14-虚拟化子系统架构与实现</a>
+                  
+                    <a href="/posts/3619291073.html" class="">14-网络编程基础与高性能实践</a>
+                  
+                    <a href="/posts/30952159.html" class="">15-PWM子系统与三种开发方式</a>
+                  
+                    <a href="/posts/3428022739.html" class="">15-内核体系结构与学习路径</a>
+                  
+                    <a href="/posts/1156349833.html" class="">15-网络调试工具与防火墙配置</a>
+                  
+                    <a href="/posts/2084393826.html" class="">15-虚拟文件系统VFS架构与缓存</a>
+                  
+                    <a href="/posts/1492466562.html" class="">16-Linux网络基础与协议栈</a>
+                  
+                    <a href="/posts/1443612112.html" class="">16-RPMSG核间通信与开发流程</a>
+                  
+                    <a href="/posts/64163175.html" class="">16-中断处理子系统与上下半部</a>
+                  
+                    <a href="/posts/1662370678.html" class="">17-Linux网络配置与故障排查</a>
+                  
+                    <a href="/posts/3499888327.html" class="">17-RTC驱动与应用开发</a>
+                  
+                    <a href="/posts/1472071864.html" class="">17-内核子系统间交互与IPC机制</a>
+                  
+                    <a href="/posts/3375308729.html" class="">18-GPIO子系统与引脚控制架构</a>
+                  
+                    <a href="/posts/413524861.html" class="">18-Linux网络驱动与收发流程</a>
+                  
+                    <a href="/posts/1787716189.html" class="">18-Socket网络编程与粘包处理</a>
+                  
+                    <a href="/posts/2536056501.html" class="">19-SPI总线驱动与设备树配置</a>
+                  
+                    <a href="/posts/1043009254.html" class="">19-TTY子系统架构与驱动</a>
+                  
+                    <a href="/posts/2820206790.html" class="">19-以太网MAC与PHY接口</a>
+                  
+                    <a href="/posts/1783654330.html" class="">20-Linux文本处理命令与实战</a>
+                  
+                    <a href="/posts/4179949671.html" class="">20-UART串口驱动与RS485应用</a>
+                  
+                    <a href="/posts/865986603.html" class="">21-USB总线驱动框架与设备枚举</a>
+                  
+                    <a href="/posts/3847399252.html" class="">21-无线网络基础与部署排查</a>
+                  
+                    <a href="/posts/4143405040.html" class="">22-看门狗机制与软硬死锁检测</a>
+                  
+                    <a href="/posts/2990894265.html" class="">22-系统掉电保护与日志文件系统</a>
+                  
+                    <a href="/posts/3047565199.html" class="">23-Linux用户与组权限管理</a>
+                  
+                    <a href="/posts/4251339438.html" class="">23-WiFi模块PEB-WLBT-01配置与排障</a>
+                  
+                    <a href="/posts/3144456274.html" class="">24-环境变量修改与生效方法</a>
+                  
+                    <a href="/posts/2406993733.html" class="">25-ADC基础知识与工程实现</a>
+                  
+                    <a href="/posts/901317427.html" class="">26-ADB设备调试命令指南</a>
+                  
+                    <a href="/posts/970239254.html" class="">27-ARM-DSP-FPGA技术对比</a>
+                  
+                    <a href="/posts/1599150771.html" class="">28-awk文本处理与实战</a>
+                  
+                    <a href="/posts/1554852273.html" class="">29-can总线协议与编程基础</a>
+                  
+                    <a href="/posts/3987772023.html" class="">30-diff与patch补丁实战</a>
+                  
+                    <a href="/posts/663676011.html" class="">Linux 技能总览与索引</a>
+                  
+                    <a href="/posts/212295555.html" class="">31-DMA工作原理与内核API</a>
+                  
+                    <a href="/posts/2335117280.html" class="">32-eMMC嵌入式存储原理与优化</a>
+                  
+                    <a href="/posts/3281658937.html" class="">33-Flash存储器原理与编程实例</a>
+                  
+                    <a href="/posts/449212517.html" class="">34-GPIO工作模式与寄存器控制</a>
+                  
+                    <a href="/posts/2802968252.html" class="">35-I2C总线协议与驱动编程</a>
+                  
+                    <a href="/posts/646183460.html" class="">36-I2S音频总线与时钟配置</a>
+                  
+                    <a href="/posts/3921515715.html" class="">37-iMX8处理器系列与型号对比</a>
+                  
+                    <a href="/posts/3676773691.html" class="">38-KVM架构与CPU内存中断虚拟化</a>
+                  
+                    <a href="/posts/2296163704.html" class="">39-xPico240网卡配置与固件升级</a>
+                  
+                    <a href="/posts/4048648752.html" class="">40-MMU地址转换与页表管理</a>
+                  
+                    <a href="/posts/3573195005.html" class="">41-RK平台开发流程与组件</a>
+                  
+                    <a href="/posts/1368966976.html" class="">42-Shell脚本编程与实用案例</a>
+                  
+                    <a href="/posts/3800580745.html" class="">43-SPI总线原理与驱动实战</a>
+                  
+                    <a href="/posts/4029932750.html" class="">44-UART串口原理与通信实战</a>
+                  
+                    <a href="/posts/3428875847.html" class="">45-USB固件开发全流程</a>
+                  
+                    <a href="/posts/1079176846.html" class="">46-USB总线协议与驱动开发基础</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="apollo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/apollo/" class=""><span>🚗</span><span>apollo</span><span class="cnt">62</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 apollo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2818472804.html" class="">01-百度Apollo概述与生态</a>
+                  
+                    <a href="/posts/452198409.html" class="">02-版本发展与架构演进</a>
+                  
+                    <a href="/posts/1132755144.html" class="">03-自动驾驶技术基础</a>
+                  
+                    <a href="/posts/260457831.html" class="">04-开发环境搭建（Docker）</a>
+                  
+                    <a href="/posts/3892420017.html" class="">05-源码编译与部署</a>
+                  
+                    <a href="/posts/4189053877.html" class="">06-核心模块总览</a>
+                  
+                    <a href="/posts/2291656538.html" class="">07-高精地图HD Map</a>
+                  
+                    <a href="/posts/1640301657.html" class="">08-定位模块</a>
+                  
+                    <a href="/posts/2974331331.html" class="">09-传感器接入（相机激光雷达毫米波）</a>
+                  
+                    <a href="/posts/1455150168.html" class="">10-CAN总线与车辆控制接口</a>
+                  
+                    <a href="/posts/2682517011.html" class="">11-Apollo Cyber RT框架</a>
+                  
+                    <a href="/posts/1297150334.html" class="">12-Cyber消息通信与组件开发</a>
+                  
+                    <a href="/posts/3060441397.html" class="">13-Apollo配置文件与参数</a>
+                  
+                    <a href="/posts/1643555401.html" class="">14-调试与可视化工具（DreamView）</a>
+                  
+                    <a href="/posts/1298984781.html" class="">15-感知模块总览与点云感知</a>
+                  
+                    <a href="/posts/2907166516.html" class="">16-感知模块-视觉感知</a>
+                  
+                    <a href="/posts/4078895387.html" class="">17-感知模块-雷达感知</a>
+                  
+                    <a href="/posts/2013834045.html" class="">18-传感器标定与坐标转换</a>
+                  
+                    <a href="/posts/3984938707.html" class="">19-预测模块</a>
+                  
+                    <a href="/posts/1834975411.html" class="">20-规划模块</a>
+                  
+                    <a href="/posts/4019786798.html" class="">21-决策模块与场景决策</a>
+                  
+                    <a href="/posts/122258190.html" class="">22-控制模块</a>
+                  
+                    <a href="/posts/3133762148.html" class="">23-车辆动力学基础</a>
+                  
+                    <a href="/posts/1453710074.html" class="">24-仿真平台与场景数据</a>
+                  
+                    <a href="/posts/2673778811.html" class="">25-Cyber启动系统详解</a>
+                  
+                    <a href="/posts/2526415752.html" class="">26-Cyber调度系统详解</a>
+                  
+                    <a href="/posts/2588802797.html" class="">27-Cyber时间系统与定时器</a>
+                  
+                    <a href="/posts/3670574823.html" class="">28-Cyber异步调用机制</a>
+                  
+                    <a href="/posts/3931639321.html" class="">29-Cyber数据系统详解</a>
+                  
+                    <a href="/posts/2442147404.html" class="">30-Cyber网络IO详解</a>
+                  
+                    <a href="/posts/789481480.html" class="">apollo 90-资料索引指南</a>
+                  
+                    <a href="/posts/4180254357.html" class="">apollo 00-索引</a>
+                  
+                    <a href="/posts/4241092442.html" class="">31-Cyber Transform与坐标变换</a>
+                  
+                    <a href="/posts/1946355615.html" class="">32-历史版本模块演进（2.0-5.0）</a>
+                  
+                    <a href="/posts/460001587.html" class="">33-车道级导航与决策</a>
+                  
+                    <a href="/posts/2878817428.html" class="">34-红绿灯感知与通行</a>
+                  
+                    <a href="/posts/3264947560.html" class="">35-泊车场景</a>
+                  
+                    <a href="/posts/3477625335.html" class="">36-高速场景</a>
+                  
+                    <a href="/posts/2091754220.html" class="">37-城市道路场景</a>
+                  
+                    <a href="/posts/3677233744.html" class="">38-端到端自动驾驶与大模型</a>
+                  
+                    <a href="/posts/3012449597.html" class="">39-车路协同与V2X</a>
+                  
+                    <a href="/posts/2752057546.html" class="">40-安全机制与冗余设计</a>
+                  
+                    <a href="/posts/143389874.html" class="">41-性能优化与车规级部署</a>
+                  
+                    <a href="/posts/2080454184.html" class="">42-实战：搭建Demo自动驾驶演示</a>
+                  
+                    <a href="/posts/1558901718.html" class="">43-常见问题排查</a>
+                  
+                    <a href="/posts/711159921.html" class="">45-SLAM概述与开发指南</a>
+                  
+                    <a href="/posts/519418161.html" class="">44-Apollo与ROS对比及生态互通</a>
+                  
+                    <a href="/posts/1474075229.html" class="">46-激光雷达技术原理与发展</a>
+                  
+                    <a href="/posts/1848584950.html" class="">47-激光雷达算法与Lidar模块详解</a>
+                  
+                    <a href="/posts/2562893149.html" class="">48-自动驾驶数据集总览</a>
+                  
+                    <a href="/posts/1294651885.html" class="">49-KITTI与Waymo数据集实战</a>
+                  
+                    <a href="/posts/2011272759.html" class="">50-仿真平台对比与Gazebo-LGSVL实战</a>
+                  
+                    <a href="/posts/1352878638.html" class="">51-深度学习基础与CNN</a>
+                  
+                    <a href="/posts/48707843.html" class="">52-PyTorch与自动驾驶实践</a>
+                  
+                    <a href="/posts/2665165307.html" class="">53-TensorFlow与Caffe2在自动驾驶中的应用</a>
+                  
+                    <a href="/posts/2511406057.html" class="">54-自动驾驶测试方法</a>
+                  
+                    <a href="/posts/1279187638.html" class="">55-标注工具与数据闭环</a>
+                  
+                    <a href="/posts/370472885.html" class="">56-自动驾驶云服务与基础设施</a>
+                  
+                    <a href="/posts/140110120.html" class="">57-自动驾驶操作系统</a>
+                  
+                    <a href="/posts/664493653.html" class="">58-自动驾驶运行时框架对比</a>
+                  
+                    <a href="/posts/1203635596.html" class="">59-自动驾驶学习资源与链接</a>
+                  
+                    <a href="/posts/2049739451.html" class="">60-Audio模块与扩展开发</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FreeRTOS">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/FreeRTOS/" class=""><span>⏱️</span><span>FreeRTOS</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FreeRTOS 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1571422233.html" class="">01-FreeRTOS简介与内核特性</a>
+                  
+                    <a href="/posts/1616849365.html" class="">02-任务管理与调度</a>
+                  
+                    <a href="/posts/2794860845.html" class="">03-任务创建与删除</a>
+                  
+                    <a href="/posts/1110013041.html" class="">04-任务状态机</a>
+                  
+                    <a href="/posts/45138943.html" class="">05-优先级与时间片</a>
+                  
+                    <a href="/posts/586549084.html" class="">06-队列</a>
+                  
+                    <a href="/posts/129125089.html" class="">07-信号量</a>
+                  
+                    <a href="/posts/2081041408.html" class="">08-互斥量与优先级反转</a>
+                  
+                    <a href="/posts/3205967530.html" class="">09-事件组</a>
+                  
+                    <a href="/posts/1094377116.html" class="">10-任务通知</a>
+                  
+                    <a href="/posts/1628705678.html" class="">11-流缓冲与消息缓冲</a>
+                  
+                    <a href="/posts/479641272.html" class="">12-软件定时器</a>
+                  
+                    <a href="/posts/3143395966.html" class="">13-内存管理</a>
+                  
+                    <a href="/posts/359640070.html" class="">14-中断管理与临界区</a>
+                  
+                    <a href="/posts/339821033.html" class="">15-Tick与时间管理</a>
+                  
+                    <a href="/posts/224362852.html" class="">16-内核裁剪配置</a>
+                  
+                    <a href="/posts/1572534698.html" class="">17-任务栈溢出检测</a>
+                  
+                    <a href="/posts/670312188.html" class="">18-低功耗与tickless</a>
+                  
+                    <a href="/posts/544846964.html" class="">19-多核SMP</a>
+                  
+                    <a href="/posts/1505843641.html" class="">20-FreeRTOS+TCP</a>
+                  
+                    <a href="/posts/2850073665.html" class="">21-CMSIS-RTOS适配</a>
+                  
+                    <a href="/posts/2762677009.html" class="">22-常见移植实践</a>
+                  
+                    <a href="/posts/574731705.html" class="">23-调试与跟踪</a>
+                  
+                    <a href="/posts/1113963761.html" class="">24-内存保护MPU</a>
+                  
+                    <a href="/posts/1361167341.html" class="">25-FreeRTOS与C++</a>
+                  
+                    <a href="/posts/3732453393.html" class="">26-队列集与流操作</a>
+                  
+                    <a href="/posts/3895620481.html" class="">27-实战项目入门</a>
+                  
+                    <a href="/posts/2560978280.html" class="">28-常见问题排查</a>
+                  
+                    <a href="/posts/3215440781.html" class="">29-任务通知进阶</a>
+                  
+                    <a href="/posts/2405586932.html" class="">30-中断安全编程</a>
+                  
+                    <a href="/posts/3652009953.html" class="">FreeRTOS 00-索引</a>
+                  
+                    <a href="/posts/1437498579.html" class="">FreeRTOS 90-资料索引指南</a>
+                  
+                    <a href="/posts/182118895.html" class="">31-内存管理进阶</a>
+                  
+                    <a href="/posts/517617803.html" class="">32-看门狗与可靠性</a>
+                  
+                    <a href="/posts/4097610364.html" class="">33-电源管理实战</a>
+                  
+                    <a href="/posts/918463786.html" class="">34-多核任务设计</a>
+                  
+                    <a href="/posts/316568827.html" class="">35-TCP网络实战</a>
+                  
+                    <a href="/posts/944546225.html" class="">36-外设驱动集成</a>
+                  
+                    <a href="/posts/276185314.html" class="">37-系统测试与验证</a>
+                  
+                    <a href="/posts/2845406665.html" class="">38-任务间通信模式</a>
+                  
+                    <a href="/posts/271812983.html" class="">39-安全与认证</a>
+                  
+                    <a href="/posts/2988932715.html" class="">40-高级主题展望</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros1">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros1/" class=""><span>🐢</span><span>ros1</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros1 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1845556343.html" class="">01-ROS1概述与生态</a>
+                  
+                    <a href="/posts/76272331.html" class="">02-ROS1安装与环境配置</a>
+                  
+                    <a href="/posts/985253049.html" class="">03-核心概念</a>
+                  
+                    <a href="/posts/4040033312.html" class="">04-工作空间与catkin构建</a>
+                  
+                    <a href="/posts/2100167891.html" class="">05-命令行工具</a>
+                  
+                    <a href="/posts/949416713.html" class="">06-话题通信</a>
+                  
+                    <a href="/posts/735184866.html" class="">07-服务通信</a>
+                  
+                    <a href="/posts/1658567558.html" class="">08-动作通信actionlib</a>
+                  
+                    <a href="/posts/3193113578.html" class="">09-参数服务器</a>
+                  
+                    <a href="/posts/951743246.html" class="">10-roscpp编程</a>
+                  
+                    <a href="/posts/3615205173.html" class="">11-rospy编程</a>
+                  
+                    <a href="/posts/2474828684.html" class="">12-tf坐标变换</a>
+                  
+                    <a href="/posts/510479535.html" class="">13-URDF机器人建模</a>
+                  
+                    <a href="/posts/3467326343.html" class="">14-rviz可视化</a>
+                  
+                    <a href="/posts/178034368.html" class="">15-Gazebo仿真</a>
+                  
+                    <a href="/posts/1047193066.html" class="">16-launch启动文件</a>
+                  
+                    <a href="/posts/1386748878.html" class="">17-自定义消息与srv</a>
+                  
+                    <a href="/posts/78293504.html" class="">18-日志与调试</a>
+                  
+                    <a href="/posts/3580172094.html" class="">19-常用传感器驱动</a>
+                  
+                    <a href="/posts/107634443.html" class="">20-机器人运动学基础</a>
+                  
+                    <a href="/posts/1090496406.html" class="">21-导航框架move_base</a>
+                  
+                    <a href="/posts/3445109373.html" class="">22-建图</a>
+                  
+                    <a href="/posts/774536357.html" class="">23-路径规划与避障</a>
+                  
+                    <a href="/posts/2139127442.html" class="">24-AMCL定位</a>
+                  
+                    <a href="/posts/1373317896.html" class="">25-视觉处理</a>
+                  
+                    <a href="/posts/2932687442.html" class="">26-语音交互</a>
+                  
+                    <a href="/posts/1912127119.html" class="">27-MoveIt机械臂控制</a>
+                  
+                    <a href="/posts/2602875264.html" class="">28-多机器人协同</a>
+                  
+                    <a href="/posts/616282562.html" class="">29-rosbridge与Web端</a>
+                  
+                    <a href="/posts/1820681443.html" class="">30-ROS与Docker</a>
+                  
+                    <a href="/posts/1838862059.html" class="">ros1 00-索引</a>
+                  
+                    <a href="/posts/1752376526.html" class="">ros1 90-资料索引指南</a>
+                  
+                    <a href="/posts/520426601.html" class="">31-ROS与嵌入式平台</a>
+                  
+                    <a href="/posts/1774912468.html" class="">32-ROS1与ROS2对比迁移</a>
+                  
+                    <a href="/posts/3778090335.html" class="">33-仿真场景搭建</a>
+                  
+                    <a href="/posts/3561607965.html" class="">34-常见问题排查</a>
+                  
+                    <a href="/posts/1451115071.html" class="">35-性能优化</a>
+                  
+                    <a href="/posts/1856851824.html" class="">36-产品化实践</a>
+                  
+                    <a href="/posts/3405034604.html" class="">37-插件机制与自定义工具</a>
+                  
+                    <a href="/posts/3819213526.html" class="">38-ROS生态常用库</a>
+                  
+                    <a href="/posts/1488454277.html" class="">39-实战：小车自主导航</a>
+                  
+                    <a href="/posts/1504338169.html" class="">40-实战：机械臂抓取</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros2">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros2/" class=""><span>🐢</span><span>ros2</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros2 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1204306053.html" class="">01-ROS2概述与生态</a>
+                  
+                    <a href="/posts/1039368075.html" class="">02-ROS2安装与环境配置</a>
+                  
+                    <a href="/posts/3950396837.html" class="">04-工作空间与colcon构建</a>
+                  
+                    <a href="/posts/3022531917.html" class="">08-动作通信</a>
+                  
+                    <a href="/posts/3927300417.html" class="">09-参数机制</a>
+                  
+                    <a href="/posts/3825548204.html" class="">10-rclcpp编程</a>
+                  
+                    <a href="/posts/3191786011.html" class="">11-rclpy编程</a>
+                  
+                    <a href="/posts/3441056145.html" class="">12-生命周期节点</a>
+                  
+                    <a href="/posts/3898278822.html" class="">13-自定义消息接口</a>
+                  
+                    <a href="/posts/742500733.html" class="">14-执行器与回调组</a>
+                  
+                    <a href="/posts/201369509.html" class="">15-tf2坐标变换</a>
+                  
+                    <a href="/posts/1182880406.html" class="">16-URDF与xacro建模</a>
+                  
+                    <a href="/posts/1106872961.html" class="">17-rviz2可视化</a>
+                  
+                    <a href="/posts/2049131804.html" class="">18-Gazebo与Ignition仿真</a>
+                  
+                    <a href="/posts/3503988486.html" class="">19-launch系统</a>
+                  
+                    <a href="/posts/3559813711.html" class="">20-日志与调试工具</a>
+                  
+                    <a href="/posts/2378366256.html" class="">21-常用传感器驱动</a>
+                  
+                    <a href="/posts/2969019117.html" class="">22-导航2框架</a>
+                  
+                    <a href="/posts/2928992651.html" class="">23-SLAM建图</a>
+                  
+                    <a href="/posts/1486087179.html" class="">24-路径规划与避障</a>
+                  
+                    <a href="/posts/3827643133.html" class="">25-AMCL定位</a>
+                  
+                    <a href="/posts/767168211.html" class="">26-视觉处理</a>
+                  
+                    <a href="/posts/868393764.html" class="">27-语音交互</a>
+                  
+                    <a href="/posts/711846815.html" class="">28-MoveIt2机械臂控制</a>
+                  
+                    <a href="/posts/4265837254.html" class="">29-多机器人协同</a>
+                  
+                    <a href="/posts/1138612136.html" class="">30-rosbridge与Web端</a>
+                  
+                    <a href="/posts/4101548266.html" class="">ros2 00-索引</a>
+                  
+                    <a href="/posts/381645954.html" class="">ros2 03-核心概念</a>
+                  
+                    <a href="/posts/1488323843.html" class="">ros2 05-命令行工具</a>
+                  
+                    <a href="/posts/344998706.html" class="">ros2 06-话题通信</a>
+                  
+                    <a href="/posts/131381209.html" class="">ros2 07-服务通信</a>
+                  
+                    <a href="/posts/172068224.html" class="">ros2 40-实战：机械臂抓取</a>
+                  
+                    <a href="/posts/513154547.html" class="">ros2 90-资料索引指南</a>
+                  
+                    <a href="/posts/1661557767.html" class="">31-ROS2与Docker</a>
+                  
+                    <a href="/posts/1400569321.html" class="">32-ROS2与嵌入式平台</a>
+                  
+                    <a href="/posts/514195102.html" class="">33-实时性与QoS策略</a>
+                  
+                    <a href="/posts/26068340.html" class="">34-安全与权限</a>
+                  
+                    <a href="/posts/4284941043.html" class="">35-性能优化与Benchmark</a>
+                  
+                    <a href="/posts/512206225.html" class="">36-常见问题排查</a>
+                  
+                    <a href="/posts/103591067.html" class="">37-ROS2与ROS1桥接迁移</a>
+                  
+                    <a href="/posts/496626970.html" class="">38-产品化与部署实践</a>
+                  
+                    <a href="/posts/4258040718.html" class="">39-实战：自动驾驶小车</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="RT-Thread">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/RT-Thread/" class=""><span>🧵</span><span>RT-Thread</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 RT-Thread 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3906847031.html" class="">01-RT-Thread简介与生态</a>
+                  
+                    <a href="/posts/610362104.html" class="">02-内核架构</a>
+                  
+                    <a href="/posts/284852137.html" class="">03-线程管理与调度</a>
+                  
+                    <a href="/posts/1006179627.html" class="">04-线程创建与删除</a>
+                  
+                    <a href="/posts/2919135044.html" class="">05-线程状态机与优先级</a>
+                  
+                    <a href="/posts/357331050.html" class="">06-时钟与定时器</a>
+                  
+                    <a href="/posts/1414862789.html" class="">08-互斥量</a>
+                  
+                    <a href="/posts/3456321070.html" class="">09-事件集</a>
+                  
+                    <a href="/posts/2205341896.html" class="">10-邮箱</a>
+                  
+                    <a href="/posts/3843597198.html" class="">11-消息队列</a>
+                  
+                    <a href="/posts/643009288.html" class="">12-内存管理</a>
+                  
+                    <a href="/posts/2340600776.html" class="">13-内存池与内存堆</a>
+                  
+                    <a href="/posts/2027116276.html" class="">14-中断管理</a>
+                  
+                    <a href="/posts/4146654009.html" class="">15-临界区与线程同步</a>
+                  
+                    <a href="/posts/61094340.html" class="">16-设备驱动框架</a>
+                  
+                    <a href="/posts/2180335808.html" class="">17-I-O设备模型</a>
+                  
+                    <a href="/posts/3069243359.html" class="">18-FinSH控制台</a>
+                  
+                    <a href="/posts/3174840723.html" class="">19-组件与软件包</a>
+                  
+                    <a href="/posts/501684497.html" class="">20-Env与menuconfig配置</a>
+                  
+                    <a href="/posts/1358882682.html" class="">21-RT-Thread Studio</a>
+                  
+                    <a href="/posts/1974679192.html" class="">22-Scons构建</a>
+                  
+                    <a href="/posts/1558395596.html" class="">23-AT组件</a>
+                  
+                    <a href="/posts/4270916110.html" class="">24-网络组件lwIP</a>
+                  
+                    <a href="/posts/4025911074.html" class="">25-DFS文件系统</a>
+                  
+                    <a href="/posts/2437688169.html" class="">26-POSIX支持</a>
+                  
+                    <a href="/posts/1239645384.html" class="">27-动态模块加载</a>
+                  
+                    <a href="/posts/4089363247.html" class="">28-常见移植实践</a>
+                  
+                    <a href="/posts/849796471.html" class="">29-低功耗</a>
+                  
+                    <a href="/posts/47134548.html" class="">30-多核与SMP</a>
+                  
+                    <a href="/posts/2902895778.html" class="">RT-Thread 00-索引</a>
+                  
+                    <a href="/posts/4044683037.html" class="">RT-Thread 07-信号量</a>
+                  
+                    <a href="/posts/1755746755.html" class="">RT-Thread 40-高级主题展望</a>
+                  
+                    <a href="/posts/2924604793.html" class="">RT-Thread 90-资料索引指南</a>
+                  
+                    <a href="/posts/603515604.html" class="">31-微内核与混合微内核</a>
+                  
+                    <a href="/posts/1273830891.html" class="">32-调试与优化</a>
+                  
+                    <a href="/posts/2088952723.html" class="">33-安全</a>
+                  
+                    <a href="/posts/3972366794.html" class="">34-GUI组件与柿饼UI</a>
+                  
+                    <a href="/posts/4194237798.html" class="">35-传感器与驱动组件</a>
+                  
+                    <a href="/posts/1254828870.html" class="">36-实时性分析与优化</a>
+                  
+                    <a href="/posts/70811593.html" class="">37-电源管理</a>
+                  
+                    <a href="/posts/192380990.html" class="">38-实战项目入门</a>
+                  
+                    <a href="/posts/1645794736.html" class="">39-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="Zephyr">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Zephyr/" class=""><span>🍃</span><span>Zephyr</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Zephyr 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2998335701.html" class="">01-Zephyr简介与基金会</a>
+                  
+                    <a href="/posts/111570124.html" class="">02-安装与west工具</a>
+                  
+                    <a href="/posts/391350374.html" class="">03-工程结构</a>
+                  
+                    <a href="/posts/1788752700.html" class="">04-设备树Device Tree</a>
+                  
+                    <a href="/posts/2760731910.html" class="">05-Kconfig配置</a>
+                  
+                    <a href="/posts/2266609168.html" class="">06-内核与调度</a>
+                  
+                    <a href="/posts/2595343241.html" class="">07-线程管理</a>
+                  
+                    <a href="/posts/2487926311.html" class="">08-信号量</a>
+                  
+                    <a href="/posts/4159413018.html" class="">09-队列与消息</a>
+                  
+                    <a href="/posts/3342684069.html" class="">10-内存管理</a>
+                  
+                    <a href="/posts/1826938431.html" class="">11-中断处理</a>
+                  
+                    <a href="/posts/3296401581.html" class="">12-时钟与定时器</a>
+                  
+                    <a href="/posts/911217641.html" class="">13-驱动模型</a>
+                  
+                    <a href="/posts/1524886392.html" class="">14-GPIO驱动</a>
+                  
+                    <a href="/posts/497960377.html" class="">15-UART驱动</a>
+                  
+                    <a href="/posts/515235046.html" class="">16-SPI驱动</a>
+                  
+                    <a href="/posts/3496686401.html" class="">17-I2C驱动</a>
+                  
+                    <a href="/posts/2457140616.html" class="">18-ADC驱动</a>
+                  
+                    <a href="/posts/2991435572.html" class="">19-传感器子系统</a>
+                  
+                    <a href="/posts/819898526.html" class="">20-网络栈</a>
+                  
+                    <a href="/posts/551898650.html" class="">21-蓝牙BLE</a>
+                  
+                    <a href="/posts/686766330.html" class="">22-USB支持</a>
+                  
+                    <a href="/posts/4032698702.html" class="">23-文件系统</a>
+                  
+                    <a href="/posts/2833611844.html" class="">24-Shell子系统</a>
+                  
+                    <a href="/posts/2017556036.html" class="">25-日志系统</a>
+                  
+                    <a href="/posts/80085439.html" class="">26-ztest测试框架</a>
+                  
+                    <a href="/posts/3382284514.html" class="">27-twister测试</a>
+                  
+                    <a href="/posts/2853899551.html" class="">28-构建系统CMake</a>
+                  
+                    <a href="/posts/3766947609.html" class="">29-多架构支持</a>
+                  
+                    <a href="/posts/608772131.html" class="">Zephyr 00-索引</a>
+                  
+                    <a href="/posts/2374992791.html" class="">Zephyr 90-资料索引指南</a>
+                  
+                    <a href="/posts/2085179778.html" class="">30-移植新板卡</a>
+                  
+                    <a href="/posts/2023471085.html" class="">31-低功耗管理</a>
+                  
+                    <a href="/posts/447085682.html" class="">32-安全机制</a>
+                  
+                    <a href="/posts/2755005965.html" class="">33-OTA升级</a>
+                  
+                    <a href="/posts/3554942251.html" class="">34-QEMU模拟器</a>
+                  
+                    <a href="/posts/2564223040.html" class="">35-native模拟器</a>
+                  
+                    <a href="/posts/66503584.html" class="">36-调试与追踪</a>
+                  
+                    <a href="/posts/2974884396.html" class="">37-CMake模块</a>
+                  
+                    <a href="/posts/1879468777.html" class="">38-发布与版本管理</a>
+                  
+                    <a href="/posts/1364311534.html" class="">39-实战项目</a>
+                  
+                    <a href="/posts/4081303068.html" class="">40-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ubuntu24.04">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ubuntu24-04/" class=""><span>🐧</span><span>ubuntu24.04</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ubuntu24.04 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2909325257.html" class="">01-apt 与 dpkg</a>
+                  
+                    <a href="/posts/912530846.html" class="">snap</a>
+                  
+                    <a href="/posts/3939215804.html" class="">03-systemctl 与 service</a>
+                  
+                    <a href="/posts/719879336.html" class="">04-journalctl</a>
+                  
+                    <a href="/posts/3351581332.html" class="">05-htop 与 top</a>
+                  
+                    <a href="/posts/3990143705.html" class="">06-ps 与 kill</a>
+                  
+                    <a href="/posts/585076020.html" class="">07-vim 与 nano</a>
+                  
+                    <a href="/posts/1568442627.html" class="">08-grep</a>
+                  
+                    <a href="/posts/1977677039.html" class="">09-awk 与 sed</a>
+                  
+                    <a href="/posts/4049174153.html" class="">10-find 与 locate</a>
+                  
+                    <a href="/posts/3717903947.html" class="">11-tar 与 zip 与 rsync</a>
+                  
+                    <a href="/posts/2237282420.html" class="">12-ssh 与 scp</a>
+                  
+                    <a href="/posts/1707164187.html" class="">13-ufw</a>
+                  
+                    <a href="/posts/55246962.html" class="">14-cron</a>
+                  
+                    <a href="/posts/651339923.html" class="">15-systemd 定时器</a>
+                  
+                    <a href="/posts/3732393277.html" class="">16-netstat 与 ss 与 ip</a>
+                  
+                    <a href="/posts/2075061187.html" class="">17-curl 与 wget</a>
+                  
+                    <a href="/posts/321014113.html" class="">18-git</a>
+                  
+                    <a href="/posts/2822540859.html" class="">19-docker</a>
+                  
+                    <a href="/posts/3712678695.html" class="">20-python3 与 pip</a>
+                  
+                    <a href="/posts/2522287106.html" class="">21-gcc 与 make</a>
+                  
+                    <a href="/posts/635533000.html" class="">22-磁盘与日志排错工具集</a>
+                  
+                    <a href="/posts/1019958619.html" class="">ubuntu24.04 00-索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="windows">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/windows/" class=""><span>🪟</span><span>windows</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 windows 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2345133774.html" class="">01-PowerShell</a>
+                  
+                    <a href="/posts/746402433.html" class="">02-Windows Terminal</a>
+                  
+                    <a href="/posts/119374108.html" class="">03-任务管理器</a>
+                  
+                    <a href="/posts/3593758667.html" class="">04-资源监视器</a>
+                  
+                    <a href="/posts/279260672.html" class="">05-事件查看器</a>
+                  
+                    <a href="/posts/861959827.html" class="">06-注册表编辑器</a>
+                  
+                    <a href="/posts/1682198913.html" class="">07-磁盘管理</a>
+                  
+                    <a href="/posts/2304893546.html" class="">08-系统配置(msconfig)</a>
+                  
+                    <a href="/posts/143523753.html" class="">09-性能监视器</a>
+                  
+                    <a href="/posts/3851129891.html" class="">10-备份与还原</a>
+                  
+                    <a href="/posts/3417706708.html" class="">11-Windows Defender</a>
+                  
+                    <a href="/posts/2900354160.html" class="">12-Sysinternals 套件</a>
+                  
+                    <a href="/posts/569218026.html" class="">13-winget</a>
+                  
+                    <a href="/posts/1864485545.html" class="">14-PowerToys</a>
+                  
+                    <a href="/posts/1859880826.html" class="">15-剪贴板历史与截图工具</a>
+                  
+                    <a href="/posts/2173435638.html" class="">16-远程桌面</a>
+                  
+                    <a href="/posts/388811029.html" class="">17-Hyper-V</a>
+                  
+                    <a href="/posts/987941398.html" class="">18-WSL</a>
+                  
+                    <a href="/posts/2454912129.html" class="">19-BitLocker</a>
+                  
+                    <a href="/posts/2195244691.html" class="">20-任务计划程序与服务管理器</a>
+                  
+                    <a href="/posts/979849589.html" class="">21-组策略与系统还原</a>
+                  
+                    <a href="/posts/4259947464.html" class="">22-命令行工具集</a>
+                  
+                    <a href="/posts/1775093485.html" class="">windows 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/">🤖 操作系统与机器人</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/">🐧 Linux</a> / <span>01-基础工具排查内存泄漏</span></div>
+
+<h1>01-基础工具排查内存泄漏</h1>
+<div class="subtitle">生产环境上不好随便装 Valgrind 或者挂 AddressSanitizer，我一般就是靠系统自带那几样——top、ps、free、pmap，再加 /proc 目录，先把是不是泄漏、哪个进程在涨、涨在哪块这三个问题回答掉。</div>
+<div class="article-meta">
+  <span>📅 2026-11-20</span><span>· 更新于 2026-11-20</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 5605 字 · 约 15 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/Linux/">#Linux</a><a class="tagchip" href="/tags/%E6%8E%92%E9%9A%9C/">#排障</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/228001063.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="用基础工具排查内存泄漏"><a href="#用基础工具排查内存泄漏" class="headerlink" title="用基础工具排查内存泄漏"></a>用基础工具排查内存泄漏</h1><p>生产环境上不好随便装 Valgrind 或者挂 AddressSanitizer，我一般就是靠系统自带那几样——top、ps、free、pmap，再加 &#x2F;proc 目录，先把”是不是泄漏、哪个进程在涨、涨在哪块”这三个问题回答掉。这套方法不算精确，但胜在随手可用、不影响线上服务。</p>
+<span id="more"></span>
+
+<h2 id="1-内存泄漏是分配后没释放，表现为持续累积">1. 内存泄漏是分配后没释放，表现为持续累积<a class="hlink" data-h="1-内存泄漏是分配后没释放，表现为持续累积" href="#1-内存泄漏是分配后没释放，表现为持续累积" title="跳到本节">¶</a></h2><p>内存泄漏是指程序分配内存后没有正确释放，导致可用内存不断减少的现象。在长期运行的系统中，内存泄漏会导致系统性能下降，甚至最终引发OOM（Out Of Memory）杀手机制，强制终止进程。</p>
+<h3 id="1-1-持续累积、空闲不释放是关键信号">1.1 持续累积、空闲不释放是关键信号<a class="hlink" data-h="1-1-持续累积、空闲不释放是关键信号" href="#1-1-持续累积、空闲不释放是关键信号" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[内存泄漏特征] --&gt; B[系统可用内存逐渐减少]
+    A --&gt; C[程序内存占用持续增长]
+    A --&gt; D[即使空闲时内存也不释放]
+    A --&gt; E[系统变慢或响应延迟]
+    A --&gt; F[swap使用率增加]
+    A --&gt; G[最终可能触发OOM killer]
+</div>
+
+<p>内存泄漏的主要表现是进程的内存使用量随时间持续增长，而不是随着工作负载的变化而波动。与正常内存使用增长不同，泄漏通常表现为一种不相关的持续累积模式。</p>
+<p>我判断泄漏主要看”空闲时也不回落”这一条，比单看占用高低靠谱——占用高可能只是缓存用得多。</p>
+<h3 id="1-2-分五类：经典、隐式、递增、突发、资源">1.2 分五类：经典、隐式、递增、突发、资源<a class="hlink" data-h="1-2-分五类：经典、隐式、递增、突发、资源" href="#1-2-分五类：经典、隐式、递增、突发、资源" title="跳到本节">¶</a></h3><p>内存泄漏可以分为几种主要类型：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>描述</th>
+<th>常见场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>经典泄漏</td>
+<td>分配的内存完全丢失引用</td>
+<td>忘记释放malloc分配的内存</td>
+</tr>
+<tr>
+<td>隐式泄漏</td>
+<td>内存虽然有引用但程序逻辑上不再使用</td>
+<td>长期运行程序中未使用但保留的缓存</td>
+</tr>
+<tr>
+<td>递增泄漏</td>
+<td>每次操作泄漏少量内存</td>
+<td>循环中少量持续泄漏</td>
+</tr>
+<tr>
+<td>突发泄漏</td>
+<td>特定操作导致大量内存泄漏</td>
+<td>错误处理路径中缺少释放</td>
+</tr>
+<tr>
+<td>系统资源泄漏</td>
+<td>非堆内存资源泄漏</td>
+<td>文件描述符、套接字未关闭</td>
+</tr>
+</tbody></table>
+<h2 id="2-看懂虚拟内存与物理内存的映射再看工具">2. 看懂虚拟内存与物理内存的映射再看工具<a class="hlink" data-h="2-看懂虚拟内存与物理内存的映射再看工具" href="#2-看懂虚拟内存与物理内存的映射再看工具" title="跳到本节">¶</a></h2><p>理解Linux内存管理机制有助于更好地分析内存泄漏问题。</p>
+<h3 id="2-1-物理内存拆成内核空间和用户空间">2.1 物理内存拆成内核空间和用户空间<a class="hlink" data-h="2-1-物理内存拆成内核空间和用户空间" href="#2-1-物理内存拆成内核空间和用户空间" title="跳到本节">¶</a></h3><div class="mermaid">
+flowchart TD
+    A[物理内存] --&gt; B[内核空间]
+    A --&gt; C[用户空间]
+    B --&gt; D[内核代码/数据]
+    B --&gt; E[内核动态分配]
+    B --&gt; F[页缓存/缓冲区]
+    C --&gt; G[进程私有内存]
+    C --&gt; H[共享内存]
+    G --&gt; I[堆内存]
+    G --&gt; J[栈内存]
+    G --&gt; K[代码段]
+    G --&gt; L[数据段]
+    G --&gt; M[mmap映射]
+</div>
+
+<h3 id="2-2-VmSize、VmRSS、VmSwap-三个值区分开">2.2 VmSize、VmRSS、VmSwap 三个值区分开<a class="hlink" data-h="2-2-VmSize、VmRSS、VmSwap-三个值区分开" href="#2-2-VmSize、VmRSS、VmSwap-三个值区分开" title="跳到本节">¶</a></h3><p>Linux使用虚拟内存管理系统，为每个进程提供独立的地址空间。进程看到的内存地址是虚拟地址，需要通过页表映射到物理内存地址。理解这个映射关系有助于理解内存使用情况：</p>
+<ul>
+<li><strong>VmSize</strong>: 进程的虚拟内存总大小</li>
+<li><strong>VmRSS</strong>: 实际占用的物理内存大小</li>
+<li><strong>VmSwap</strong>: 被交换到硬盘的内存大小</li>
+</ul>
+<p>踩过的坑是把 VmSize 当成实际占用，结果虚惊一场——虚拟地址大不等于物理内存被真吃掉，得看 VmRSS。</p>
+<h3 id="2-3-分配靠-malloc-mmap，回收靠-free-终止-系统">2.3 分配靠 malloc&#x2F;mmap，回收靠 free&#x2F;终止&#x2F;系统<a class="hlink" data-h="2-3-分配靠-malloc-mmap，回收靠-free-终止-系统" href="#2-3-分配靠-malloc-mmap，回收靠-free-终止-系统" title="跳到本节">¶</a></h3><p>Linux内存分配的主要方式：</p>
+<ol>
+<li><strong>显式分配</strong>：程序通过malloc&#x2F;new等函数请求内存</li>
+<li><strong>隐式分配</strong>：系统调用、库函数内部分配内存</li>
+<li><strong>内存映射</strong>：通过mmap将文件或匿名内存映射到进程地址空间</li>
+</ol>
+<p>内存回收主要由三种方式：</p>
+<ol>
+<li><strong>显式释放</strong>：程序通过free&#x2F;delete释放不再需要的内存</li>
+<li><strong>进程终止</strong>：进程结束时系统回收所有分配的内存</li>
+<li><strong>系统回收</strong>：当内存压力大时，系统回收缓存等可回收内存</li>
+</ol>
+<h2 id="3-free、top、ps、pmap-各有各的观察层面">3. free、top、ps、pmap 各有各的观察层面<a class="hlink" data-h="3-free、top、ps、pmap-各有各的观察层面" href="#3-free、top、ps、pmap-各有各的观察层面" title="跳到本节">¶</a></h2><p>Linux系统提供了多种工具可用于监控和分析内存使用情况。</p>
+<h3 id="3-1-系统级看-free、top、vmstat">3.1 系统级看 free、top、vmstat<a class="hlink" data-h="3-1-系统级看-free、top、vmstat" href="#3-1-系统级看-free、top、vmstat" title="跳到本节">¶</a></h3><h4 id="3-1-1-free-先看-available-而不是-free"><a href="#3-1-1-free-先看-available-而不是-free" class="headerlink" title="3.1.1 free 先看 available 而不是 free"></a>3.1.1 free 先看 available 而不是 free</h4><p>free命令是检查系统内存使用最基本的工具：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">$ free -h</span><br><span class="line">               total        used        free      shared  buff/cache   available</span><br><span class="line">Mem:           7.7Gi       4.2Gi       1.8Gi       264Mi       1.7Gi       3.0Gi</span><br><span class="line">Swap:          2.0Gi       320Mi       1.7Gi</span><br></pre></td></tr></table></figure>
+
+<p>关键指标说明：</p>
+<ul>
+<li><strong>total</strong>: 系统总内存</li>
+<li><strong>used</strong>: 已使用内存</li>
+<li><strong>free</strong>: 空闲内存</li>
+<li><strong>shared</strong>: 共享内存</li>
+<li><strong>buff&#x2F;cache</strong>: 缓冲区和缓存使用的内存</li>
+<li><strong>available</strong>: 可用于启动新应用的内存估计值</li>
+</ul>
+<p>我排查时一般先 free 再 top，最后才上 pmap，顺序反了容易被 buff&#x2F;cache 误导——真正能启动新应用的是 available 那一列。</p>
+<h4 id="3-1-2-top-重点看-VIRT、RES、SHR、-MEM"><a href="#3-1-2-top-重点看-VIRT、RES、SHR、-MEM" class="headerlink" title="3.1.2 top 重点看 VIRT、RES、SHR、%MEM"></a>3.1.2 top 重点看 VIRT、RES、SHR、%MEM</h4><p>top命令提供了实时系统状态及进程信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ top</span><br><span class="line">top - 14:23:45 up 7 days, 2:03, 1 user, load average: 1.02, 1.05, 1.00</span><br><span class="line">Tasks: 213 total, 1 running, 212 sleeping, 0 stopped, 0 zombie</span><br><span class="line">%Cpu(s): 5.2 us, 2.1 sy, 0.0 ni, 92.6 <span class="built_in">id</span>, 0.0 wa, 0.0 hi, 0.1 si, 0.0 st</span><br><span class="line">MiB Mem : 7863.4 total, 1876.2 free, 4307.1 used, 1680.1 buff/cache</span><br><span class="line">MiB Swap: 2048.0 total, 1727.8 free, 320.2 used, 3069.3 avail Mem</span><br><span class="line"></span><br><span class="line">  PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND</span><br><span class="line"> 1256 root      20   0 2453208 325420  96408 S   6.0   4.0 250:32.52 dockerd</span><br><span class="line"> 8976 mysql     20   0 1741672 291064  38204 S   5.0   3.6 215:45.21 mysqld</span><br></pre></td></tr></table></figure>
+
+<p>内存相关的重要列：</p>
+<ul>
+<li><strong>VIRT</strong>: 进程使用的虚拟内存总量</li>
+<li><strong>RES</strong>: 进程使用的物理内存</li>
+<li><strong>SHR</strong>: 进程使用的共享内存</li>
+<li><strong>%MEM</strong>: 进程使用的物理内存占系统内存的百分比</li>
+</ul>
+<p>htop是top的增强版，提供更友好的界面和更多功能。</p>
+<h4 id="3-1-3-vmstat-看-swap-和-io-的联动"><a href="#3-1-3-vmstat-看-swap-和-io-的联动" class="headerlink" title="3.1.3 vmstat 看 swap 和 io 的联动"></a>3.1.3 vmstat 看 swap 和 io 的联动</h4><p>vmstat提供系统内存、交换、IO等信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$ vmstat 1 5</span><br><span class="line">procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----</span><br><span class="line"> r  b   swpd   free   buff  cache   si   so    bi    bo   <span class="keyword">in</span>   cs us sy <span class="built_in">id</span> wa st</span><br><span class="line"> 1  0 327848 1917076 294256 1411840    0    0     3     5  239  455  5  2 93  0  0</span><br><span class="line"> 0  0 327848 1917076 294256 1411840    0    0     0     0  631 1346  5  2 93  0  0</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-进程级看-ps、pmap、smem">3.2 进程级看 ps、pmap、smem<a class="hlink" data-h="3-2-进程级看-ps、pmap、smem" href="#3-2-进程级看-ps、pmap、smem" title="跳到本节">¶</a></h3><h4 id="3-2-1-ps-按-PID-抓-RSS-与-VSZ"><a href="#3-2-1-ps-按-PID-抓-RSS-与-VSZ" class="headerlink" title="3.2.1 ps 按 PID 抓 RSS 与 VSZ"></a>3.2.1 ps 按 PID 抓 RSS 与 VSZ</h4><p>ps命令可以显示特定进程的内存使用情况：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ ps -o pid,user,%mem,rss,vsz,cmd -p $(pgrep java)</span><br><span class="line">  PID USER     %MEM    RSS     VSZ CMD</span><br><span class="line"> 1234 appuser  10.5 845796 4521204 /usr/bin/java -Xmx2g -jar app.jar</span><br></pre></td></tr></table></figure>
+
+<p>关键参数说明：</p>
+<ul>
+<li><strong>%MEM</strong>: 进程物理内存使用占比</li>
+<li><strong>RSS</strong>: 常驻内存大小（KB）</li>
+<li><strong>VSZ</strong>: 虚拟内存大小（KB）</li>
+</ul>
+<h4 id="3-2-2-pmap-展开进程的地址映射"><a href="#3-2-2-pmap-展开进程的地址映射" class="headerlink" title="3.2.2 pmap 展开进程的地址映射"></a>3.2.2 pmap 展开进程的地址映射</h4><p>pmap可以详细查看进程的内存映射情况：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">$ pmap -x $(pgrep java)</span><br><span class="line">Address           Kbytes     RSS   Dirty Mode  Mapping</span><br><span class="line">0000000000400000    4480    3168       0 r-x-- java</span><br><span class="line">...</span><br><span class="line">00007f42a0330000 1048576 1048576 1048576 rw---   [ anon ]</span><br><span class="line">...</span><br><span class="line">total kB         4521204  845796  719436</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-2-3-smem-用-PSS-分摊共享内存"><a href="#3-2-3-smem-用-PSS-分摊共享内存" class="headerlink" title="3.2.3 smem 用 PSS 分摊共享内存"></a>3.2.3 smem 用 PSS 分摊共享内存</h4><p>smem提供了更准确的内存使用报告，特别是考虑了共享内存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ smem -P java</span><br><span class="line">  PID User     Command                         Swap      USS      PSS      RSS</span><br><span class="line"> 1234 appuser  /usr/bin/java -Xmx2g -jar a    1024    738432   742256   845796</span><br></pre></td></tr></table></figure>
+
+<p>关键指标：</p>
+<ul>
+<li><strong>USS</strong>: 唯一集（Unique Set Size）- 进程私有内存</li>
+<li><strong>PSS</strong>: 比例集（Proportional Set Size）- 包含按比例分配的共享内存</li>
+<li><strong>RSS</strong>: 常驻集（Resident Set Size）- 包含全部共享内存</li>
+</ul>
+<h3 id="3-3-proc-直接读内核数据结构">3.3 &#x2F;proc 直接读内核数据结构<a class="hlink" data-h="3-3-proc-直接读内核数据结构" href="#3-3-proc-直接读内核数据结构" title="跳到本节">¶</a></h3><p>&#x2F;proc文件系统提供了访问内核数据结构的接口，对内存分析特别有用：</p>
+<h4 id="3-3-1-proc-meminfo-看系统总量与可用量"><a href="#3-3-1-proc-meminfo-看系统总量与可用量" class="headerlink" title="3.3.1 &#x2F;proc&#x2F;meminfo 看系统总量与可用量"></a>3.3.1 &#x2F;proc&#x2F;meminfo 看系统总量与可用量</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/meminfo</span><br><span class="line">MemTotal:        8051716 kB</span><br><span class="line">MemFree:         1921582 kB</span><br><span class="line">MemAvailable:    3143296 kB</span><br><span class="line">Buffers:          294256 kB</span><br><span class="line">Cached:          1342372 kB</span><br><span class="line">SwapCached:        14320 kB</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>这个文件包含了详细的系统内存使用情况。</p>
+<h4 id="3-3-2-proc-pid-status-看单个进程-Vm-字段"><a href="#3-3-2-proc-pid-status-看单个进程-Vm-字段" class="headerlink" title="3.3.2 &#x2F;proc&#x2F;[pid]&#x2F;status 看单个进程 Vm 字段"></a>3.3.2 &#x2F;proc&#x2F;[pid]&#x2F;status 看单个进程 Vm 字段</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/1234/status</span><br><span class="line">Name:   java</span><br><span class="line">...</span><br><span class="line">VmPeak:  4575760 kB</span><br><span class="line">VmSize:  4521204 kB</span><br><span class="line">VmLck:         0 kB</span><br><span class="line">VmPin:         0 kB</span><br><span class="line">VmHWM:    874128 kB</span><br><span class="line">VmRSS:    845796 kB</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>这个文件显示特定进程的内存使用详情。</p>
+<h4 id="3-3-3-maps-与-smaps-看映射明细"><a href="#3-3-3-maps-与-smaps-看映射明细" class="headerlink" title="3.3.3 maps 与 smaps 看映射明细"></a>3.3.3 maps 与 smaps 看映射明细</h4><p>&#x2F;proc&#x2F;[pid]&#x2F;maps显示进程的内存映射：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/1234/maps</span><br><span class="line">00400000-00822000 r-xp 00000000 fd:01 1234567    /usr/bin/java</span><br><span class="line">...</span><br><span class="line">7f42a0330000-7f42b0330000 rw-p 00000000 00:00 0  [heap]</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>&#x2F;proc&#x2F;[pid]&#x2F;smaps提供更详细的每个映射区域的内存使用情况。</p>
+<h2 id="4-先系统级趋势后进程级映射，最后查-OOM">4. 先系统级趋势后进程级映射，最后查 OOM<a class="hlink" data-h="4-先系统级趋势后进程级映射，最后查-OOM" href="#4-先系统级趋势后进程级映射，最后查-OOM" title="跳到本节">¶</a></h2><h3 id="4-1-系统级先建基线再查趋势">4.1 系统级先建基线再查趋势<a class="hlink" data-h="4-1-系统级先建基线再查趋势" href="#4-1-系统级先建基线再查趋势" title="跳到本节">¶</a></h3><p>系统级泄漏检测关注整体内存趋势，可以通过以下步骤进行：</p>
+<div class="mermaid">
+flowchart LR
+    A[持续监控free/top] --&gt; B{内存使用稳定增长?}
+    B --&gt;|是| C[检查进程内存]
+    B --&gt;|否| D[可能非泄漏问题]
+    C --&gt; E{交换使用增加?}
+    E --&gt;|是| F[系统内存压力大]
+    E --&gt;|否| G[进一步分析问题进程]
+</div>
+
+<p>具体方法：</p>
+<ol>
+<li><p><strong>建立基线</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 记录初始状态</span></span><br><span class="line">free -m &gt; memory_baseline.txt</span><br><span class="line"><span class="comment"># 周期记录</span></span><br><span class="line">watch -n 60 <span class="string">&quot;free -m &gt;&gt; memory_log.txt&quot;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>检查内存趋势</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 图形化展示内存趋势</span></span><br><span class="line">sar -r 1 &gt; sar_mem.txt</span><br><span class="line"><span class="comment"># 或者使用gnuplot等工具绘制趋势图</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>查找可疑进程</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 按内存使用排序</span></span><br><span class="line">ps aux --<span class="built_in">sort</span>=-%mem | <span class="built_in">head</span></span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>我习惯先把基线存下来，不然过几个小时根本说不清”涨了多少”。</p>
+<h3 id="4-2-进程级对比两个时间点的映射">4.2 进程级对比两个时间点的映射<a class="hlink" data-h="4-2-进程级对比两个时间点的映射" href="#4-2-进程级对比两个时间点的映射" title="跳到本节">¶</a></h3><p>一旦确定了可疑进程，可以通过以下方法进一步分析：</p>
+<div class="mermaid">
+flowchart TD
+    A[识别可疑进程] --&gt; B[监控其内存增长]
+    B --&gt; C{内存稳定增长?}
+    C --&gt;|是| D[记录内存映射变化]
+    C --&gt;|否| E[可能是正常内存波动]
+    D --&gt; F[比较前后内存映射差异]
+    F --&gt; G[检查增长的内存区域类型]
+    G --&gt;|堆增长| H[可能是堆内存泄漏]
+    G --&gt;|mmap区域增长| I[可能是未释放的mmap]
+    G --&gt;|共享内存增长| J[可能是共享内存泄漏]
+</div>
+
+<p>具体方法：</p>
+<ol>
+<li><p><strong>监控进程内存</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 每10秒记录进程内存</span></span><br><span class="line">PID=1234</span><br><span class="line"><span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span></span><br><span class="line">  ps -p <span class="variable">$PID</span> -o pid,vsz,rss,cmd --no-headers &gt;&gt; process_mem_<span class="variable">$PID</span>.<span class="built_in">log</span></span><br><span class="line">  <span class="built_in">sleep</span> 10</span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>分析内存映射变化</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 记录初始内存映射</span></span><br><span class="line">PID=1234</span><br><span class="line">pmap -x <span class="variable">$PID</span> &gt; pmap_<span class="variable">$PID_start</span>.<span class="built_in">log</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 运行一段时间后再次记录</span></span><br><span class="line">pmap -x <span class="variable">$PID</span> &gt; pmap_<span class="variable">$PID_end</span>.<span class="built_in">log</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 比较差异</span></span><br><span class="line">diff pmap_<span class="variable">$PID_start</span>.<span class="built_in">log</span> pmap_<span class="variable">$PID_end</span>.<span class="built_in">log</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>检查详细内存信息</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看smaps中内存区域增长</span></span><br><span class="line"><span class="built_in">cat</span> /proc/<span class="variable">$PID</span>/smaps &gt; smaps_<span class="variable">$PID_start</span>.<span class="built_in">log</span></span><br><span class="line"><span class="comment"># 稍后再次收集</span></span><br><span class="line"><span class="built_in">cat</span> /proc/<span class="variable">$PID</span>/smaps &gt; smaps_<span class="variable">$PID_end</span>.<span class="built_in">log</span></span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="4-3-从-dmesg-和-journalctl-反推-OOM-进程">4.3 从 dmesg 和 journalctl 反推 OOM 进程<a class="hlink" data-h="4-3-从-dmesg-和-journalctl-反推-OOM-进程" href="#4-3-从-dmesg-和-journalctl-反推-OOM-进程" title="跳到本节">¶</a></h3><p>当系统发生OOM时，可以通过以下步骤分析：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查dmesg日志</span></span><br><span class="line">dmesg | grep -i <span class="string">&quot;out of memory&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看系统日志</span></span><br><span class="line">journalctl -k | grep -i <span class="string">&quot;out of memory&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>OOM日志通常包含类似以下信息：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[41311.854276] udevd invoked oom-killer: gfp_mask=0x27080c0, nodemask=0, order=1</span><br><span class="line">[41311.873871] COMPACTION is disabled!!!</span><br><span class="line">[41312.253545] Killed process 1159 (playerdemo) total-vm:22656kB, anon-rss:3680kB, file-rss:3044kB, shmem-rss:0kB</span><br></pre></td></tr></table></figure>
+
+<p>从日志中可以提取关键信息：</p>
+<ul>
+<li>触发OOM的进程</li>
+<li>被OOM killer终止的进程</li>
+<li>内存状态（虚拟内存、RSS等）</li>
+</ul>
+<h2 id="5-一套脚本加命令把泄漏类型落到堆、fd-和-mmap">5. 一套脚本加命令把泄漏类型落到堆、fd 和 mmap<a class="hlink" data-h="5-一套脚本加命令把泄漏类型落到堆、fd-和-mmap" href="#5-一套脚本加命令把泄漏类型落到堆、fd-和-mmap" title="跳到本节">¶</a></h2><p>以下是一套完整的内存泄漏分析方法，从发现问题到定位根源。</p>
+<h3 id="5-1-脚本按固定间隔记录系统加进程">5.1 脚本按固定间隔记录系统加进程<a class="hlink" data-h="5-1-脚本按固定间隔记录系统加进程" href="#5-1-脚本按固定间隔记录系统加进程" title="跳到本节">¶</a></h3><p>创建一个简单的监控脚本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># mem_monitor.sh</span></span><br><span class="line">LOG_FILE=<span class="string">&quot;memory_monitor.log&quot;</span></span><br><span class="line">INTERVAL=60  <span class="comment"># 秒</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;时间戳,总内存,已用内存,可用内存,进程PID,进程VSZ,进程RSS&quot;</span> &gt; <span class="variable">$LOG_FILE</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span></span><br><span class="line">  TIMESTAMP=$(<span class="built_in">date</span> +<span class="string">&quot;%Y-%m-%d %H:%M:%S&quot;</span>)</span><br><span class="line">  MEM_TOTAL=$(free -m | awk <span class="string">&#x27;/Mem:/ &#123;print $2&#125;&#x27;</span>)</span><br><span class="line">  MEM_USED=$(free -m | awk <span class="string">&#x27;/Mem:/ &#123;print $3&#125;&#x27;</span>)</span><br><span class="line">  MEM_AVAIL=$(free -m | awk <span class="string">&#x27;/Mem:/ &#123;print $7&#125;&#x27;</span>)</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 监控特定进程 (如果提供PID)</span></span><br><span class="line">  <span class="keyword">if</span> [ ! -z <span class="string">&quot;<span class="variable">$1</span>&quot;</span> ]; <span class="keyword">then</span></span><br><span class="line">    PID=<span class="variable">$1</span></span><br><span class="line">    <span class="keyword">if</span> ps -p <span class="variable">$PID</span> &gt; /dev/null; <span class="keyword">then</span></span><br><span class="line">      PROC_INFO=$(ps -p <span class="variable">$PID</span> -o vsz=,rss=)</span><br><span class="line">      VSZ=$(<span class="built_in">echo</span> <span class="variable">$PROC_INFO</span> | awk <span class="string">&#x27;&#123;print $1&#125;&#x27;</span>)</span><br><span class="line">      RSS=$(<span class="built_in">echo</span> <span class="variable">$PROC_INFO</span> | awk <span class="string">&#x27;&#123;print $2&#125;&#x27;</span>)</span><br><span class="line">      <span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$TIMESTAMP</span>,<span class="variable">$MEM_TOTAL</span>,<span class="variable">$MEM_USED</span>,<span class="variable">$MEM_AVAIL</span>,<span class="variable">$PID</span>,<span class="variable">$VSZ</span>,<span class="variable">$RSS</span>&quot;</span> &gt;&gt; <span class="variable">$LOG_FILE</span></span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">      <span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$TIMESTAMP</span>,<span class="variable">$MEM_TOTAL</span>,<span class="variable">$MEM_USED</span>,<span class="variable">$MEM_AVAIL</span>,<span class="variable">$PID</span>,进程已终止,0&quot;</span> &gt;&gt; <span class="variable">$LOG_FILE</span></span><br><span class="line">    <span class="keyword">fi</span></span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$TIMESTAMP</span>,<span class="variable">$MEM_TOTAL</span>,<span class="variable">$MEM_USED</span>,<span class="variable">$MEM_AVAIL</span>,无,0,0&quot;</span> &gt;&gt; <span class="variable">$LOG_FILE</span></span><br><span class="line">  <span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line">  <span class="built_in">sleep</span> <span class="variable">$INTERVAL</span></span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+
+<p>使用方法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 监控系统内存</span></span><br><span class="line">./mem_monitor.sh &amp;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 监控特定进程</span></span><br><span class="line">./mem_monitor.sh 1234 &amp;</span><br></pre></td></tr></table></figure>
+
+<p>实测下来 <code>watch</code> 加 <code>ps</code> 这种土办法最管用，脚本留痕还能回头翻；一段一段的 CSV 比盯屏幕舒服。</p>
+<h3 id="5-2-按增长区域判断堆、fd-还是-mmap">5.2 按增长区域判断堆、fd 还是 mmap<a class="hlink" data-h="5-2-按增长区域判断堆、fd-还是-mmap" href="#5-2-按增长区域判断堆、fd-还是-mmap" title="跳到本节">¶</a></h3><p>根据监控得到的数据，可以分析不同类型的内存泄漏：</p>
+<h4 id="5-2-1-堆增长看-heap-区域"><a href="#5-2-1-堆增长看-heap-区域" class="headerlink" title="5.2.1 堆增长看 [heap] 区域"></a>5.2.1 堆增长看 [heap] 区域</h4><p>特征：</p>
+<ul>
+<li>进程的VSZ和RSS持续增长</li>
+<li>pmap中[heap]区域持续增长</li>
+<li>内存增长与应用负载不成比例</li>
+</ul>
+<p>分析命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看堆区域增长</span></span><br><span class="line">PID=1234</span><br><span class="line">watch -n 5 <span class="string">&quot;grep -A 1 heap /proc/<span class="variable">$PID</span>/smaps&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="5-2-2-fd-泄漏数-proc-pid-fd"><a href="#5-2-2-fd-泄漏数-proc-pid-fd" class="headerlink" title="5.2.2 fd 泄漏数 &#x2F;proc&#x2F;[pid]&#x2F;fd"></a>5.2.2 fd 泄漏数 &#x2F;proc&#x2F;[pid]&#x2F;fd</h4><p>特征：</p>
+<ul>
+<li>打开的文件描述符数量持续增加</li>
+<li>可能伴随内存增长</li>
+</ul>
+<p>分析命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 统计进程打开的文件描述符数量</span></span><br><span class="line">PID=1234</span><br><span class="line">watch -n 5 <span class="string">&quot;ls -l /proc/<span class="variable">$PID</span>/fd | wc -l&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看具体文件类型</span></span><br><span class="line"><span class="built_in">ls</span> -la /proc/<span class="variable">$PID</span>/fd</span><br></pre></td></tr></table></figure>
+
+<p>我遇到 fd 泄漏时，第一个动作就是数 <code>/proc/$PID/fd</code>，比看内存涨了多少快得多。</p>
+<h4 id="5-2-3-mmap-泄漏看匿名-rw-p-区域"><a href="#5-2-3-mmap-泄漏看匿名-rw-p-区域" class="headerlink" title="5.2.3 mmap 泄漏看匿名 rw-p 区域"></a>5.2.3 mmap 泄漏看匿名 rw-p 区域</h4><p>特征：</p>
+<ul>
+<li>pmap中[anon]区域数量或大小持续增加</li>
+<li>通常是程序未正确unmap匿名映射</li>
+</ul>
+<p>分析命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看匿名映射区域</span></span><br><span class="line">PID=1234</span><br><span class="line">grep <span class="string">&quot;rw-p&quot;</span> /proc/<span class="variable">$PID</span>/maps | grep -v <span class="string">&quot;/.*&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 定期比较</span></span><br><span class="line">watch -n 10 <span class="string">&quot;grep -c &#x27;rw-p&#x27; /proc/<span class="variable">$PID</span>/maps&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-gnuplot-把趋势画成图">5.3 gnuplot 把趋势画成图<a class="hlink" data-h="5-3-gnuplot-把趋势画成图" href="#5-3-gnuplot-把趋势画成图" title="跳到本节">¶</a></h3><p>收集到数据后，可以使用简单的可视化方法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 如果有gnuplot</span></span><br><span class="line"><span class="built_in">cat</span> &gt; plot.gnu &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">set terminal png</span></span><br><span class="line"><span class="string">set output &quot;memory_trend.png&quot;</span></span><br><span class="line"><span class="string">set title &quot;Memory Usage Trend&quot;</span></span><br><span class="line"><span class="string">set xlabel &quot;Time&quot;</span></span><br><span class="line"><span class="string">set ylabel &quot;Memory (MB)&quot;</span></span><br><span class="line"><span class="string">set datafile separator &quot;,&quot;</span></span><br><span class="line"><span class="string">set xdata time</span></span><br><span class="line"><span class="string">set timefmt &quot;%Y-%m-%d %H:%M:%S&quot;</span></span><br><span class="line"><span class="string">set format x &quot;%H:%M&quot;</span></span><br><span class="line"><span class="string">plot &quot;memory_monitor.log&quot; using 1:3 with lines title &quot;Used Memory&quot;, \</span></span><br><span class="line"><span class="string">     &quot;memory_monitor.log&quot; using 1:6 with lines title &quot;Process VSZ&quot;, \</span></span><br><span class="line"><span class="string">     &quot;memory_monitor.log&quot; using 1:7 with lines title &quot;Process RSS&quot;</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line">gnuplot plot.gnu</span><br></pre></td></tr></table></figure>
+
+<h2 id="6-三个案例分别指向连接池、fd-和临时缓冲区">6. 三个案例分别指向连接池、fd 和临时缓冲区<a class="hlink" data-h="6-三个案例分别指向连接池、fd-和临时缓冲区" href="#6-三个案例分别指向连接池、fd-和临时缓冲区" title="跳到本节">¶</a></h2><p>通过几个实际案例来说明如何应用上述方法分析内存泄漏。</p>
+<h3 id="6-1-案例一-Java-Web-连接池未释放">6.1 案例一 Java Web 连接池未释放<a class="hlink" data-h="6-1-案例一-Java-Web-连接池未释放" href="#6-1-案例一-Java-Web-连接池未释放" title="跳到本节">¶</a></h3><p><strong>问题描述</strong>：一个Java Web服务器运行几天后内存占用不断增加，最终导致系统OOM。</p>
+<p><strong>分析步骤</strong>：</p>
+<ol>
+<li>首先通过top确认是哪个进程占用内存过高：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ top -o %MEM</span><br><span class="line">  PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND</span><br><span class="line"> 5432 tomcat    20   0 6258.7m 4215.4m  26.5m S   2.0  52.3   5:21.56 java</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>使用pmap分析内存映射：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$ pmap -x 5432 | <span class="built_in">sort</span> -nrk 3 | <span class="built_in">head</span> -20</span><br><span class="line">Address           Kbytes     RSS   Dirty Mode  Mapping</span><br><span class="line">00007f82ac000000 1048576 1048576 1048576 rw---   [ anon ]</span><br><span class="line">00007f828c000000 1048576 1048576 1048576 rw---   [ anon ]</span><br><span class="line">00007f826c000000 1048576 1048576 1048576 rw---   [ anon ]</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li><p>对比两个时间点的内存映射发现大量匿名映射增长。</p>
+</li>
+<li><p>查看GC日志和堆转储确认是Java堆内存泄漏：</p>
+</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ jmap -heap 5432</span><br><span class="line">$ jmap -dump:format=b,file=heap.bin 5432</span><br></pre></td></tr></table></figure>
+
+<p><strong>根本原因</strong>：通过分析确认是一个HTTP连接池未正确释放连接导致的内存泄漏。</p>
+<h3 id="6-2-案例二-守护进程-fd-未关闭">6.2 案例二 守护进程 fd 未关闭<a class="hlink" data-h="6-2-案例二-守护进程-fd-未关闭" href="#6-2-案例二-守护进程-fd-未关闭" title="跳到本节">¶</a></h3><p><strong>问题描述</strong>：系统守护进程在长期运行后内存使用逐渐增加，但速度很慢。</p>
+<p><strong>分析步骤</strong>：</p>
+<ol>
+<li>设置长期监控：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ PID=$(pgrep daemon_name)</span><br><span class="line">$ <span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span> <span class="built_in">date</span> &gt;&gt; daemon_mem.log; ps -o vsz,rss -p <span class="variable">$PID</span> &gt;&gt; daemon_mem.log; <span class="built_in">sleep</span> 3600; <span class="keyword">done</span> &amp;</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>一周后分析日志，确认RSS稳定增长：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ awk <span class="string">&#x27;/RSS/&#123;print $2&#125;&#x27;</span> daemon_mem.log | xargs <span class="built_in">echo</span> | <span class="built_in">tr</span> <span class="string">&#x27; &#x27;</span> <span class="string">&#x27;\n&#x27;</span> | <span class="built_in">nl</span></span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>使用pmap分析内存增长区域：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ pmap -x <span class="variable">$PID</span> | grep -i heap</span><br><span class="line">00005638ebc11000    132     132     132 rw---   [ heap ]</span><br></pre></td></tr></table></figure>
+
+<ol start="4">
+<li>检查文件描述符是否泄漏：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">ls</span> -l /proc/<span class="variable">$PID</span>/fd | <span class="built_in">wc</span> -l</span><br><span class="line">1249  <span class="comment"># 数量异常高</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>根本原因</strong>：守护进程在处理客户端连接时没有正确关闭文件描述符，导致文件描述符泄漏和相关内存结构泄漏。</p>
+<h3 id="6-3-案例三-临时缓冲区累积触发-OOM">6.3 案例三 临时缓冲区累积触发 OOM<a class="hlink" data-h="6-3-案例三-临时缓冲区累积触发-OOM" href="#6-3-案例三-临时缓冲区累积触发-OOM" title="跳到本节">¶</a></h3><p><strong>问题描述</strong>：系统偶尔出现OOM，但重启后恢复正常。</p>
+<p><strong>分析步骤</strong>：</p>
+<ol>
+<li>检查系统日志中OOM记录：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ dmesg | grep -i <span class="string">&quot;out of memory&quot;</span></span><br><span class="line">[26759.123456] Out of memory: Kill process 4321 (leaky_app) score 945 or sacrifice child</span><br><span class="line">[26759.123567] Killed process 4321 (leaky_app) total-vm:15896428kB, anon-rss:12758584kB</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>分析被kill的进程信息：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ grep leaky_app /var/log/syslog | grep -i memory</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>设置内存使用警报并监控可疑进程：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$ PID=$(pgrep leaky_app)</span><br><span class="line">$ <span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span></span><br><span class="line">    MEM=$(ps -o rss= -p <span class="variable">$PID</span>)</span><br><span class="line">    <span class="keyword">if</span> [ <span class="variable">$MEM</span> -gt 1000000 ]; <span class="keyword">then</span></span><br><span class="line">      <span class="built_in">echo</span> <span class="string">&quot;Warning: high memory usage <span class="subst">$(date)</span>&quot;</span> &gt;&gt; alert.log</span><br><span class="line">      pmap -x <span class="variable">$PID</span> &gt; pmap_high_$PID_$(<span class="built_in">date</span> +%s).<span class="built_in">log</span></span><br><span class="line">    <span class="keyword">fi</span></span><br><span class="line">    <span class="built_in">sleep</span> 60</span><br><span class="line">  <span class="keyword">done</span> &amp;</span><br></pre></td></tr></table></figure>
+
+<p><strong>根本原因</strong>：应用程序在处理特定请求时分配了大量临时缓冲区但未释放，导致累积效应。</p>
+<h2 id="7-管理员设阈值，开发侧限制缓存和释放资源">7. 管理员设阈值，开发侧限制缓存和释放资源<a class="hlink" data-h="7-管理员设阈值，开发侧限制缓存和释放资源" href="#7-管理员设阈值，开发侧限制缓存和释放资源" title="跳到本节">¶</a></h2><h3 id="7-1-管理员设阈值、限额和应急预案">7.1 管理员设阈值、限额和应急预案<a class="hlink" data-h="7-1-管理员设阈值、限额和应急预案" href="#7-1-管理员设阈值、限额和应急预案" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[系统管理员最佳实践] --&gt; B[设置内存警报阈值]
+    A --&gt; C[实施自动化监控]
+    A --&gt; D[定期分析内存趋势]
+    A --&gt; E[保留历史内存数据]
+    A --&gt; F[制定OOM应急方案]
+    A --&gt; G[配置资源限制ulimit]
+</div>
+
+<p>具体建议：</p>
+<ol>
+<li><p><strong>主动监控</strong>：设置系统内存使用阈值警报</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 警报脚本示例（当可用内存低于10%时告警）</span></span><br><span class="line">FREE_PERCENT=$(free | grep Mem | awk <span class="string">&#x27;&#123;print $4/$2 * 100.0&#125;&#x27;</span>)</span><br><span class="line"><span class="keyword">if</span> (( $(echo &quot;<span class="variable">$FREE_PERCENT</span> &lt; <span class="number">10</span>&quot; | bc -l) )); <span class="keyword">then</span></span><br><span class="line">  <span class="built_in">echo</span> <span class="string">&quot;Low memory alert: <span class="variable">$FREE_PERCENT</span>% free&quot;</span> | mail -s <span class="string">&quot;Memory Alert&quot;</span> admin@example.com</span><br><span class="line"><span class="keyword">fi</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>限制应用资源</strong>：使用cgroups或ulimit限制应用内存使用</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 为用户设置内存限制</span></span><br><span class="line"><span class="built_in">ulimit</span> -v 8000000  <span class="comment"># 限制虚拟内存为8GB</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用systemd限制服务内存</span></span><br><span class="line"><span class="comment"># /etc/systemd/system/myservice.service</span></span><br><span class="line">[Service]</span><br><span class="line">MemoryLimit=4G</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>定期分析</strong>：创建定期内存使用报告</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 每天生成内存报告</span></span><br><span class="line">0 0 * * * ps aux --<span class="built_in">sort</span>=-%mem | <span class="built_in">head</span> -20 &gt; /var/log/mem_report_$(<span class="built_in">date</span> +\%Y\%m\%d).<span class="built_in">log</span></span><br></pre></td></tr></table></figure></li>
+</ol>
+<p>我一般先给服务加 <code>MemoryLimit=</code> 把口子收住，再谈优化代码——先止血，后面慢慢查。</p>
+<h3 id="7-2-开发侧自检、限缓存、用-RAII">7.2 开发侧自检、限缓存、用 RAII<a class="hlink" data-h="7-2-开发侧自检、限缓存、用-RAII" href="#7-2-开发侧自检、限缓存、用-RAII" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[开发人员最佳实践] --&gt; B[编写内存自检代码]
+    A --&gt; C[避免无限缓存增长]
+    A --&gt; D[正确关闭资源]
+    A --&gt; E[使用内存池管理]
+    A --&gt; F[实施超时释放机制]
+    A --&gt; G[周期性执行清理函数]
+</div>
+
+<p>具体建议：</p>
+<ol>
+<li><p><strong>添加自检功能</strong>：在应用中实现内存使用自检</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// C语言示例：定期报告内存使用</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">report_memory_usage</span><span class="params">()</span> &#123;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">rusage</span> <span class="title">r_usage</span>;</span></span><br><span class="line">  getrusage(RUSAGE_SELF, &amp;r_usage);</span><br><span class="line">  syslog(LOG_INFO, <span class="string">&quot;Memory usage: %ld KB&quot;</span>, r_usage.ru_maxrss);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>限制缓存大小</strong>：为缓存设置上限，实现LRU淘汰机制</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Python示例：使用LRU缓存</span></span><br><span class="line"><span class="keyword">from</span> functools <span class="keyword">import</span> lru_cache</span><br><span class="line"></span><br><span class="line"><span class="meta">@lru_cache(<span class="params">maxsize=<span class="number">1000</span></span>)</span></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">expensive_function</span>(<span class="params">arg</span>):</span><br><span class="line">    <span class="comment"># 复杂计算</span></span><br><span class="line">    <span class="keyword">return</span> result</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>资源自动释放</strong>：使用RAII模式或类似机制确保资源释放</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// C++示例：RAII模式</span></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">FileHandler</span> &#123;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    FILE* file;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    <span class="built_in">FileHandler</span>(<span class="type">const</span> <span class="type">char</span>* filename) &#123; file = <span class="built_in">fopen</span>(filename, <span class="string">&quot;r&quot;</span>); &#125;</span><br><span class="line">    ~<span class="built_in">FileHandler</span>() &#123; <span class="keyword">if</span> (file) <span class="built_in">fclose</span>(file); &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="8-命令速查表按用途直接取用">8. 命令速查表按用途直接取用<a class="hlink" data-h="8-命令速查表按用途直接取用" href="#8-命令速查表按用途直接取用" title="跳到本节">¶</a></h2><p>以下是常用的Linux内存分析命令速查表：</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>用途</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>free</td>
+<td>查看系统内存使用情况</td>
+<td><code>free -h</code></td>
+</tr>
+<tr>
+<td>top</td>
+<td>实时监控进程资源使用</td>
+<td><code>top -o %MEM</code></td>
+</tr>
+<tr>
+<td>ps</td>
+<td>查看进程内存使用</td>
+<td><code>ps aux --sort=-%mem</code></td>
+</tr>
+<tr>
+<td>pmap</td>
+<td>查看进程内存映射</td>
+<td><code>pmap -x $(pgrep java)</code></td>
+</tr>
+<tr>
+<td>vmstat</td>
+<td>查看系统内存统计</td>
+<td><code>vmstat 1 5</code></td>
+</tr>
+<tr>
+<td>dmesg</td>
+<td>检查内核消息</td>
+<td><code>dmesg | grep -i memory</code></td>
+</tr>
+<tr>
+<td>cat &#x2F;proc&#x2F;meminfo</td>
+<td>查看详细内存信息</td>
+<td><code>cat /proc/meminfo</code></td>
+</tr>
+<tr>
+<td>cat &#x2F;proc&#x2F;[pid]&#x2F;status</td>
+<td>查看进程内存状态</td>
+<td><code>cat /proc/1234/status | grep Vm</code></td>
+</tr>
+<tr>
+<td>cat &#x2F;proc&#x2F;[pid]&#x2F;maps</td>
+<td>查看进程内存映射</td>
+<td><code>cat /proc/1234/maps</code></td>
+</tr>
+<tr>
+<td>cat &#x2F;proc&#x2F;[pid]&#x2F;smaps</td>
+<td>查看进程详细内存映射</td>
+<td><code>grep -A 16 heap /proc/1234/smaps</code></td>
+</tr>
+<tr>
+<td>cat &#x2F;proc&#x2F;[pid]&#x2F;fd</td>
+<td>查看打开的文件描述符</td>
+<td><code>ls -l /proc/1234/fd | wc -l</code></td>
+</tr>
+<tr>
+<td>sar</td>
+<td>收集系统历史数据</td>
+<td><code>sar -r 1 10</code></td>
+</tr>
+</tbody></table>
+<h2 id="9-eBPF、strace-和增长检测脚本做深挖">9. eBPF、strace 和增长检测脚本做深挖<a class="hlink" data-h="9-eBPF、strace-和增长检测脚本做深挖" href="#9-eBPF、strace-和增长检测脚本做深挖" title="跳到本节">¶</a></h2><h3 id="9-1-eBPF-的-mallocstacks-追调用栈">9.1 eBPF 的 mallocstacks 追调用栈<a class="hlink" data-h="9-1-eBPF-的-mallocstacks-追调用栈" href="#9-1-eBPF-的-mallocstacks-追调用栈" title="跳到本节">¶</a></h3><p>对于更深入的分析，可以使用eBPF工具跟踪内核内存分配：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 使用bcc工具追踪malloc调用</span></span><br><span class="line"><span class="comment"># 需要安装bcc-tools</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/mallocstacks -p 1234 10</span><br></pre></td></tr></table></figure>
+
+<p>eBPF 这套我只在常规手段定位不了时才上，毕竟还要装 bcc-tools。</p>
+<h3 id="9-2-增长超阈值自动留快照">9.2 增长超阈值自动留快照<a class="hlink" data-h="9-2-增长超阈值自动留快照" href="#9-2-增长超阈值自动留快照" title="跳到本节">¶</a></h3><p>创建更复杂的监控脚本来捕获特定模式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line"><span class="comment"># memory_growth_detector.sh</span></span><br><span class="line">PID=<span class="variable">$1</span></span><br><span class="line">THRESHOLD=5 <span class="comment"># 5%增长触发报警</span></span><br><span class="line">INTERVAL=60 <span class="comment"># 每分钟检查一次</span></span><br><span class="line"></span><br><span class="line">last_rss=$(ps -o rss= -p <span class="variable">$PID</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span></span><br><span class="line">  <span class="built_in">sleep</span> <span class="variable">$INTERVAL</span></span><br><span class="line"></span><br><span class="line">  <span class="comment"># 检查进程是否存在</span></span><br><span class="line">  <span class="keyword">if</span> ! ps -p <span class="variable">$PID</span> &gt; /dev/null; <span class="keyword">then</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;进程 <span class="variable">$PID</span> 已终止, 退出监控&quot;</span></span><br><span class="line">    <span class="built_in">exit</span> 1</span><br><span class="line">  <span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line">  current_rss=$(ps -o rss= -p <span class="variable">$PID</span>)</span><br><span class="line">  growth_percent=$(<span class="built_in">echo</span> <span class="string">&quot;scale=2; 100*(<span class="variable">$current_rss</span>-<span class="variable">$last_rss</span>)/<span class="variable">$last_rss</span>&quot;</span> | bc)</span><br><span class="line"></span><br><span class="line">  <span class="comment"># 检查是否超过阈值</span></span><br><span class="line">  threshold_check=$(<span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$growth_percent</span> &gt; <span class="variable">$THRESHOLD</span>&quot;</span> | bc)</span><br><span class="line">  <span class="keyword">if</span> [ <span class="variable">$threshold_check</span> -eq 1 ]; <span class="keyword">then</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;[<span class="subst">$(date)</span>] 警告: 进程 <span class="variable">$PID</span> 内存增长 <span class="variable">$growth_percent</span>% (从 <span class="variable">$last_rss</span> kB 到 <span class="variable">$current_rss</span> kB)&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 捕获详细信息</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;获取内存映射快照...&quot;</span></span><br><span class="line">    <span class="built_in">cat</span> /proc/<span class="variable">$PID</span>/maps &gt; maps_<span class="variable">$&#123;PID&#125;</span>_$(<span class="built_in">date</span> +%s).txt</span><br><span class="line">    <span class="built_in">cat</span> /proc/<span class="variable">$PID</span>/smaps &gt; smaps_<span class="variable">$&#123;PID&#125;</span>_$(<span class="built_in">date</span> +%s).txt</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 分析打开的文件描述符</span></span><br><span class="line">    <span class="built_in">echo</span> <span class="string">&quot;检查文件描述符...&quot;</span></span><br><span class="line">    <span class="built_in">ls</span> -l /proc/<span class="variable">$PID</span>/fd &gt; fd_<span class="variable">$&#123;PID&#125;</span>_$(<span class="built_in">date</span> +%s).txt</span><br><span class="line">  <span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line">  last_rss=<span class="variable">$current_rss</span></span><br><span class="line"><span class="keyword">done</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="9-3-strace-盯-mmap、munmap、brk">9.3 strace 盯 mmap、munmap、brk<a class="hlink" data-h="9-3-strace-盯-mmap、munmap、brk" href="#9-3-strace-盯-mmap、munmap、brk" title="跳到本节">¶</a></h3><p>使用strace跟踪与内存相关的系统调用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 跟踪内存相关系统调用</span></span><br><span class="line">strace -e trace=memory -p 1234</span><br><span class="line"></span><br><span class="line"><span class="comment"># 跟踪mmap/munmap调用</span></span><br><span class="line">strace -e mmap,munmap,brk -p 1234</span><br></pre></td></tr></table></figure>
+
+<h2 id="10-收尾：按五步走就能定界">10. 收尾：按五步走就能定界<a class="hlink" data-h="10-收尾：按五步走就能定界" href="#10-收尾：按五步走就能定界" title="跳到本节">¶</a></h2><p>实测下来这套流程不会出错：持续监控、看增长趋势、用 &#x2F;proc 查映射、对比两个时间点、定位泄漏区域。如果 <code>free</code> 的 available 一路往下而某个进程的 RSS 一路往上，基本就能判成泄漏；接下来把 <code>pmap -x</code> 的前后两份输出 diff 一下，堆、fd 还是匿名映射，一眼就分得清。</p>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"01-基础工具排查内存泄漏","description":"生产环境上不好随便装 Valgrind 或者挂 AddressSanitizer，我一般就是靠系统自带那几样——top、ps、free、pmap，再加 /proc 目录，先把是不是泄漏、哪个进程在涨、涨在哪块这三个问题回答掉。","datePublished":"2026-11-20T00:00:00+08:00","dateModified":"2026-11-20T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/228001063.html"},"url":"https://zeek-zhao.github.io/posts/228001063.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"操作系统与机器人","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/"},{"@type":"ListItem","position":4,"name":"Linux","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/"},{"@type":"ListItem","position":5,"name":"01-基础工具排查内存泄漏","item":"https://zeek-zhao.github.io/posts/228001063.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#1-内存泄漏是分配后没释放，表现为持续累积" data-h="1-内存泄漏是分配后没释放，表现为持续累积" class="">1. 内存泄漏是分配后没释放，表现为持续累积</a>
+      
+        <a href="#1-1-持续累积、空闲不释放是关键信号" data-h="1-1-持续累积、空闲不释放是关键信号" class="l2">1.1 持续累积、空闲不释放是关键信号</a>
+      
+        <a href="#1-2-分五类：经典、隐式、递增、突发、资源" data-h="1-2-分五类：经典、隐式、递增、突发、资源" class="l2">1.2 分五类：经典、隐式、递增、突发、资源</a>
+      
+        <a href="#2-看懂虚拟内存与物理内存的映射再看工具" data-h="2-看懂虚拟内存与物理内存的映射再看工具" class="">2. 看懂虚拟内存与物理内存的映射再看工具</a>
+      
+        <a href="#2-1-物理内存拆成内核空间和用户空间" data-h="2-1-物理内存拆成内核空间和用户空间" class="l2">2.1 物理内存拆成内核空间和用户空间</a>
+      
+        <a href="#2-2-VmSize、VmRSS、VmSwap-三个值区分开" data-h="2-2-VmSize、VmRSS、VmSwap-三个值区分开" class="l2">2.2 VmSize、VmRSS、VmSwap 三个值区分开</a>
+      
+        <a href="#2-3-分配靠-malloc-mmap，回收靠-free-终止-系统" data-h="2-3-分配靠-malloc-mmap，回收靠-free-终止-系统" class="l2">2.3 分配靠 malloc&#x2F;mmap，回收靠 free&#x2F;终止&#x2F;系统</a>
+      
+        <a href="#3-free、top、ps、pmap-各有各的观察层面" data-h="3-free、top、ps、pmap-各有各的观察层面" class="">3. free、top、ps、pmap 各有各的观察层面</a>
+      
+        <a href="#3-1-系统级看-free、top、vmstat" data-h="3-1-系统级看-free、top、vmstat" class="l2">3.1 系统级看 free、top、vmstat</a>
+      
+        <a href="#3-2-进程级看-ps、pmap、smem" data-h="3-2-进程级看-ps、pmap、smem" class="l2">3.2 进程级看 ps、pmap、smem</a>
+      
+        <a href="#3-3-proc-直接读内核数据结构" data-h="3-3-proc-直接读内核数据结构" class="l2">3.3 &#x2F;proc 直接读内核数据结构</a>
+      
+        <a href="#4-先系统级趋势后进程级映射，最后查-OOM" data-h="4-先系统级趋势后进程级映射，最后查-OOM" class="">4. 先系统级趋势后进程级映射，最后查 OOM</a>
+      
+        <a href="#4-1-系统级先建基线再查趋势" data-h="4-1-系统级先建基线再查趋势" class="l2">4.1 系统级先建基线再查趋势</a>
+      
+        <a href="#4-2-进程级对比两个时间点的映射" data-h="4-2-进程级对比两个时间点的映射" class="l2">4.2 进程级对比两个时间点的映射</a>
+      
+        <a href="#4-3-从-dmesg-和-journalctl-反推-OOM-进程" data-h="4-3-从-dmesg-和-journalctl-反推-OOM-进程" class="l2">4.3 从 dmesg 和 journalctl 反推 OOM 进程</a>
+      
+        <a href="#5-一套脚本加命令把泄漏类型落到堆、fd-和-mmap" data-h="5-一套脚本加命令把泄漏类型落到堆、fd-和-mmap" class="">5. 一套脚本加命令把泄漏类型落到堆、fd 和 mmap</a>
+      
+        <a href="#5-1-脚本按固定间隔记录系统加进程" data-h="5-1-脚本按固定间隔记录系统加进程" class="l2">5.1 脚本按固定间隔记录系统加进程</a>
+      
+        <a href="#5-2-按增长区域判断堆、fd-还是-mmap" data-h="5-2-按增长区域判断堆、fd-还是-mmap" class="l2">5.2 按增长区域判断堆、fd 还是 mmap</a>
+      
+        <a href="#5-3-gnuplot-把趋势画成图" data-h="5-3-gnuplot-把趋势画成图" class="l2">5.3 gnuplot 把趋势画成图</a>
+      
+        <a href="#6-三个案例分别指向连接池、fd-和临时缓冲区" data-h="6-三个案例分别指向连接池、fd-和临时缓冲区" class="">6. 三个案例分别指向连接池、fd 和临时缓冲区</a>
+      
+        <a href="#6-1-案例一-Java-Web-连接池未释放" data-h="6-1-案例一-Java-Web-连接池未释放" class="l2">6.1 案例一 Java Web 连接池未释放</a>
+      
+        <a href="#6-2-案例二-守护进程-fd-未关闭" data-h="6-2-案例二-守护进程-fd-未关闭" class="l2">6.2 案例二 守护进程 fd 未关闭</a>
+      
+        <a href="#6-3-案例三-临时缓冲区累积触发-OOM" data-h="6-3-案例三-临时缓冲区累积触发-OOM" class="l2">6.3 案例三 临时缓冲区累积触发 OOM</a>
+      
+        <a href="#7-管理员设阈值，开发侧限制缓存和释放资源" data-h="7-管理员设阈值，开发侧限制缓存和释放资源" class="">7. 管理员设阈值，开发侧限制缓存和释放资源</a>
+      
+        <a href="#7-1-管理员设阈值、限额和应急预案" data-h="7-1-管理员设阈值、限额和应急预案" class="l2">7.1 管理员设阈值、限额和应急预案</a>
+      
+        <a href="#7-2-开发侧自检、限缓存、用-RAII" data-h="7-2-开发侧自检、限缓存、用-RAII" class="l2">7.2 开发侧自检、限缓存、用 RAII</a>
+      
+        <a href="#8-命令速查表按用途直接取用" data-h="8-命令速查表按用途直接取用" class="">8. 命令速查表按用途直接取用</a>
+      
+        <a href="#9-eBPF、strace-和增长检测脚本做深挖" data-h="9-eBPF、strace-和增长检测脚本做深挖" class="">9. eBPF、strace 和增长检测脚本做深挖</a>
+      
+        <a href="#9-1-eBPF-的-mallocstacks-追调用栈" data-h="9-1-eBPF-的-mallocstacks-追调用栈" class="l2">9.1 eBPF 的 mallocstacks 追调用栈</a>
+      
+        <a href="#9-2-增长超阈值自动留快照" data-h="9-2-增长超阈值自动留快照" class="l2">9.2 增长超阈值自动留快照</a>
+      
+        <a href="#9-3-strace-盯-mmap、munmap、brk" data-h="9-3-strace-盯-mmap、munmap、brk" class="l2">9.3 strace 盯 mmap、munmap、brk</a>
+      
+        <a href="#10-收尾：按五步走就能定界" data-h="10-收尾：按五步走就能定界" class="">10. 收尾：按五步走就能定界</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

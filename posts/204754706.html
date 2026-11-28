@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>14-内核调试工具与方法 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="内核调试要解决的是「系统自己出了问题、而普通调试器插不上手」这类场景：驱动加载失败、系统无故重启、性能突然掉下来，或者进程在内核态卡死。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/204754706.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="14-内核调试工具与方法">
+<meta property="og:description" content="内核调试要解决的是「系统自己出了问题、而普通调试器插不上手」这类场景：驱动加载失败、系统无故重启、性能突然掉下来，或者进程在内核态卡死。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/204754706.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="14-内核调试工具与方法">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-07T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="操作系统与机器人">
+          <div class="sg-head">
+            <span>🤖</span><span>操作系统与机器人</span><span class="cnt">447 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Linux">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/" class=""><span>🐧</span><span>Linux</span><span class="cnt">129</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Linux 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1681936644.html" class="">01-EC20模块4G拨号与GPS定位开发</a>
+                  
+                    <a href="/posts/4083254943.html" class="">01-Linux安全子系统访问控制与隔离</a>
+                  
+                    <a href="/posts/2415137652.html" class="">01-Linux常用命令速查</a>
+                  
+                    <a href="/posts/533232104.html" class="">01-U-Boot基础与启动流程</a>
+                  
+                    <a href="/posts/3075951192.html" class="">01-Systemd核心组件架构与功能</a>
+                  
+                    <a href="/posts/228001063.html" class="">01-基础工具排查内存泄漏</a>
+                  
+                    <a href="/posts/2735785623.html" class="">01-工业控制器软硬件测试方案</a>
+                  
+                    <a href="/posts/419018602.html" class="">01-裸机开发流程与硬件操控</a>
+                  
+                    <a href="/posts/1072254920.html" class="">02-Linux系统网络配置方法与排障</a>
+                  
+                    <a href="/posts/299621239.html" class="">02-Linux电源管理子系统架构与调优</a>
+                  
+                    <a href="/posts/1221451.html" class="">02-U-Boot新板移植适配流程</a>
+                  
+                    <a href="/posts/4128798125.html" class="">02-systemd-analyze启动性能分析</a>
+                  
+                    <a href="/posts/3888100408.html" class="">02-内核功能与模块管理命令</a>
+                  
+                    <a href="/posts/1471709349.html" class="">02-外设接口测试指南</a>
+                  
+                    <a href="/posts/609416877.html" class="">02-嵌入式开发板硬件接口速查</a>
+                  
+                    <a href="/posts/711801502.html" class="">02-磁盘与文件系统管理</a>
+                  
+                    <a href="/posts/2990991122.html" class="">03-Linux进程管理调度与IPC机制</a>
+                  
+                    <a href="/posts/2680037132.html" class="">03-U-Boot源码结构与启动流程</a>
+                  
+                    <a href="/posts/101579121.html" class="">03-mmap内存映射原理与驱动实现</a>
+                  
+                    <a href="/posts/4216171518.html" class="">03-systemd服务配置与管理</a>
+                  
+                    <a href="/posts/2319334978.html" class="">03-内核基础编译与模块开发</a>
+                  
+                    <a href="/posts/3923580784.html" class="">03-各类工具代理配置</a>
+                  
+                    <a href="/posts/3161741332.html" class="">03-开发板SSH默认端口修改与安全连接</a>
+                  
+                    <a href="/posts/3641886687.html" class="">03-网络测试指南</a>
+                  
+                    <a href="/posts/3785836924.html" class="">04-systemd核心概念与基础</a>
+                  
+                    <a href="/posts/3734120973.html" class="">04-内存管理子系统的层次与机制</a>
+                  
+                    <a href="/posts/972888713.html" class="">04-内核编译与模块功能定制</a>
+                  
+                    <a href="/posts/3751178843.html" class="">04-开发板Linux下修改MAC地址</a>
+                  
+                    <a href="/posts/1112658189.html" class="">04-根文件系统开发实践</a>
+                  
+                    <a href="/posts/1854171497.html" class="">04-芯片四大组件性能测试与选型</a>
+                  
+                    <a href="/posts/262344998.html" class="">04-驱动开发概念分类与架构流程</a>
+                  
+                    <a href="/posts/1094537113.html" class="">05-IMA完整性测量架构与配置</a>
+                  
+                    <a href="/posts/2881050404.html" class="">05-kmemleak内核内存泄漏检测</a>
+                  
+                    <a href="/posts/1992174196.html" class="">05-systemd启动流程与机制</a>
+                  
+                    <a href="/posts/3908546189.html" class="">05-内核架构与子系统协作</a>
+                  
+                    <a href="/posts/3140138007.html" class="">05-根文件系统类型与构建方法</a>
+                  
+                    <a href="/posts/2172472796.html" class="">05-音频设备测试与故障排查</a>
+                  
+                    <a href="/posts/2557508733.html" class="">05-驱动开发框架与通用子系统</a>
+                  
+                    <a href="/posts/862017958.html" class="">06-ICM20608六轴传感器驱动移植</a>
+                  
+                    <a href="/posts/4115811846.html" class="">06-Linux基础术语与核心概念</a>
+                  
+                    <a href="/posts/2015394678.html" class="">06-S3C2440时钟体系与寄存器配置</a>
+                  
+                    <a href="/posts/1758255262.html" class="">06-journald日志查询与管理</a>
+                  
+                    <a href="/posts/45575455.html" class="">06-mtrace内存泄漏分析技巧</a>
+                  
+                    <a href="/posts/3755082214.html" class="">06-内核同步机制与并发控制</a>
+                  
+                    <a href="/posts/3813382677.html" class="">07-Linux计划任务配置与选型</a>
+                  
+                    <a href="/posts/1886591968.html" class="">07-Linux设备驱动模型核心机制</a>
+                  
+                    <a href="/posts/3144201791.html" class="">07-Sanitizer内存泄漏分析</a>
+                  
+                    <a href="/posts/1893451115.html" class="">07-systemd架构与服务管理</a>
+                  
+                    <a href="/posts/992563292.html" class="">07-内核子系统总览</a>
+                  
+                    <a href="/posts/2252012541.html" class="">07-裸机点亮LED与GPIO寄存器操作</a>
+                  
+                    <a href="/posts/2494136140.html" class="">08-Linux图像设备V4L2开发</a>
+                  
+                    <a href="/posts/2551125294.html" class="">08-TCMalloc内存分配器与内存泄漏分析</a>
+                  
+                    <a href="/posts/286299626.html" class="">08-网络协议与通信原理</a>
+                  
+                    <a href="/posts/2856475980.html" class="">08-裸机交叉编译工具链与链接脚本</a>
+                  
+                    <a href="/posts/423458188.html" class="">08-设备驱动模型与开发实践</a>
+                  
+                    <a href="/posts/4014961628.html" class="">09-Linux网卡流量统计工具选型与用法</a>
+                  
+                    <a href="/posts/4142321600.html" class="">09-Ubuntu2004禁止自动休眠的几种方式</a>
+                  
+                    <a href="/posts/1114536982.html" class="">09-内存管理基础</a>
+                  
+                    <a href="/posts/1702870561.html" class="">09-时间子系统原理与实现</a>
+                  
+                    <a href="/posts/729158944.html" class="">09-设备树DTS语法与内核解析</a>
+                  
+                    <a href="/posts/1720365042.html" class="">10-GPIO三种操作方式与设备树配置</a>
+                  
+                    <a href="/posts/1524901879.html" class="">10-Valgrind内存泄漏分析实战</a>
+                  
+                    <a href="/posts/683186726.html" class="">10-内存泄漏分析与定位流程</a>
+                  
+                    <a href="/posts/1370598446.html" class="">10-图形子系统架构与渲染栈</a>
+                  
+                    <a href="/posts/1626889410.html" class="">10-设备树架构与内核处理流程</a>
+                  
+                    <a href="/posts/1631881322.html" class="">11-CAN总线SocketCAN与CANopen开发</a>
+                  
+                    <a href="/posts/3507320406.html" class="">11-内存泄漏概念检测与修复</a>
+                  
+                    <a href="/posts/2395844944.html" class="">11-网络子系统架构与数据包流程</a>
+                  
+                    <a href="/posts/3827344601.html" class="">11-设备树开发流程与驱动实践</a>
+                  
+                    <a href="/posts/2542203250.html" class="">12-Flash驱动开发与MTD测试体系</a>
+                  
+                    <a href="/posts/3601506011.html" class="">12-嵌入式设备烧录与自动烧录SD卡</a>
+                  
+                    <a href="/posts/1249611102.html" class="">12-文件系统VFS架构与调优</a>
+                  
+                    <a href="/posts/3302243246.html" class="">12-设备树语法规则与节点属性</a>
+                  
+                    <a href="/posts/4232086438.html" class="">13-I2C协议与驱动开发调试</a>
+                  
+                    <a href="/posts/1745770341.html" class="">13-系统调用接口与陷入机制</a>
+                  
+                    <a href="/posts/3541193669.html" class="">13-设备树源码与内核实现</a>
+                  
+                    <a href="/posts/1932562151.html" class="">13-软件包管理工具与依赖排障</a>
+                  
+                    <a href="/posts/3679683762.html" class="">14-kmod工具集与内核模块管理</a>
+                  
+                    <a href="/posts/204754706.html" class="active">14-内核调试工具与方法</a>
+                  
+                    <a href="/posts/337401038.html" class="">14-虚拟化子系统架构与实现</a>
+                  
+                    <a href="/posts/3619291073.html" class="">14-网络编程基础与高性能实践</a>
+                  
+                    <a href="/posts/30952159.html" class="">15-PWM子系统与三种开发方式</a>
+                  
+                    <a href="/posts/3428022739.html" class="">15-内核体系结构与学习路径</a>
+                  
+                    <a href="/posts/1156349833.html" class="">15-网络调试工具与防火墙配置</a>
+                  
+                    <a href="/posts/2084393826.html" class="">15-虚拟文件系统VFS架构与缓存</a>
+                  
+                    <a href="/posts/1492466562.html" class="">16-Linux网络基础与协议栈</a>
+                  
+                    <a href="/posts/1443612112.html" class="">16-RPMSG核间通信与开发流程</a>
+                  
+                    <a href="/posts/64163175.html" class="">16-中断处理子系统与上下半部</a>
+                  
+                    <a href="/posts/1662370678.html" class="">17-Linux网络配置与故障排查</a>
+                  
+                    <a href="/posts/3499888327.html" class="">17-RTC驱动与应用开发</a>
+                  
+                    <a href="/posts/1472071864.html" class="">17-内核子系统间交互与IPC机制</a>
+                  
+                    <a href="/posts/3375308729.html" class="">18-GPIO子系统与引脚控制架构</a>
+                  
+                    <a href="/posts/413524861.html" class="">18-Linux网络驱动与收发流程</a>
+                  
+                    <a href="/posts/1787716189.html" class="">18-Socket网络编程与粘包处理</a>
+                  
+                    <a href="/posts/2536056501.html" class="">19-SPI总线驱动与设备树配置</a>
+                  
+                    <a href="/posts/1043009254.html" class="">19-TTY子系统架构与驱动</a>
+                  
+                    <a href="/posts/2820206790.html" class="">19-以太网MAC与PHY接口</a>
+                  
+                    <a href="/posts/1783654330.html" class="">20-Linux文本处理命令与实战</a>
+                  
+                    <a href="/posts/4179949671.html" class="">20-UART串口驱动与RS485应用</a>
+                  
+                    <a href="/posts/865986603.html" class="">21-USB总线驱动框架与设备枚举</a>
+                  
+                    <a href="/posts/3847399252.html" class="">21-无线网络基础与部署排查</a>
+                  
+                    <a href="/posts/4143405040.html" class="">22-看门狗机制与软硬死锁检测</a>
+                  
+                    <a href="/posts/2990894265.html" class="">22-系统掉电保护与日志文件系统</a>
+                  
+                    <a href="/posts/3047565199.html" class="">23-Linux用户与组权限管理</a>
+                  
+                    <a href="/posts/4251339438.html" class="">23-WiFi模块PEB-WLBT-01配置与排障</a>
+                  
+                    <a href="/posts/3144456274.html" class="">24-环境变量修改与生效方法</a>
+                  
+                    <a href="/posts/2406993733.html" class="">25-ADC基础知识与工程实现</a>
+                  
+                    <a href="/posts/901317427.html" class="">26-ADB设备调试命令指南</a>
+                  
+                    <a href="/posts/970239254.html" class="">27-ARM-DSP-FPGA技术对比</a>
+                  
+                    <a href="/posts/1599150771.html" class="">28-awk文本处理与实战</a>
+                  
+                    <a href="/posts/1554852273.html" class="">29-can总线协议与编程基础</a>
+                  
+                    <a href="/posts/3987772023.html" class="">30-diff与patch补丁实战</a>
+                  
+                    <a href="/posts/663676011.html" class="">Linux 技能总览与索引</a>
+                  
+                    <a href="/posts/212295555.html" class="">31-DMA工作原理与内核API</a>
+                  
+                    <a href="/posts/2335117280.html" class="">32-eMMC嵌入式存储原理与优化</a>
+                  
+                    <a href="/posts/3281658937.html" class="">33-Flash存储器原理与编程实例</a>
+                  
+                    <a href="/posts/449212517.html" class="">34-GPIO工作模式与寄存器控制</a>
+                  
+                    <a href="/posts/2802968252.html" class="">35-I2C总线协议与驱动编程</a>
+                  
+                    <a href="/posts/646183460.html" class="">36-I2S音频总线与时钟配置</a>
+                  
+                    <a href="/posts/3921515715.html" class="">37-iMX8处理器系列与型号对比</a>
+                  
+                    <a href="/posts/3676773691.html" class="">38-KVM架构与CPU内存中断虚拟化</a>
+                  
+                    <a href="/posts/2296163704.html" class="">39-xPico240网卡配置与固件升级</a>
+                  
+                    <a href="/posts/4048648752.html" class="">40-MMU地址转换与页表管理</a>
+                  
+                    <a href="/posts/3573195005.html" class="">41-RK平台开发流程与组件</a>
+                  
+                    <a href="/posts/1368966976.html" class="">42-Shell脚本编程与实用案例</a>
+                  
+                    <a href="/posts/3800580745.html" class="">43-SPI总线原理与驱动实战</a>
+                  
+                    <a href="/posts/4029932750.html" class="">44-UART串口原理与通信实战</a>
+                  
+                    <a href="/posts/3428875847.html" class="">45-USB固件开发全流程</a>
+                  
+                    <a href="/posts/1079176846.html" class="">46-USB总线协议与驱动开发基础</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="apollo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/apollo/" class=""><span>🚗</span><span>apollo</span><span class="cnt">62</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 apollo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2818472804.html" class="">01-百度Apollo概述与生态</a>
+                  
+                    <a href="/posts/452198409.html" class="">02-版本发展与架构演进</a>
+                  
+                    <a href="/posts/1132755144.html" class="">03-自动驾驶技术基础</a>
+                  
+                    <a href="/posts/260457831.html" class="">04-开发环境搭建（Docker）</a>
+                  
+                    <a href="/posts/3892420017.html" class="">05-源码编译与部署</a>
+                  
+                    <a href="/posts/4189053877.html" class="">06-核心模块总览</a>
+                  
+                    <a href="/posts/2291656538.html" class="">07-高精地图HD Map</a>
+                  
+                    <a href="/posts/1640301657.html" class="">08-定位模块</a>
+                  
+                    <a href="/posts/2974331331.html" class="">09-传感器接入（相机激光雷达毫米波）</a>
+                  
+                    <a href="/posts/1455150168.html" class="">10-CAN总线与车辆控制接口</a>
+                  
+                    <a href="/posts/2682517011.html" class="">11-Apollo Cyber RT框架</a>
+                  
+                    <a href="/posts/1297150334.html" class="">12-Cyber消息通信与组件开发</a>
+                  
+                    <a href="/posts/3060441397.html" class="">13-Apollo配置文件与参数</a>
+                  
+                    <a href="/posts/1643555401.html" class="">14-调试与可视化工具（DreamView）</a>
+                  
+                    <a href="/posts/1298984781.html" class="">15-感知模块总览与点云感知</a>
+                  
+                    <a href="/posts/2907166516.html" class="">16-感知模块-视觉感知</a>
+                  
+                    <a href="/posts/4078895387.html" class="">17-感知模块-雷达感知</a>
+                  
+                    <a href="/posts/2013834045.html" class="">18-传感器标定与坐标转换</a>
+                  
+                    <a href="/posts/3984938707.html" class="">19-预测模块</a>
+                  
+                    <a href="/posts/1834975411.html" class="">20-规划模块</a>
+                  
+                    <a href="/posts/4019786798.html" class="">21-决策模块与场景决策</a>
+                  
+                    <a href="/posts/122258190.html" class="">22-控制模块</a>
+                  
+                    <a href="/posts/3133762148.html" class="">23-车辆动力学基础</a>
+                  
+                    <a href="/posts/1453710074.html" class="">24-仿真平台与场景数据</a>
+                  
+                    <a href="/posts/2673778811.html" class="">25-Cyber启动系统详解</a>
+                  
+                    <a href="/posts/2526415752.html" class="">26-Cyber调度系统详解</a>
+                  
+                    <a href="/posts/2588802797.html" class="">27-Cyber时间系统与定时器</a>
+                  
+                    <a href="/posts/3670574823.html" class="">28-Cyber异步调用机制</a>
+                  
+                    <a href="/posts/3931639321.html" class="">29-Cyber数据系统详解</a>
+                  
+                    <a href="/posts/2442147404.html" class="">30-Cyber网络IO详解</a>
+                  
+                    <a href="/posts/789481480.html" class="">apollo 90-资料索引指南</a>
+                  
+                    <a href="/posts/4180254357.html" class="">apollo 00-索引</a>
+                  
+                    <a href="/posts/4241092442.html" class="">31-Cyber Transform与坐标变换</a>
+                  
+                    <a href="/posts/1946355615.html" class="">32-历史版本模块演进（2.0-5.0）</a>
+                  
+                    <a href="/posts/460001587.html" class="">33-车道级导航与决策</a>
+                  
+                    <a href="/posts/2878817428.html" class="">34-红绿灯感知与通行</a>
+                  
+                    <a href="/posts/3264947560.html" class="">35-泊车场景</a>
+                  
+                    <a href="/posts/3477625335.html" class="">36-高速场景</a>
+                  
+                    <a href="/posts/2091754220.html" class="">37-城市道路场景</a>
+                  
+                    <a href="/posts/3677233744.html" class="">38-端到端自动驾驶与大模型</a>
+                  
+                    <a href="/posts/3012449597.html" class="">39-车路协同与V2X</a>
+                  
+                    <a href="/posts/2752057546.html" class="">40-安全机制与冗余设计</a>
+                  
+                    <a href="/posts/143389874.html" class="">41-性能优化与车规级部署</a>
+                  
+                    <a href="/posts/2080454184.html" class="">42-实战：搭建Demo自动驾驶演示</a>
+                  
+                    <a href="/posts/1558901718.html" class="">43-常见问题排查</a>
+                  
+                    <a href="/posts/711159921.html" class="">45-SLAM概述与开发指南</a>
+                  
+                    <a href="/posts/519418161.html" class="">44-Apollo与ROS对比及生态互通</a>
+                  
+                    <a href="/posts/1474075229.html" class="">46-激光雷达技术原理与发展</a>
+                  
+                    <a href="/posts/1848584950.html" class="">47-激光雷达算法与Lidar模块详解</a>
+                  
+                    <a href="/posts/2562893149.html" class="">48-自动驾驶数据集总览</a>
+                  
+                    <a href="/posts/1294651885.html" class="">49-KITTI与Waymo数据集实战</a>
+                  
+                    <a href="/posts/2011272759.html" class="">50-仿真平台对比与Gazebo-LGSVL实战</a>
+                  
+                    <a href="/posts/1352878638.html" class="">51-深度学习基础与CNN</a>
+                  
+                    <a href="/posts/48707843.html" class="">52-PyTorch与自动驾驶实践</a>
+                  
+                    <a href="/posts/2665165307.html" class="">53-TensorFlow与Caffe2在自动驾驶中的应用</a>
+                  
+                    <a href="/posts/2511406057.html" class="">54-自动驾驶测试方法</a>
+                  
+                    <a href="/posts/1279187638.html" class="">55-标注工具与数据闭环</a>
+                  
+                    <a href="/posts/370472885.html" class="">56-自动驾驶云服务与基础设施</a>
+                  
+                    <a href="/posts/140110120.html" class="">57-自动驾驶操作系统</a>
+                  
+                    <a href="/posts/664493653.html" class="">58-自动驾驶运行时框架对比</a>
+                  
+                    <a href="/posts/1203635596.html" class="">59-自动驾驶学习资源与链接</a>
+                  
+                    <a href="/posts/2049739451.html" class="">60-Audio模块与扩展开发</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FreeRTOS">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/FreeRTOS/" class=""><span>⏱️</span><span>FreeRTOS</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FreeRTOS 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1571422233.html" class="">01-FreeRTOS简介与内核特性</a>
+                  
+                    <a href="/posts/1616849365.html" class="">02-任务管理与调度</a>
+                  
+                    <a href="/posts/2794860845.html" class="">03-任务创建与删除</a>
+                  
+                    <a href="/posts/1110013041.html" class="">04-任务状态机</a>
+                  
+                    <a href="/posts/45138943.html" class="">05-优先级与时间片</a>
+                  
+                    <a href="/posts/586549084.html" class="">06-队列</a>
+                  
+                    <a href="/posts/129125089.html" class="">07-信号量</a>
+                  
+                    <a href="/posts/2081041408.html" class="">08-互斥量与优先级反转</a>
+                  
+                    <a href="/posts/3205967530.html" class="">09-事件组</a>
+                  
+                    <a href="/posts/1094377116.html" class="">10-任务通知</a>
+                  
+                    <a href="/posts/1628705678.html" class="">11-流缓冲与消息缓冲</a>
+                  
+                    <a href="/posts/479641272.html" class="">12-软件定时器</a>
+                  
+                    <a href="/posts/3143395966.html" class="">13-内存管理</a>
+                  
+                    <a href="/posts/359640070.html" class="">14-中断管理与临界区</a>
+                  
+                    <a href="/posts/339821033.html" class="">15-Tick与时间管理</a>
+                  
+                    <a href="/posts/224362852.html" class="">16-内核裁剪配置</a>
+                  
+                    <a href="/posts/1572534698.html" class="">17-任务栈溢出检测</a>
+                  
+                    <a href="/posts/670312188.html" class="">18-低功耗与tickless</a>
+                  
+                    <a href="/posts/544846964.html" class="">19-多核SMP</a>
+                  
+                    <a href="/posts/1505843641.html" class="">20-FreeRTOS+TCP</a>
+                  
+                    <a href="/posts/2850073665.html" class="">21-CMSIS-RTOS适配</a>
+                  
+                    <a href="/posts/2762677009.html" class="">22-常见移植实践</a>
+                  
+                    <a href="/posts/574731705.html" class="">23-调试与跟踪</a>
+                  
+                    <a href="/posts/1113963761.html" class="">24-内存保护MPU</a>
+                  
+                    <a href="/posts/1361167341.html" class="">25-FreeRTOS与C++</a>
+                  
+                    <a href="/posts/3732453393.html" class="">26-队列集与流操作</a>
+                  
+                    <a href="/posts/3895620481.html" class="">27-实战项目入门</a>
+                  
+                    <a href="/posts/2560978280.html" class="">28-常见问题排查</a>
+                  
+                    <a href="/posts/3215440781.html" class="">29-任务通知进阶</a>
+                  
+                    <a href="/posts/2405586932.html" class="">30-中断安全编程</a>
+                  
+                    <a href="/posts/3652009953.html" class="">FreeRTOS 00-索引</a>
+                  
+                    <a href="/posts/1437498579.html" class="">FreeRTOS 90-资料索引指南</a>
+                  
+                    <a href="/posts/182118895.html" class="">31-内存管理进阶</a>
+                  
+                    <a href="/posts/517617803.html" class="">32-看门狗与可靠性</a>
+                  
+                    <a href="/posts/4097610364.html" class="">33-电源管理实战</a>
+                  
+                    <a href="/posts/918463786.html" class="">34-多核任务设计</a>
+                  
+                    <a href="/posts/316568827.html" class="">35-TCP网络实战</a>
+                  
+                    <a href="/posts/944546225.html" class="">36-外设驱动集成</a>
+                  
+                    <a href="/posts/276185314.html" class="">37-系统测试与验证</a>
+                  
+                    <a href="/posts/2845406665.html" class="">38-任务间通信模式</a>
+                  
+                    <a href="/posts/271812983.html" class="">39-安全与认证</a>
+                  
+                    <a href="/posts/2988932715.html" class="">40-高级主题展望</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros1">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros1/" class=""><span>🐢</span><span>ros1</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros1 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1845556343.html" class="">01-ROS1概述与生态</a>
+                  
+                    <a href="/posts/76272331.html" class="">02-ROS1安装与环境配置</a>
+                  
+                    <a href="/posts/985253049.html" class="">03-核心概念</a>
+                  
+                    <a href="/posts/4040033312.html" class="">04-工作空间与catkin构建</a>
+                  
+                    <a href="/posts/2100167891.html" class="">05-命令行工具</a>
+                  
+                    <a href="/posts/949416713.html" class="">06-话题通信</a>
+                  
+                    <a href="/posts/735184866.html" class="">07-服务通信</a>
+                  
+                    <a href="/posts/1658567558.html" class="">08-动作通信actionlib</a>
+                  
+                    <a href="/posts/3193113578.html" class="">09-参数服务器</a>
+                  
+                    <a href="/posts/951743246.html" class="">10-roscpp编程</a>
+                  
+                    <a href="/posts/3615205173.html" class="">11-rospy编程</a>
+                  
+                    <a href="/posts/2474828684.html" class="">12-tf坐标变换</a>
+                  
+                    <a href="/posts/510479535.html" class="">13-URDF机器人建模</a>
+                  
+                    <a href="/posts/3467326343.html" class="">14-rviz可视化</a>
+                  
+                    <a href="/posts/178034368.html" class="">15-Gazebo仿真</a>
+                  
+                    <a href="/posts/1047193066.html" class="">16-launch启动文件</a>
+                  
+                    <a href="/posts/1386748878.html" class="">17-自定义消息与srv</a>
+                  
+                    <a href="/posts/78293504.html" class="">18-日志与调试</a>
+                  
+                    <a href="/posts/3580172094.html" class="">19-常用传感器驱动</a>
+                  
+                    <a href="/posts/107634443.html" class="">20-机器人运动学基础</a>
+                  
+                    <a href="/posts/1090496406.html" class="">21-导航框架move_base</a>
+                  
+                    <a href="/posts/3445109373.html" class="">22-建图</a>
+                  
+                    <a href="/posts/774536357.html" class="">23-路径规划与避障</a>
+                  
+                    <a href="/posts/2139127442.html" class="">24-AMCL定位</a>
+                  
+                    <a href="/posts/1373317896.html" class="">25-视觉处理</a>
+                  
+                    <a href="/posts/2932687442.html" class="">26-语音交互</a>
+                  
+                    <a href="/posts/1912127119.html" class="">27-MoveIt机械臂控制</a>
+                  
+                    <a href="/posts/2602875264.html" class="">28-多机器人协同</a>
+                  
+                    <a href="/posts/616282562.html" class="">29-rosbridge与Web端</a>
+                  
+                    <a href="/posts/1820681443.html" class="">30-ROS与Docker</a>
+                  
+                    <a href="/posts/1838862059.html" class="">ros1 00-索引</a>
+                  
+                    <a href="/posts/1752376526.html" class="">ros1 90-资料索引指南</a>
+                  
+                    <a href="/posts/520426601.html" class="">31-ROS与嵌入式平台</a>
+                  
+                    <a href="/posts/1774912468.html" class="">32-ROS1与ROS2对比迁移</a>
+                  
+                    <a href="/posts/3778090335.html" class="">33-仿真场景搭建</a>
+                  
+                    <a href="/posts/3561607965.html" class="">34-常见问题排查</a>
+                  
+                    <a href="/posts/1451115071.html" class="">35-性能优化</a>
+                  
+                    <a href="/posts/1856851824.html" class="">36-产品化实践</a>
+                  
+                    <a href="/posts/3405034604.html" class="">37-插件机制与自定义工具</a>
+                  
+                    <a href="/posts/3819213526.html" class="">38-ROS生态常用库</a>
+                  
+                    <a href="/posts/1488454277.html" class="">39-实战：小车自主导航</a>
+                  
+                    <a href="/posts/1504338169.html" class="">40-实战：机械臂抓取</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros2">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros2/" class=""><span>🐢</span><span>ros2</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros2 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1204306053.html" class="">01-ROS2概述与生态</a>
+                  
+                    <a href="/posts/1039368075.html" class="">02-ROS2安装与环境配置</a>
+                  
+                    <a href="/posts/3950396837.html" class="">04-工作空间与colcon构建</a>
+                  
+                    <a href="/posts/3022531917.html" class="">08-动作通信</a>
+                  
+                    <a href="/posts/3927300417.html" class="">09-参数机制</a>
+                  
+                    <a href="/posts/3825548204.html" class="">10-rclcpp编程</a>
+                  
+                    <a href="/posts/3191786011.html" class="">11-rclpy编程</a>
+                  
+                    <a href="/posts/3441056145.html" class="">12-生命周期节点</a>
+                  
+                    <a href="/posts/3898278822.html" class="">13-自定义消息接口</a>
+                  
+                    <a href="/posts/742500733.html" class="">14-执行器与回调组</a>
+                  
+                    <a href="/posts/201369509.html" class="">15-tf2坐标变换</a>
+                  
+                    <a href="/posts/1182880406.html" class="">16-URDF与xacro建模</a>
+                  
+                    <a href="/posts/1106872961.html" class="">17-rviz2可视化</a>
+                  
+                    <a href="/posts/2049131804.html" class="">18-Gazebo与Ignition仿真</a>
+                  
+                    <a href="/posts/3503988486.html" class="">19-launch系统</a>
+                  
+                    <a href="/posts/3559813711.html" class="">20-日志与调试工具</a>
+                  
+                    <a href="/posts/2378366256.html" class="">21-常用传感器驱动</a>
+                  
+                    <a href="/posts/2969019117.html" class="">22-导航2框架</a>
+                  
+                    <a href="/posts/2928992651.html" class="">23-SLAM建图</a>
+                  
+                    <a href="/posts/1486087179.html" class="">24-路径规划与避障</a>
+                  
+                    <a href="/posts/3827643133.html" class="">25-AMCL定位</a>
+                  
+                    <a href="/posts/767168211.html" class="">26-视觉处理</a>
+                  
+                    <a href="/posts/868393764.html" class="">27-语音交互</a>
+                  
+                    <a href="/posts/711846815.html" class="">28-MoveIt2机械臂控制</a>
+                  
+                    <a href="/posts/4265837254.html" class="">29-多机器人协同</a>
+                  
+                    <a href="/posts/1138612136.html" class="">30-rosbridge与Web端</a>
+                  
+                    <a href="/posts/4101548266.html" class="">ros2 00-索引</a>
+                  
+                    <a href="/posts/381645954.html" class="">ros2 03-核心概念</a>
+                  
+                    <a href="/posts/1488323843.html" class="">ros2 05-命令行工具</a>
+                  
+                    <a href="/posts/344998706.html" class="">ros2 06-话题通信</a>
+                  
+                    <a href="/posts/131381209.html" class="">ros2 07-服务通信</a>
+                  
+                    <a href="/posts/172068224.html" class="">ros2 40-实战：机械臂抓取</a>
+                  
+                    <a href="/posts/513154547.html" class="">ros2 90-资料索引指南</a>
+                  
+                    <a href="/posts/1661557767.html" class="">31-ROS2与Docker</a>
+                  
+                    <a href="/posts/1400569321.html" class="">32-ROS2与嵌入式平台</a>
+                  
+                    <a href="/posts/514195102.html" class="">33-实时性与QoS策略</a>
+                  
+                    <a href="/posts/26068340.html" class="">34-安全与权限</a>
+                  
+                    <a href="/posts/4284941043.html" class="">35-性能优化与Benchmark</a>
+                  
+                    <a href="/posts/512206225.html" class="">36-常见问题排查</a>
+                  
+                    <a href="/posts/103591067.html" class="">37-ROS2与ROS1桥接迁移</a>
+                  
+                    <a href="/posts/496626970.html" class="">38-产品化与部署实践</a>
+                  
+                    <a href="/posts/4258040718.html" class="">39-实战：自动驾驶小车</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="RT-Thread">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/RT-Thread/" class=""><span>🧵</span><span>RT-Thread</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 RT-Thread 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3906847031.html" class="">01-RT-Thread简介与生态</a>
+                  
+                    <a href="/posts/610362104.html" class="">02-内核架构</a>
+                  
+                    <a href="/posts/284852137.html" class="">03-线程管理与调度</a>
+                  
+                    <a href="/posts/1006179627.html" class="">04-线程创建与删除</a>
+                  
+                    <a href="/posts/2919135044.html" class="">05-线程状态机与优先级</a>
+                  
+                    <a href="/posts/357331050.html" class="">06-时钟与定时器</a>
+                  
+                    <a href="/posts/1414862789.html" class="">08-互斥量</a>
+                  
+                    <a href="/posts/3456321070.html" class="">09-事件集</a>
+                  
+                    <a href="/posts/2205341896.html" class="">10-邮箱</a>
+                  
+                    <a href="/posts/3843597198.html" class="">11-消息队列</a>
+                  
+                    <a href="/posts/643009288.html" class="">12-内存管理</a>
+                  
+                    <a href="/posts/2340600776.html" class="">13-内存池与内存堆</a>
+                  
+                    <a href="/posts/2027116276.html" class="">14-中断管理</a>
+                  
+                    <a href="/posts/4146654009.html" class="">15-临界区与线程同步</a>
+                  
+                    <a href="/posts/61094340.html" class="">16-设备驱动框架</a>
+                  
+                    <a href="/posts/2180335808.html" class="">17-I-O设备模型</a>
+                  
+                    <a href="/posts/3069243359.html" class="">18-FinSH控制台</a>
+                  
+                    <a href="/posts/3174840723.html" class="">19-组件与软件包</a>
+                  
+                    <a href="/posts/501684497.html" class="">20-Env与menuconfig配置</a>
+                  
+                    <a href="/posts/1358882682.html" class="">21-RT-Thread Studio</a>
+                  
+                    <a href="/posts/1974679192.html" class="">22-Scons构建</a>
+                  
+                    <a href="/posts/1558395596.html" class="">23-AT组件</a>
+                  
+                    <a href="/posts/4270916110.html" class="">24-网络组件lwIP</a>
+                  
+                    <a href="/posts/4025911074.html" class="">25-DFS文件系统</a>
+                  
+                    <a href="/posts/2437688169.html" class="">26-POSIX支持</a>
+                  
+                    <a href="/posts/1239645384.html" class="">27-动态模块加载</a>
+                  
+                    <a href="/posts/4089363247.html" class="">28-常见移植实践</a>
+                  
+                    <a href="/posts/849796471.html" class="">29-低功耗</a>
+                  
+                    <a href="/posts/47134548.html" class="">30-多核与SMP</a>
+                  
+                    <a href="/posts/2902895778.html" class="">RT-Thread 00-索引</a>
+                  
+                    <a href="/posts/4044683037.html" class="">RT-Thread 07-信号量</a>
+                  
+                    <a href="/posts/1755746755.html" class="">RT-Thread 40-高级主题展望</a>
+                  
+                    <a href="/posts/2924604793.html" class="">RT-Thread 90-资料索引指南</a>
+                  
+                    <a href="/posts/603515604.html" class="">31-微内核与混合微内核</a>
+                  
+                    <a href="/posts/1273830891.html" class="">32-调试与优化</a>
+                  
+                    <a href="/posts/2088952723.html" class="">33-安全</a>
+                  
+                    <a href="/posts/3972366794.html" class="">34-GUI组件与柿饼UI</a>
+                  
+                    <a href="/posts/4194237798.html" class="">35-传感器与驱动组件</a>
+                  
+                    <a href="/posts/1254828870.html" class="">36-实时性分析与优化</a>
+                  
+                    <a href="/posts/70811593.html" class="">37-电源管理</a>
+                  
+                    <a href="/posts/192380990.html" class="">38-实战项目入门</a>
+                  
+                    <a href="/posts/1645794736.html" class="">39-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="Zephyr">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Zephyr/" class=""><span>🍃</span><span>Zephyr</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Zephyr 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2998335701.html" class="">01-Zephyr简介与基金会</a>
+                  
+                    <a href="/posts/111570124.html" class="">02-安装与west工具</a>
+                  
+                    <a href="/posts/391350374.html" class="">03-工程结构</a>
+                  
+                    <a href="/posts/1788752700.html" class="">04-设备树Device Tree</a>
+                  
+                    <a href="/posts/2760731910.html" class="">05-Kconfig配置</a>
+                  
+                    <a href="/posts/2266609168.html" class="">06-内核与调度</a>
+                  
+                    <a href="/posts/2595343241.html" class="">07-线程管理</a>
+                  
+                    <a href="/posts/2487926311.html" class="">08-信号量</a>
+                  
+                    <a href="/posts/4159413018.html" class="">09-队列与消息</a>
+                  
+                    <a href="/posts/3342684069.html" class="">10-内存管理</a>
+                  
+                    <a href="/posts/1826938431.html" class="">11-中断处理</a>
+                  
+                    <a href="/posts/3296401581.html" class="">12-时钟与定时器</a>
+                  
+                    <a href="/posts/911217641.html" class="">13-驱动模型</a>
+                  
+                    <a href="/posts/1524886392.html" class="">14-GPIO驱动</a>
+                  
+                    <a href="/posts/497960377.html" class="">15-UART驱动</a>
+                  
+                    <a href="/posts/515235046.html" class="">16-SPI驱动</a>
+                  
+                    <a href="/posts/3496686401.html" class="">17-I2C驱动</a>
+                  
+                    <a href="/posts/2457140616.html" class="">18-ADC驱动</a>
+                  
+                    <a href="/posts/2991435572.html" class="">19-传感器子系统</a>
+                  
+                    <a href="/posts/819898526.html" class="">20-网络栈</a>
+                  
+                    <a href="/posts/551898650.html" class="">21-蓝牙BLE</a>
+                  
+                    <a href="/posts/686766330.html" class="">22-USB支持</a>
+                  
+                    <a href="/posts/4032698702.html" class="">23-文件系统</a>
+                  
+                    <a href="/posts/2833611844.html" class="">24-Shell子系统</a>
+                  
+                    <a href="/posts/2017556036.html" class="">25-日志系统</a>
+                  
+                    <a href="/posts/80085439.html" class="">26-ztest测试框架</a>
+                  
+                    <a href="/posts/3382284514.html" class="">27-twister测试</a>
+                  
+                    <a href="/posts/2853899551.html" class="">28-构建系统CMake</a>
+                  
+                    <a href="/posts/3766947609.html" class="">29-多架构支持</a>
+                  
+                    <a href="/posts/608772131.html" class="">Zephyr 00-索引</a>
+                  
+                    <a href="/posts/2374992791.html" class="">Zephyr 90-资料索引指南</a>
+                  
+                    <a href="/posts/2085179778.html" class="">30-移植新板卡</a>
+                  
+                    <a href="/posts/2023471085.html" class="">31-低功耗管理</a>
+                  
+                    <a href="/posts/447085682.html" class="">32-安全机制</a>
+                  
+                    <a href="/posts/2755005965.html" class="">33-OTA升级</a>
+                  
+                    <a href="/posts/3554942251.html" class="">34-QEMU模拟器</a>
+                  
+                    <a href="/posts/2564223040.html" class="">35-native模拟器</a>
+                  
+                    <a href="/posts/66503584.html" class="">36-调试与追踪</a>
+                  
+                    <a href="/posts/2974884396.html" class="">37-CMake模块</a>
+                  
+                    <a href="/posts/1879468777.html" class="">38-发布与版本管理</a>
+                  
+                    <a href="/posts/1364311534.html" class="">39-实战项目</a>
+                  
+                    <a href="/posts/4081303068.html" class="">40-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ubuntu24.04">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ubuntu24-04/" class=""><span>🐧</span><span>ubuntu24.04</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ubuntu24.04 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2909325257.html" class="">01-apt 与 dpkg</a>
+                  
+                    <a href="/posts/912530846.html" class="">snap</a>
+                  
+                    <a href="/posts/3939215804.html" class="">03-systemctl 与 service</a>
+                  
+                    <a href="/posts/719879336.html" class="">04-journalctl</a>
+                  
+                    <a href="/posts/3351581332.html" class="">05-htop 与 top</a>
+                  
+                    <a href="/posts/3990143705.html" class="">06-ps 与 kill</a>
+                  
+                    <a href="/posts/585076020.html" class="">07-vim 与 nano</a>
+                  
+                    <a href="/posts/1568442627.html" class="">08-grep</a>
+                  
+                    <a href="/posts/1977677039.html" class="">09-awk 与 sed</a>
+                  
+                    <a href="/posts/4049174153.html" class="">10-find 与 locate</a>
+                  
+                    <a href="/posts/3717903947.html" class="">11-tar 与 zip 与 rsync</a>
+                  
+                    <a href="/posts/2237282420.html" class="">12-ssh 与 scp</a>
+                  
+                    <a href="/posts/1707164187.html" class="">13-ufw</a>
+                  
+                    <a href="/posts/55246962.html" class="">14-cron</a>
+                  
+                    <a href="/posts/651339923.html" class="">15-systemd 定时器</a>
+                  
+                    <a href="/posts/3732393277.html" class="">16-netstat 与 ss 与 ip</a>
+                  
+                    <a href="/posts/2075061187.html" class="">17-curl 与 wget</a>
+                  
+                    <a href="/posts/321014113.html" class="">18-git</a>
+                  
+                    <a href="/posts/2822540859.html" class="">19-docker</a>
+                  
+                    <a href="/posts/3712678695.html" class="">20-python3 与 pip</a>
+                  
+                    <a href="/posts/2522287106.html" class="">21-gcc 与 make</a>
+                  
+                    <a href="/posts/635533000.html" class="">22-磁盘与日志排错工具集</a>
+                  
+                    <a href="/posts/1019958619.html" class="">ubuntu24.04 00-索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="windows">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/windows/" class=""><span>🪟</span><span>windows</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 windows 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2345133774.html" class="">01-PowerShell</a>
+                  
+                    <a href="/posts/746402433.html" class="">02-Windows Terminal</a>
+                  
+                    <a href="/posts/119374108.html" class="">03-任务管理器</a>
+                  
+                    <a href="/posts/3593758667.html" class="">04-资源监视器</a>
+                  
+                    <a href="/posts/279260672.html" class="">05-事件查看器</a>
+                  
+                    <a href="/posts/861959827.html" class="">06-注册表编辑器</a>
+                  
+                    <a href="/posts/1682198913.html" class="">07-磁盘管理</a>
+                  
+                    <a href="/posts/2304893546.html" class="">08-系统配置(msconfig)</a>
+                  
+                    <a href="/posts/143523753.html" class="">09-性能监视器</a>
+                  
+                    <a href="/posts/3851129891.html" class="">10-备份与还原</a>
+                  
+                    <a href="/posts/3417706708.html" class="">11-Windows Defender</a>
+                  
+                    <a href="/posts/2900354160.html" class="">12-Sysinternals 套件</a>
+                  
+                    <a href="/posts/569218026.html" class="">13-winget</a>
+                  
+                    <a href="/posts/1864485545.html" class="">14-PowerToys</a>
+                  
+                    <a href="/posts/1859880826.html" class="">15-剪贴板历史与截图工具</a>
+                  
+                    <a href="/posts/2173435638.html" class="">16-远程桌面</a>
+                  
+                    <a href="/posts/388811029.html" class="">17-Hyper-V</a>
+                  
+                    <a href="/posts/987941398.html" class="">18-WSL</a>
+                  
+                    <a href="/posts/2454912129.html" class="">19-BitLocker</a>
+                  
+                    <a href="/posts/2195244691.html" class="">20-任务计划程序与服务管理器</a>
+                  
+                    <a href="/posts/979849589.html" class="">21-组策略与系统还原</a>
+                  
+                    <a href="/posts/4259947464.html" class="">22-命令行工具集</a>
+                  
+                    <a href="/posts/1775093485.html" class="">windows 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/">🤖 操作系统与机器人</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/">🐧 Linux</a> / <span>14-内核调试工具与方法</span></div>
+
+<h1>14-内核调试工具与方法</h1>
+<div class="subtitle">内核调试要解决的是「系统自己出了问题、而普通调试器插不上手」这类场景：驱动加载失败、系统无故重启、性能突然掉下来，或者进程在内核态卡死。</div>
+<div class="article-meta">
+  <span>📅 2026-11-07</span><span>· 更新于 2026-11-07</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 13282 字 · 约 34 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/Linux/">#Linux</a><a class="tagchip" href="/tags/%E6%8E%92%E9%9A%9C/">#排障</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/204754706.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="Linux-Kernel-调试详解"><a href="#Linux-Kernel-调试详解" class="headerlink" title="Linux Kernel 调试详解"></a>Linux Kernel 调试详解</h1><h2 id="1-内核调试概述：为什么它和用户态调试不是一回事">1. 内核调试概述：为什么它和用户态调试不是一回事<a class="hlink" data-h="1-内核调试概述：为什么它和用户态调试不是一回事" href="#1-内核调试概述：为什么它和用户态调试不是一回事" title="跳到本节">¶</a></h2><p>内核调试要解决的是「系统自己出了问题、而普通调试器插不上手」这类场景：驱动加载失败、系统无故重启、性能突然掉下来，或者进程在内核态卡死。我实际排查时一般先分清这是逻辑 Bug、性能问题还是崩溃现场，再决定用哪类工具——这一节的分法就是按这个来的。</p>
+<span id="more"></span>
+
+<p>调试 Linux 内核是内核开发和问题排查中的一项关键技能。由于内核的特殊运行环境（高权限、直接操作硬件、对稳定性要求极高），其调试方法与用户空间程序有显著不同。</p>
+<h3 id="1-1-五个典型场景">1.1 五个典型场景<a class="hlink" data-h="1-1-五个典型场景" href="#1-1-五个典型场景" title="跳到本节">¶</a></h3><ul>
+<li><strong>内核 Bug 定位</strong>: 内核 Bug 可能导致系统不稳定、性能下降、数据损坏甚至系统崩溃 (Kernel Panic)。调试是找出这些 Bug 根源的必要手段。</li>
+<li><strong>驱动开发与测试</strong>: 开发新的硬件驱动或修改现有驱动时，需要在内核环境中进行测试和调试，确保其正确性和稳定性。</li>
+<li><strong>性能分析与优化</strong>: 定位内核中的性能瓶颈，例如调度延迟、内存分配效率低、I&#x2F;O 性能差等，需要借助调试和跟踪工具。</li>
+<li><strong>理解内核行为</strong>: 通过调试和跟踪，可以深入了解特定子系统（如内存管理、进程调度）的工作流程和内部机制。</li>
+<li><strong>安全漏洞分析</strong>: 分析内核安全漏洞的成因和影响范围。</li>
+</ul>
+<h3 id="1-2-难点：Ring-0、不能停、并发与硬件耦合">1.2 难点：Ring 0、不能停、并发与硬件耦合<a class="hlink" data-h="1-2-难点：Ring-0、不能停、并发与硬件耦合" href="#1-2-难点：Ring-0、不能停、并发与硬件耦合" title="跳到本节">¶</a></h3><ul>
+<li><strong>运行环境特殊</strong>: 内核运行在最高权限级别 (Ring 0)，一个小错误就可能导致整个系统崩溃。</li>
+<li><strong>无法轻易停止</strong>: 不能像用户程序那样随意设置断点暂停整个内核，否则系统将完全失去响应。</li>
+<li><strong>并发性高</strong>: 内核中存在大量并发执行的代码路径（中断处理、多核并行、内核线程），使得问题难以复现和定位。</li>
+<li><strong>硬件交互复杂</strong>: 内核直接与硬件交互，问题可能源于硬件故障、固件 Bug 或驱动与硬件的交互时序问题。</li>
+<li><strong>调试信息有限</strong>: 发生崩溃时，可获取的信息可能有限，需要专门的机制（如 kdump）来保存现场。</li>
+<li><strong>工具链差异</strong>: 内核调试工具的使用方式和配置通常比用户空间工具更复杂。</li>
+</ul>
+<h3 id="1-3-六类方法：从日志打印到高级探测">1.3 六类方法：从日志打印到高级探测<a class="hlink" data-h="1-3-六类方法：从日志打印到高级探测" href="#1-3-六类方法：从日志打印到高级探测" title="跳到本节">¶</a></h3><p>根据介入方式和获取信息的不同，内核调试方法大致可分为：</p>
+<ol>
+<li><strong>日志打印 (Logging)</strong>: 最简单直接的方法，通过在代码中插入打印语句输出信息。<ul>
+<li>工具: <code>printk</code>, <code>dump_stack</code>, <code>dev_dbg</code> 等。</li>
+</ul>
+</li>
+<li><strong>状态查看 (Status Inspection)</strong>: 通过内核提供的接口查看内部状态和统计信息。<ul>
+<li>工具: <code>/proc</code> 文件系统, <code>/sys</code> 文件系统。</li>
+</ul>
+</li>
+<li><strong>动态追踪 (Dynamic Tracing)</strong>: 在运行时动态地探测和记录内核事件、函数调用等，通常开销较低。<ul>
+<li>工具: <code>ftrace</code>, <code>perf</code>, <code>tracepoints</code>, <code>kprobes</code>.</li>
+</ul>
+</li>
+<li><strong>源码级调试 (Source-Level Debugging)</strong>: 类似用户空间调试，可以设置断点、单步执行、查看变量等。<ul>
+<li>工具: <code>gdb</code> + <code>kgdb</code> (串口&#x2F;网络), <code>gdb</code> + <code>QEMU</code> (虚拟机)。</li>
+</ul>
+</li>
+<li><strong>崩溃转储分析 (Crash Dump Analysis)</strong>: 在系统崩溃后分析保存的内存转储文件，进行事后调试。<ul>
+<li>工具: <code>kdump</code>, <code>crash</code>.</li>
+</ul>
+</li>
+<li><strong>高级探测与分析 (Advanced Probing &amp; Analysis)</strong>: 使用更灵活、强大的脚本化或编程方式探测内核。<ul>
+<li>工具: <code>SystemTap</code>, <code>eBPF</code> (BCC, bpftrace)。</li>
+</ul>
+</li>
+</ol>
+<div class="mermaid">
+graph LR
+    subgraph "调试方法分类"
+        A[日志打印 Logging] --&gt; B(printk, dump_stack)
+        C[状态查看 Status Inspection] --&gt; D(/proc, /sys)
+        E[动态追踪 Dynamic Tracing] --&gt; F(ftrace, perf, tracepoints, kprobes)
+        G[源码级调试 Source-Level Debugging] --&gt; H(gdb + kgdb/QEMU)
+        I[崩溃转储分析 Crash Dump Analysis] --&gt; J(kdump, crash)
+        K[高级探测与分析 Advanced Probing] --&gt; L(SystemTap, eBPF)
+    end
+    style B fill:#f9f,stroke:#333,stroke-width:1px
+    style D fill:#ccf,stroke:#333,stroke-width:1px
+    style F fill:#9cf,stroke:#333,stroke-width:1px
+    style H fill:#fcc,stroke:#333,stroke-width:1px
+    style J fill:#cff,stroke:#333,stroke-width:1px
+    style L fill:#ffc,stroke:#333,stroke-width:1px
+</div>
+
+<h2 id="2-基础调试技术：printk-打点、调用栈与动态开关">2. 基础调试技术：printk 打点、调用栈与动态开关<a class="hlink" data-h="2-基础调试技术：printk-打点、调用栈与动态开关" href="#2-基础调试技术：printk-打点、调用栈与动态开关" title="跳到本节">¶</a></h2><p>最基础也最常用的是在代码里插打印语句，输出关键变量和执行路径。我一般用 dmesg -w 跟着日志看，比反复敲 dmesg 省事；%pS 这种带符号的打印在定位调用点时尤其顺手。</p>
+<h3 id="2-1-printk：日志级别、缓冲区与指针修饰符">2.1 printk：日志级别、缓冲区与指针修饰符<a class="hlink" data-h="2-1-printk：日志级别、缓冲区与指针修饰符" href="#2-1-printk：日志级别、缓冲区与指针修饰符" title="跳到本节">¶</a></h3><p><code>printk</code> 是内核中最基本、最常用的调试手段。它类似于用户空间的 <code>printf</code>，但有一些关键区别：</p>
+<ul>
+<li><strong>日志级别 (Log Levels)</strong>: <code>printk</code> 输出的信息带有日志级别，内核根据配置的控制台日志级别决定哪些信息会显示在控制台上。<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> KERN_EMERG   <span class="string">&quot;&lt;0&gt;&quot;</span> <span class="comment">/* system is unusable */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> KERN_ALERT   <span class="string">&quot;&lt;1&gt;&quot;</span> <span class="comment">/* action must be taken immediately */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> KERN_CRIT    <span class="string">&quot;&lt;2&gt;&quot;</span> <span class="comment">/* critical conditions */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> KERN_ERR     <span class="string">&quot;&lt;3&gt;&quot;</span> <span class="comment">/* error conditions */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> KERN_WARNING <span class="string">&quot;&lt;4&gt;&quot;</span> <span class="comment">/* warning conditions */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> KERN_NOTICE  <span class="string">&quot;&lt;5&gt;&quot;</span> <span class="comment">/* normal but significant condition */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> KERN_INFO    <span class="string">&quot;&lt;6&gt;&quot;</span> <span class="comment">/* informational */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> KERN_DEBUG   <span class="string">&quot;&lt;7&gt;&quot;</span> <span class="comment">/* debug-level messages */</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 示例用法</span></span><br><span class="line">printk(KERN_INFO <span class="string">&quot;My module loaded successfully.\\n&quot;</span>);</span><br><span class="line">printk(KERN_ERR <span class="string">&quot;Failed to allocate memory, error code %d\\n&quot;</span>, err_code);</span><br><span class="line"><span class="comment">// 如果不指定级别，使用默认级别 (DEFAULT_MESSAGE_LOGLEVEL)</span></span><br><span class="line">printk(<span class="string">&quot;A generic message.\\n&quot;</span>);</span><br></pre></td></tr></table></figure></li>
+<li><strong>日志缓冲区 (Log Buffer)</strong>: <code>printk</code> 的输出首先进入内核的环形日志缓冲区。</li>
+<li><strong><code>dmesg</code> 命令</strong>: 用户空间可以使用 <code>dmesg</code> 命令查看和控制这个缓冲区的内容。<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看所有内核日志</span></span><br><span class="line">dmesg</span><br><span class="line"><span class="comment"># 实时跟踪新日志 (-w, --follow)</span></span><br><span class="line">dmesg -w</span><br><span class="line"><span class="comment"># 清空日志缓冲区 (-C)</span></span><br><span class="line"><span class="built_in">sudo</span> dmesg -C</span><br><span class="line"><span class="comment"># 查看日志并显示可读时间戳 (-T)</span></span><br><span class="line">dmesg -T</span><br><span class="line"><span class="comment"># 控制控制台日志级别 (例如，显示 DEBUG 及以上级别)</span></span><br><span class="line"><span class="built_in">sudo</span> dmesg -n debug <span class="comment"># 或者 sudo dmesg -n 8</span></span><br><span class="line"><span class="comment"># 查看当前控制台日志级别</span></span><br><span class="line"><span class="built_in">cat</span> /proc/sys/kernel/printk</span><br><span class="line"><span class="comment"># 格式: console_loglevel default_message_loglevel minimum_console_loglevel default_console_loglevel</span></span><br></pre></td></tr></table></figure></li>
+<li><strong>使用场景</strong>:<ul>
+<li>快速打印变量值、函数进入&#x2F;退出点。</li>
+<li>在早期启动阶段或中断上下文中使用（但要注意锁和上下文限制）。</li>
+<li>作为其他复杂调试手段的基础。</li>
+</ul>
+</li>
+<li><strong>注意事项</strong>:<ul>
+<li><strong>性能影响</strong>: 大量或频繁的 <code>printk</code> 会显著影响系统性能，尤其是在中断上下文或持有锁时。</li>
+<li><strong>缓冲区覆盖</strong>: 日志缓冲区大小有限，旧信息可能被新信息覆盖。</li>
+<li><strong>死锁风险</strong>: 在某些持有锁的上下文中调用 <code>printk</code> 可能导致死锁（<code>printk</code> 内部可能尝试获取控制台锁）。<code>printk_deferred</code> 可以在某些情况下缓解。</li>
+<li><strong>格式化字符串</strong>: 确保格式化字符串与参数类型匹配，否则可能导致崩溃或奇怪的输出。<strong>特别注意 <code>%p</code> 用于打印指针地址，内核有特殊的修饰符以提供更多信息：</strong><ul>
+<li><code>%p</code>: 普通指针地址 (通常会哈希处理，除非内核参数 <code>printk.devkmsg=on</code>)</li>
+<li><code>%pS</code>: 打印符号名称 + 偏移量 (例如 <code>SyS_read+0x10/0x20</code>)</li>
+<li><code>%pF</code>: 打印函数名 + 偏移量 (类似 <code>%pS</code>，但更侧重函数)</li>
+<li><code>%pB</code>: 打印 BPF 函数的符号名称 + 偏移量</li>
+<li><code>%ps</code>: 打印符号名称 (不带偏移量)</li>
+<li><code>%pf</code>: 打印函数名 (不带偏移量)</li>
+<li><code>%p[fl]</code>: 打印 <code>struct file</code> 的路径 (需要 <code>CONFIG_CHECKPOINT_RESTORE</code>)</li>
+<li><code>%p[uv]</code>: 打印 <code>struct uvec</code></li>
+<li><code>%p[ud]</code>: 打印 <code>struct user_namespace</code></li>
+<li><code>%pI[46]</code>: 打印 IPv4&#x2F;IPv6 地址</li>
+<li><code>%pM</code>: 打印 MAC 地址</li>
+<li><code>%p[ah]</code>: 打印 <code>struct address_space</code></li>
+<li><code>%p[dn]</code>: 打印 <code>struct dentry</code> 名称</li>
+<li><strong>使用 <code>%px</code> 打印原始指针值 (不进行哈希处理)。</strong></li>
+</ul>
+</li>
+<li><strong>日志速率限制 (Rate Limiting)</strong>: 为避免日志风暴淹没缓冲区或影响性能，可以使用 <code>printk_ratelimited()</code> 或检查 <code>printk_ratelimit()</code> 的返回值。<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (printk_ratelimit()) &#123;</span><br><span class="line">    printk(KERN_WARNING <span class="string">&quot;Something happened too often!\\n&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ul>
+</li>
+</ul>
+<h3 id="2-2-dump-stack：把调用路径打出来">2.2 dump_stack：把调用路径打出来<a class="hlink" data-h="2-2-dump-stack：把调用路径打出来" href="#2-2-dump-stack：把调用路径打出来" title="跳到本节">¶</a></h3><p>当需要知道代码是如何被调用到当前位置时，<code>dump_stack()</code> 非常有用。它会打印当前的内核调用栈信息到日志缓冲区。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;linux/printk.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">my_buggy_function</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (some_error_condition) &#123;</span><br><span class="line">        printk(KERN_ERR <span class="string">&quot;Error detected in my_buggy_function! Dumping stack:\\n&quot;</span>);</span><br><span class="line">        dump_stack();</span><br><span class="line">        <span class="comment">// ... handle error ...</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<div class="callout tip" data-callout="tip"><div class="callout-title"><span class="callout-ico">🔥</span><span class="callout-title-inner"><code>WARN_ON</code> 和 <code>BUG_ON</code><br>内核还提供了 <code>WARN_ON(condition)</code> 和 <code>BUG_ON(condition)</code> 宏。当 <code>condition</code> 为真时，它们会打印警告信息（包括调用栈），<code>BUG_ON</code> 还会导致内核 Panic（除非配置为仅警告）。它们是比 <code>dump_stack()</code> 更结构化的断言方式。</span></div><div class="callout-body"><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (WARN_ON(!ptr)) &#123; <span class="comment">// 如果 ptr 为 NULL，打印警告并返回错误</span></span><br><span class="line">    <span class="keyword">return</span> -EINVAL;</span><br><span class="line">&#125;</span><br><span class="line">BUG_ON(index &gt;= MAX_INDEX); <span class="comment">// 如果 index 超出范围，触发 BUG</span></span><br></pre></td></tr></table></figure>
+</div></div>
+<h3 id="2-3-dynamic-debug：运行时开关-pr-debug-打印点">2.3 dynamic_debug：运行时开关 pr_debug 打印点<a class="hlink" data-h="2-3-dynamic-debug：运行时开关-pr-debug-打印点" href="#2-3-dynamic-debug：运行时开关-pr-debug-打印点" title="跳到本节">¶</a></h3><p>为了避免 <code>printk</code> 泛滥和需要重新编译才能开关调试信息的问题，内核提供了 <code>dynamic_debug</code> 机制。它允许在运行时动态地启用或禁用特定代码位置的 <code>pr_debug()</code> &#x2F; <code>dev_dbg()</code> 等打印语句。</p>
+<ul>
+<li><strong>使用方法</strong>:<ol>
+<li>在代码中使用 <code>pr_debug()</code> (通用) 或 <code>dev_dbg()</code> (设备驱动相关) 等宏。</li>
+<li>确保内核编译时开启了 <code>CONFIG_DYNAMIC_DEBUG</code>。</li>
+<li>通过 <code>debugfs</code> 文件系统控制开关：<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 挂载 debugfs (如果未挂载)</span></span><br><span class="line"><span class="built_in">sudo</span> mount -t debugfs none /sys/kernel/debug</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看所有可控的打印点</span></span><br><span class="line"><span class="built_in">cat</span> /sys/kernel/debug/dynamic_debug/control</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用特定文件的所有打印点</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;file drivers/usb/core/hub.c +p&#x27;</span> | <span class="built_in">sudo</span> <span class="built_in">tee</span> /sys/kernel/debug/dynamic_debug/control</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用特定模块的所有打印点</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;module usbcore +p&#x27;</span> | <span class="built_in">sudo</span> <span class="built_in">tee</span> /sys/kernel/debug/dynamic_debug/control</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用特定函数的所有打印点</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;func hub_probe +p&#x27;</span> | <span class="built_in">sudo</span> <span class="built_in">tee</span> /sys/kernel/debug/dynamic_debug/control</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用特定行号的打印点</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;file hub.c:1500 +p&#x27;</span> | <span class="built_in">sudo</span> <span class="built_in">tee</span> /sys/kernel/debug/dynamic_debug/control</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用包含特定格式字符串的打印点</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;format &quot;new device found&quot; +p&#x27;</span> | <span class="built_in">sudo</span> <span class="built_in">tee</span> /sys/kernel/debug/dynamic_debug/control</span><br><span class="line"></span><br><span class="line"><span class="comment"># 禁用 (-p)</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;module usbcore -p&#x27;</span> | <span class="built_in">sudo</span> <span class="built_in">tee</span> /sys/kernel/debug/dynamic_debug/control</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看当前启用的打印点</span></span><br><span class="line">grep -E <span class="string">&#x27; =p| =_&#x27;</span> /sys/kernel/debug/dynamic_debug/control</span><br></pre></td></tr></table></figure></li>
+</ol>
+</li>
+<li><strong>优点</strong>: 灵活控制调试输出，无需重新编译，开销只在启用时产生。</li>
+<li><strong>缺点</strong>: 需要内核编译时开启 <code>CONFIG_DYNAMIC_DEBUG</code>。</li>
+</ul>
+<h3 id="2-4-proc-与-sys：不用改代码的状态入口">2.4 &#x2F;proc 与 &#x2F;sys：不用改代码的状态入口<a class="hlink" data-h="2-4-proc-与-sys：不用改代码的状态入口" href="#2-4-proc-与-sys：不用改代码的状态入口" title="跳到本节">¶</a></h3><p>这两个虚拟文件系统提供了大量关于内核状态、硬件信息、系统参数的接口。</p>
+<ul>
+<li><strong><code>/proc</code></strong>: 主要关注进程信息和一些遗留的系统信息。<ul>
+<li><code>/proc/&lt;PID&gt;/</code>: 特定进程的信息 (状态 <code>status</code>, 内存映射 <code>maps</code>, 文件描述符 <code>fd/</code>, 命令行 <code>cmdline</code> 等)。</li>
+<li><code>/proc/cpuinfo</code>: CPU 信息。</li>
+<li><code>/proc/meminfo</code>: 内存使用情况。</li>
+<li><code>/proc/interrupts</code>: 中断统计。</li>
+<li><code>/proc/slabinfo</code>: Slab 分配器信息 (需要 <code>CONFIG_SLAB</code> 或 <code>CONFIG_SLUB_DEBUG</code>)。</li>
+<li><code>/proc/modules</code>: 已加载模块列表。</li>
+<li><code>/proc/cmdline</code>: 内核启动命令行参数。</li>
+<li><code>/proc/kallsyms</code>: 内核符号表 (地址和名称)。<strong>对于地址转换非常有用。</strong></li>
+<li><code>/proc/sched_debug</code>: 调度器状态和运行队列信息。</li>
+<li><code>/proc/vmstat</code>: 虚拟内存统计信息。</li>
+</ul>
+</li>
+<li><strong><code>/sys</code></strong>: 提供更结构化的设备和内核对象视图，与内核数据结构关系更紧密。<ul>
+<li><code>/sys/devices/</code>: 系统中所有设备的层次结构。</li>
+<li><code>/sys/class/</code>: 按设备类别组织的符号链接 (如 <code>net</code>, <code>block</code>, <code>gpio</code>)。</li>
+<li><code>/sys/bus/</code>: 按总线类型组织的设备和驱动 (如 <code>pci</code>, <code>usb</code>, <code>i2c</code>)。</li>
+<li><code>/sys/module/</code>: 每个已加载模块的目录，包含参数、状态等。</li>
+<li><code>/sys/kernel/debug/</code>: <code>debugfs</code> 的挂载点，许多调试工具（如 ftrace, dynamic_debug）的接口都在这里。</li>
+<li><code>/sys/kernel/tracing/</code>: <code>ftrace</code> 的主要控制目录 (通常是 <code>/sys/kernel/debug/tracing</code> 的符号链接)。</li>
+</ul>
+</li>
+<li><strong>用途</strong>: 查看系统状态、硬件配置、内存&#x2F;CPU使用情况、模块参数等，有时也可以通过写入这些文件来调整内核参数或触发某些操作。</li>
+</ul>
+<h2 id="3-动态追踪：ftrace-看流程，perf-看热点">3. 动态追踪：ftrace 看流程，perf 看热点<a class="hlink" data-h="3-动态追踪：ftrace-看流程，perf-看热点" href="#3-动态追踪：ftrace-看流程，perf-看热点" title="跳到本节">¶</a></h2><p>动态追踪允许在不修改内核代码、不重新编译的情况下观察内核行为，开销相对较低。我读函数图时一般先看 duration 那一列，哪一层耗时突然拉长，就先盯哪一层。</p>
+<h3 id="3-1-ftrace：function-graph-与事件追踪">3.1 ftrace：function_graph 与事件追踪<a class="hlink" data-h="3-1-ftrace：function-graph-与事件追踪" href="#3-1-ftrace：function-graph-与事件追踪" title="跳到本节">¶</a></h3><p><code>ftrace</code> 是内核内置的强大追踪框架，最初设计用于追踪函数调用，现已扩展到支持事件追踪、延迟分析等多种功能。</p>
+<ul>
+<li><strong>主要功能</strong>:<ul>
+<li><strong>函数追踪 (function tracer)</strong>: 记录内核函数的调用。</li>
+<li><strong>函数图追踪 (function_graph tracer)</strong>: 记录函数调用关系和执行时间，生成类似 C 代码的调用图。<strong>对于理解函数执行流程和定位耗时函数非常有用。</strong></li>
+<li><strong>延迟追踪 (latency tracers)</strong>: 如 <code>irqsoff</code> (中断禁用时间), <code>preemptoff</code> (抢占禁用时间), <code>wakeup</code> (唤醒延迟), <code>preemptirqsoff</code> (抢占和中断都禁用)。<strong>用于分析实时性和调度延迟问题。</strong></li>
+<li><strong>事件追踪 (event tracing)</strong>: 基于内核中静态定义的 <code>tracepoints</code>，追踪特定事件（如系统调用、调度、块 I&#x2F;O、网络包收发等）。<strong>比函数追踪更精确、开销更低。</strong></li>
+<li><strong>动态探针 (kprobes&#x2F;uprobes)</strong>: 在任意内核&#x2F;用户函数入口&#x2F;返回点设置动态探针。<code>ftrace</code> 可以将 <code>kprobes</code> 作为事件源。</li>
+<li><strong>快照 (snapshot)</strong>: 保存当前追踪缓冲区内容，继续追踪。</li>
+</ul>
+</li>
+<li><strong>使用接口</strong>: 主要通过 <code>debugfs</code> 下的 <code>tracing</code> 目录进行配置和查看。<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 挂载 debugfs (如果需要)</span></span><br><span class="line"><span class="built_in">sudo</span> mount -t debugfs none /sys/kernel/debug</span><br><span class="line"></span><br><span class="line"><span class="comment"># 进入 tracing 目录</span></span><br><span class="line"><span class="built_in">cd</span> /sys/kernel/debug/tracing</span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 基本用法 ---</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看可用的追踪器 (tracer)</span></span><br><span class="line"><span class="built_in">cat</span> available_tracers</span><br><span class="line"><span class="comment"># 常用的有: nop, function, function_graph, blk, mmiotrace, wakeup, wakeup_dl, wakeup_rt, irqsoff, preemptoff, preemptirqsoff</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看可用的追踪事件 (event)</span></span><br><span class="line"><span class="built_in">ls</span> events/</span><br><span class="line"><span class="comment"># 例如: events/syscalls/, events/sched/, events/irq/, events/ext4/, events/sock/</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用函数追踪器</span></span><br><span class="line"><span class="built_in">echo</span> <span class="keyword">function</span> &gt; current_tracer</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置追踪过滤器 (只追踪 kmalloc 相关函数)</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;*kmalloc*&#x27;</span> &gt; set_ftrace_filter <span class="comment"># 支持通配符</span></span><br><span class="line"><span class="comment"># echo &#x27;! SyS_*&#x27; &gt; set_ftrace_filter # 排除某些函数</span></span><br><span class="line"><span class="comment"># echo &gt; set_ftrace_filter # 清除过滤器</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置追踪特定进程 (PID)</span></span><br><span class="line"><span class="comment"># echo &lt;PID&gt; &gt; set_ftrace_pid</span></span><br><span class="line"><span class="comment"># echo &gt; set_ftrace_pid # 清除 PID 过滤</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置追踪选项 (例如，显示调用者信息)</span></span><br><span class="line"><span class="comment"># cat trace_options</span></span><br><span class="line"><span class="comment"># echo func_stack_trace &gt; trace_options # 开启函数调用栈</span></span><br><span class="line"><span class="comment"># echo nosleep-time &gt;&gt; trace_options # 使用 monotonic clock</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 开始追踪 (写入 1 启用，写入 0 禁用)</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; tracing_on</span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 执行一些操作 ---</span></span><br><span class="line"><span class="built_in">ls</span> /tmp</span><br><span class="line"></span><br><span class="line"><span class="comment"># 停止追踪</span></span><br><span class="line"><span class="built_in">echo</span> 0 &gt; tracing_on</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看追踪结果</span></span><br><span class="line"><span class="built_in">cat</span> trace</span><br><span class="line"><span class="comment"># 格式通常是: &lt;进程名&gt;-&lt;PID&gt; [&lt;CPU#&gt;] .... &lt;时间戳&gt;: &lt;函数名&gt; &lt;-&lt;调用者&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看追踪统计 (function tracer)</span></span><br><span class="line"><span class="comment"># cat trace_stat/function&lt;cpu_id&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 清空追踪缓冲区</span></span><br><span class="line"><span class="built_in">echo</span> &gt; trace</span><br><span class="line"></span><br><span class="line"><span class="comment"># 禁用追踪器 (恢复到 nop)</span></span><br><span class="line"><span class="built_in">echo</span> nop &gt; current_tracer</span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 函数图追踪示例 (追踪 read 系统调用的内部流程和耗时) ---</span></span><br><span class="line"><span class="built_in">echo</span> function_graph &gt; current_tracer</span><br><span class="line"><span class="built_in">echo</span> SyS_read &gt; set_graph_function <span class="comment"># 设置追踪入口函数</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; tracing_on</span><br><span class="line"><span class="built_in">cat</span> /dev/null <span class="comment"># 执行 read 系统调用</span></span><br><span class="line"><span class="built_in">echo</span> 0 &gt; tracing_on</span><br><span class="line"><span class="built_in">cat</span> trace | <span class="built_in">head</span> -n 30 <span class="comment"># 查看调用图和时间</span></span><br><span class="line"><span class="comment"># 输出类似:</span></span><br><span class="line"><span class="comment">#  cpu |    duration   |   function</span></span><br><span class="line"><span class="comment">#  ------------------------------------------</span></span><br><span class="line"><span class="comment">#   0)               |  SyS_read() &#123;</span></span><br><span class="line"><span class="comment">#   0)   0.074 us    |    ksys_read();</span></span><br><span class="line"><span class="comment">#   0)   0.058 us    |    vfs_read();</span></span><br><span class="line"><span class="comment">#   0)   0.079 us    |    rw_verify_area();</span></span><br><span class="line"><span class="comment">#   0)   0.051 us    |    security_file_permission();</span></span><br><span class="line"><span class="comment">#   0)   0.049 us    |    devkmsg_read();</span></span><br><span class="line"><span class="comment">#   0)   0.070 us    |    log_output();</span></span><br><span class="line"><span class="comment">#   0)   0.050 us    |    mutex_lock();</span></span><br><span class="line"><span class="comment">#   0)   0.049 us    |    mutex_unlock();</span></span><br><span class="line"><span class="comment">#   0)   3.631 us    |  &#125;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 事件追踪示例 (追踪所有 ext4 文件系统操作) ---</span></span><br><span class="line"><span class="built_in">echo</span> nop &gt; current_tracer <span class="comment"># 禁用其他追踪器</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; events/ext4/enable <span class="comment"># 启用所有 ext4 事件</span></span><br><span class="line"><span class="built_in">echo</span> 1 &gt; tracing_on</span><br><span class="line"><span class="built_in">touch</span> /mnt/testfile &amp;&amp; <span class="built_in">rm</span> /mnt/testfile <span class="comment"># 在 ext4 文件系统上操作</span></span><br><span class="line"><span class="built_in">echo</span> 0 &gt; tracing_on</span><br><span class="line"><span class="built_in">cat</span> trace | grep ext4 <span class="comment"># 查看 ext4 相关事件</span></span><br><span class="line"><span class="built_in">echo</span> 0 &gt; events/ext4/enable <span class="comment"># 禁用事件</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 使用 trace-cmd 工具 (更方便) ---</span></span><br><span class="line"><span class="comment"># sudo apt install trace-cmd kernelshark</span></span><br><span class="line"><span class="comment"># 记录函数追踪到文件 (追踪 sleep 1 期间 vfs_read 的调用)</span></span><br><span class="line"><span class="built_in">sudo</span> trace-cmd record -p <span class="keyword">function</span> -l vfs_read <span class="built_in">sleep</span> 1</span><br><span class="line"><span class="comment"># 查看报告 (文本)</span></span><br><span class="line">trace-cmd report</span><br><span class="line"><span class="comment"># 使用 KernelShark 图形化分析 trace.dat 文件</span></span><br><span class="line">kernelshark trace.dat</span><br><span class="line"></span><br><span class="line"><span class="comment"># 记录调度事件和 irq 事件</span></span><br><span class="line"><span class="built_in">sudo</span> trace-cmd record -e <span class="built_in">sched</span> -e irq <span class="built_in">sleep</span> 1</span><br><span class="line">trace-cmd report</span><br><span class="line"></span><br><span class="line"><span class="comment"># 实时显示追踪信息 (类似 dmesg -w)</span></span><br><span class="line"><span class="comment"># sudo trace-cmd stream -e syscalls</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动追踪并在后台运行，停止时写入文件</span></span><br><span class="line"><span class="comment"># sudo trace-cmd start -p function_graph</span></span><br><span class="line"><span class="comment"># ... 执行操作 ...</span></span><br><span class="line"><span class="comment"># sudo trace-cmd stop</span></span><br><span class="line"><span class="comment"># sudo trace-cmd extract</span></span><br><span class="line"><span class="comment"># trace-cmd report trace.dat</span></span><br></pre></td></tr></table></figure></li>
+<li><strong>优点</strong>: 内核内置，功能强大，接口相对统一，支持多种追踪场景。<code>trace-cmd</code> 提供了易用的命令行接口，<code>kernelshark</code> 提供了图形化分析界面。</li>
+<li><strong>缺点</strong>: <code>debugfs</code> 接口手动操作繁琐。输出信息量可能很大，需要有效过滤。对于非常高频的事件，仍有性能开销。</li>
+</ul>
+<div class="mermaid">
+graph TD
+    subgraph "ftrace 工作流"
+        direction LR
+        U[用户] --&gt;|配置| TDir[/sys/kernel/debug/tracing]
+        TDir --&gt;|选择| Tracer[current_tracer\n(function, function_graph, ...)]
+        TDir --&gt;|设置| Filter[set_ftrace_filter, set_graph_function, ...]
+        TDir --&gt;|设置| Events[events/&lt;subsystem&gt;/enable]
+        TDir --&gt;|控制| TracingOn[tracing_on (1/0)]
+        Tracer --&gt; K[内核执行]
+        Filter --&gt; K
+        Events --&gt; K
+        TracingOn --&gt; K
+        K --&gt;|写入| Buffer[trace (内核环形缓冲区)]
+        Buffer --&gt;|读取| TDir
+        TDir --&gt;|查看| U
+        U --&gt;|使用| TCmd[trace-cmd]
+        TCmd --&gt; TDir
+    end
+    style TDir fill:#eee,stroke:#333
+    style TCmd fill:#ccf,stroke:#333
+</div>
+
+<h3 id="3-2-perf：stat-看计数，record-report-找热点">3.2 perf：stat 看计数，record&#x2F;report 找热点<a class="hlink" data-h="3-2-perf：stat-看计数，record-report-找热点" href="#3-2-perf：stat-看计数，record-report-找热点" title="跳到本节">¶</a></h3><p><code>perf</code> 是一个强大的性能分析工具集，基于内核的 <code>perf_events</code> 子系统。它不仅可以用于性能分析，也可以用于事件追踪和调试。</p>
+<ul>
+<li><strong>主要功能</strong>:<ul>
+<li><strong>性能计数器统计 (perf stat)</strong>: 统计硬件&#x2F;软件性能计数器（如 CPU 周期、指令数、缓存命中&#x2F;缺失、分支预测失败、上下文切换、缺页中断等）。<strong>是快速评估程序或系统性能特征的首选工具。</strong></li>
+<li><strong>事件采样 (perf record &#x2F; perf report)</strong>: 对特定事件（如 CPU 周期、函数调用）进行采样，分析热点函数和代码路径。<strong>核心功能，用于定位性能瓶颈。</strong></li>
+<li><strong>事件追踪 (perf trace)</strong>: 类似 <code>strace</code>，但基于 <code>perf_events</code>，可以追踪系统调用、调度事件等，开销更低。<strong>适合观察系统交互。</strong></li>
+<li><strong>动态探针 (perf probe)</strong>: 定义 <code>kprobes</code>&#x2F;<code>uprobes</code>。</li>
+<li><strong>火焰图 (Flame Graphs)</strong>: 结合 <code>perf script</code> 和 FlameGraph 工具生成可视化性能瓶颈图。</li>
+</ul>
+</li>
+<li><strong>使用示例</strong>:<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># --- 性能统计 ---</span></span><br><span class="line"><span class="comment"># 统计执行 \&#x27;ls\&#x27; 命令期间的默认事件</span></span><br><span class="line">perf <span class="built_in">stat</span> <span class="built_in">ls</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 统计整个系统的性能事件，持续 5 秒 (-a: all CPUs)</span></span><br><span class="line">perf <span class="built_in">stat</span> -a <span class="built_in">sleep</span> 5</span><br><span class="line"></span><br><span class="line"><span class="comment"># 统计特定进程的性能事件 (-p &lt;PID&gt;)</span></span><br><span class="line"><span class="comment"># perf stat -p $(pidof my_app)</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 统计特定事件 (缓存命中/缺失, 分支预测失败)</span></span><br><span class="line">perf <span class="built_in">stat</span> -e cache-references,cache-misses,branch-misses <span class="built_in">ls</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看可用事件列表 (硬件事件、软件事件、tracepoint 事件等)</span></span><br><span class="line">perf list</span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 事件采样与报告 ---</span></span><br><span class="line"><span class="comment"># 对整个系统进行采样，频率 99Hz，持续 5 秒，记录调用图 (fp 或 dwarf)</span></span><br><span class="line"><span class="comment"># -F: 频率, -a: 所有 CPU, -g: 记录调用图, --: 分隔 perf 参数和目标命令</span></span><br><span class="line"><span class="built_in">sudo</span> perf record -F 99 -a -g -- <span class="built_in">sleep</span> 5</span><br><span class="line"><span class="comment"># 或者基于事件计数采样 (每 N 次事件采样一次)</span></span><br><span class="line"><span class="comment"># sudo perf record -e cpu-cycles -c 1000000 -a -g -- sleep 5</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成报告 (交互式 TUI 界面)</span></span><br><span class="line"><span class="built_in">sudo</span> perf report</span><br><span class="line"><span class="comment"># 在报告中:</span></span><br><span class="line"><span class="comment">#   - Overhead: 事件在该符号(函数)中发生的百分比</span></span><br><span class="line"><span class="comment">#   - Symbol: 符号名称</span></span><br><span class="line"><span class="comment">#   - 按 Enter 进入函数内部查看汇编级注释或调用者/被调用者</span></span><br><span class="line"><span class="comment">#   - 按 &#x27;a&#x27; 查看汇编级注释</span></span><br><span class="line"><span class="comment">#   - 按 &#x27;c&#x27; 查看调用者/被调用者 (Callchains)</span></span><br><span class="line"><span class="comment">#   - 按 &#x27;h&#x27; 查看帮助</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成非交互式报告</span></span><br><span class="line"><span class="comment"># sudo perf report --stdio</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 事件追踪 ---</span></span><br><span class="line"><span class="comment"># 追踪 \&#x27;ls\&#x27; 命令的系统调用 (类似 strace)</span></span><br><span class="line"><span class="built_in">sudo</span> perf trace <span class="built_in">ls</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪并显示详细信息 (包括参数和返回值)</span></span><br><span class="line"><span class="comment"># sudo perf trace -v ls</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪整个系统的调度事件</span></span><br><span class="line"><span class="comment"># sudo perf trace -e sched:sched_switch -a</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 动态探针 ---</span></span><br><span class="line"><span class="comment"># 在 kmalloc 函数入口设置探针 (需要 vmlinux 路径)</span></span><br><span class="line"><span class="built_in">sudo</span> perf probe -x /path/to/vmlinux --add kmalloc</span><br><span class="line"><span class="comment"># 在特定行号设置探针</span></span><br><span class="line"><span class="comment"># sudo perf probe -x /path/to/vmlinux --add \&#x27;my_function@/path/to/source.c:123\&#x27;</span></span><br><span class="line"><span class="comment"># 查看已定义的探针</span></span><br><span class="line"><span class="built_in">sudo</span> perf probe --list</span><br><span class="line"></span><br><span class="line"><span class="comment"># 记录探针事件</span></span><br><span class="line"><span class="built_in">sudo</span> perf record -e probe:kmalloc -a <span class="built_in">sleep</span> 1</span><br><span class="line"><span class="built_in">sudo</span> perf report <span class="comment"># 或 perf script</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 删除探针</span></span><br><span class="line"><span class="comment"># sudo perf probe --del probe:kmalloc</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># --- 火焰图 (需要额外安装 FlameGraph 工具) ---</span></span><br><span class="line"><span class="comment"># git clone https://github.com/brendangregg/FlameGraph.git</span></span><br><span class="line"><span class="comment"># 记录调用图数据 (使用 -g)</span></span><br><span class="line"><span class="built_in">sudo</span> perf record -F 99 -a -g -- <span class="built_in">sleep</span> 10</span><br><span class="line"><span class="comment"># 生成折叠后的堆栈信息</span></span><br><span class="line"><span class="built_in">sudo</span> perf script | ./FlameGraph/stackcollapse-perf.pl &gt; out.perf-folded</span><br><span class="line"><span class="comment"># 生成 SVG 火焰图</span></span><br><span class="line">./FlameGraph/flamegraph.pl out.perf-folded &gt; kernel.svg</span><br><span class="line"><span class="comment"># 使用浏览器打开 kernel.svg (宽度代表占比，颜色通常无特殊含义)</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># --- perf script ---</span></span><br><span class="line"><span class="comment"># 将 perf.data 转换为可读文本格式，常用于后续脚本处理</span></span><br><span class="line"><span class="built_in">sudo</span> perf script</span><br><span class="line"><span class="comment"># 显示特定字段 (例如：事件名称、时间和 CPU)</span></span><br><span class="line"><span class="comment"># sudo perf script -F event,time,cpu</span></span><br></pre></td></tr></table></figure></li>
+<li><strong>优点</strong>: 功能全面，覆盖统计、采样、追踪，适合性能分析和热点定位，社区活跃。与 <code>ftrace</code> 相比，更侧重性能分析和采样。</li>
+<li><strong>缺点</strong>: 需要内核编译时开启 <code>perf_events</code> 相关选项。调用图生成 (<code>-g</code>) 可能需要调试信息 (<code>vmlinux</code> 或带 <code>-g</code> 编译的模块)，并且栈回溯方式（fp, dwarf, lbr）的选择和可靠性可能受内核配置和硬件影响。</li>
+</ul>
+<div class="mermaid">
+graph TD
+    subgraph "动态追踪工具"
+        Ftrace --&gt;|主要接口| DebugFS[/sys/kernel/debug/tracing]
+        Ftrace --&gt;|辅助工具| TraceCmd[trace-cmd]
+        Ftrace --&gt;|功能| FuncTrace[函数追踪]
+        Ftrace --&gt;|功能| FuncGraph[函数图追踪]
+        Ftrace --&gt;|功能| EventTrace[事件追踪 (Tracepoints)]
+        Ftrace --&gt;|功能| LatencyTrace[延迟追踪]
+        Perf --&gt;|核心子系统| PerfEvents[perf_events]
+        Perf --&gt;|主要命令| PerfCmd[perf]
+        Perf --&gt;|功能| Stat[性能统计 (perf stat)]
+        Perf --&gt;|功能| Record[事件采样 (perf record)]
+        Perf --&gt;|功能| Report[报告分析 (perf report)]
+        Perf --&gt;|功能| Trace[系统追踪 (perf trace)]
+        Perf --&gt;|功能| Probe[动态探针 (perf probe)]
+        Perf --&gt;|可视化| FlameGraph[火焰图]
+    end
+    style DebugFS fill:#eee,stroke:#333
+    style TraceCmd fill:#eee,stroke:#333
+    style PerfEvents fill:#eee,stroke:#333
+    style PerfCmd fill:#eee,stroke:#333
+    style FlameGraph fill:#eee,stroke:#333
+</div>
+
+<div class="mermaid">
+graph TD
+    subgraph "perf 工作流 (采样与报告)"
+        PStat[perf stat] --&gt; QuickInfo[快速性能概览]
+        PRec[perf record\n(-e event, -F freq, -p pid, -a, -g)] --&gt;|写入| PerfData[perf.data (采样数据)]
+        PerfData --&gt; PRep[perf report\n(交互式分析)]
+        PerfData --&gt; PScr[perf script]
+        PRep --&gt; Hotspots[定位热点函数/代码行]
+        PScr --&gt;|管道| StackCollapse[stackcollapse-perf.pl]
+        StackCollapse --&gt; FoldedStacks[折叠后的堆栈]
+        FoldedStacks --&gt; FlameGraph[flamegraph.pl]
+        FlameGraph --&gt; SVG[火焰图 (SVG)]
+        PTrace[perf trace] --&gt; SysInteractions[观察系统交互 (类似 strace)]
+        PProbe[perf probe] --&gt; DynamicPoints[设置动态探测点]
+        DynamicPoints --&gt; PRec
+    end
+    style PerfData fill:#eee,stroke:#333
+    style FoldedStacks fill:#eee,stroke:#333
+    style SVG fill:#ccf,stroke:#333
+</div>
+
+<h3 id="3-3-底层机制：kprobes-灵活，tracepoints-稳定">3.3 底层机制：kprobes 灵活，tracepoints 稳定<a class="hlink" data-h="3-3-底层机制：kprobes-灵活，tracepoints-稳定" href="#3-3-底层机制：kprobes-灵活，tracepoints-稳定" title="跳到本节">¶</a></h3><p><code>ftrace</code>, <code>perf</code>, <code>SystemTap</code>, <code>eBPF</code> 等许多高级工具都依赖于内核提供的底层探测机制：</p>
+<ul>
+<li><p><strong><code>kprobes</code> (Kernel Probes)</strong>:</p>
+<ul>
+<li>允许在<strong>几乎任何内核指令地址</strong>动态插入探测点。</li>
+<li>包括 <code>kprobe</code> (在函数入口或任意指令处)、<code>kretprobe</code> (在函数返回处) 和 <code>jprobe</code> (在函数入口处，可以无缝访问函数参数，但已被废弃，推荐使用 <code>kprobe</code> + <code>regs</code>)。</li>
+<li><strong>优点</strong>: 极其灵活，可以探测未导出函数或函数内部。</li>
+<li><strong>缺点</strong>: 依赖指令地址可能因内核版本或配置变化而失效；插入探针有一定开销；使用不当可能导致系统不稳定。</li>
+<li><code>perf probe</code>, <code>SystemTap</code> (部分), <code>eBPF</code> (kprobe 类型) 使用 <code>kprobes</code>。</li>
+</ul>
+</li>
+<li><p><strong><code>tracepoints</code></strong>:</p>
+<ul>
+<li>内核代码中<strong>静态定义</strong>的探测点，位于关键逻辑路径上（如系统调用、调度器、网络栈、文件系统等）。</li>
+<li>提供稳定、低开销的 API。</li>
+<li><strong>优点</strong>: API 稳定，开销低，语义清晰（知道在哪个逻辑点触发）。</li>
+<li><strong>缺点</strong>: 探测点位置受限于内核开发者的预置，不能探测任意位置。</li>
+<li><code>ftrace</code> (事件追踪), <code>perf</code> (tracepoint 事件), <code>SystemTap</code> (部分), <code>eBPF</code> (tracepoint 类型) 使用 <code>tracepoints</code>。</li>
+</ul>
+</li>
+</ul>
+<p><strong>选择</strong>: 如果有合适的 <code>tracepoint</code>，优先使用，因为它更稳定、开销更低。如果需要探测没有 <code>tracepoint</code> 的地方，或者需要函数内部信息，则使用 <code>kprobes</code>。</p>
+<h2 id="4-源码级调试：gdb-借-kgdb-或-QEMU-打进内核">4. 源码级调试：gdb 借 kgdb 或 QEMU 打进内核<a class="hlink" data-h="4-源码级调试：gdb-借-kgdb-或-QEMU-打进内核" href="#4-源码级调试：gdb-借-kgdb-或-QEMU-打进内核" title="跳到本节">¶</a></h2><p>当需要深入代码逻辑、检查变量值、单步执行时，源码级调试是必要的。内核调试通常需要两台机器（或一台机器加虚拟机）配合。我搭 kgdb 时踩过的坑是 vmlinux 与目标机内核版本对不上——符号错位会直接让断点落不到预期位置。</p>
+<h3 id="4-1-kgdb：串口或网络把目标机交给-gdb">4.1 kgdb：串口或网络把目标机交给 gdb<a class="hlink" data-h="4-1-kgdb：串口或网络把目标机交给-gdb" href="#4-1-kgdb：串口或网络把目标机交给-gdb" title="跳到本节">¶</a></h3><p><code>kgdb</code> 是内核内置的调试代理，它允许通过串口或网络连接将目标机器（被调试内核）置于 <code>gdb</code> 的控制之下。</p>
+<ul>
+<li><p><strong>工作原理</strong>:</p>
+<ol>
+<li><strong>目标机 (Target)</strong>: 运行待调试的内核，开启 <code>kgdb</code> 支持。通过特定方式（如 SysRq、串口中断、专门的 <code>kgdbwait</code> 参数）进入调试模式，等待 <code>gdb</code> 连接。</li>
+<li><strong>开发机 (Host)</strong>: 运行 <code>gdb</code>，加载带调试信息的内核镜像 (<code>vmlinux</code>)。通过串口线或网络连接到目标机的 <code>kgdb</code> 代理。</li>
+<li><strong>连接</strong>: <code>gdb</code> 通过调试协议 (GDB Remote Serial Protocol) 与 <code>kgdb</code> 通信，发送命令（设置断点、继续执行、查看内存等），<code>kgdb</code> 在目标机上执行这些命令并返回结果。</li>
+</ol>
+</li>
+<li><p><strong>配置内核</strong>: 需要开启以下内核选项：</p>
+<ul>
+<li><code>CONFIG_KGDB=y</code></li>
+<li><code>CONFIG_KGDB_SERIAL_CONSOLE=y</code> (串口方式) 或 <code>CONFIG_KGDB_KDB=y</code> (网络方式需要 <code>kdb</code>)</li>
+<li><code>CONFIG_DEBUG_INFO=y</code> (生成调试信息)</li>
+<li><code>CONFIG_FRAME_POINTER=y</code> (可选，有助于生成更可靠的栈回溯)</li>
+<li><code>CONFIG_MAGIC_SYSRQ=y</code> (允许通过 SysRq 进入 kgdb)</li>
+</ul>
+</li>
+<li><p><strong>设置调试环境 (串口方式)</strong>:</p>
+<ol>
+<li><strong>硬件</strong>: 需要一根 Null Modem 串口线连接开发机和目标机的串口。</li>
+<li><strong>目标机配置</strong>:<ul>
+<li>在内核启动参数中指定 <code>kgdboc=&lt;串口设备&gt;,&lt;波特率&gt;</code>，例如 <code>kgdboc=ttyS0,115200</code>。</li>
+<li>(可选) 添加 <code>kgdbwait</code> 参数，使内核在启动早期就进入 <code>kgdb</code> 等待连接。</li>
+</ul>
+</li>
+<li><strong>开发机配置</strong>:<ul>
+<li>确保串口设备权限正确。</li>
+<li>启动 <code>gdb</code> 并加载内核镜像：<code>gdb /path/to/vmlinux</code></li>
+<li>在 <code>gdb</code> 中连接目标机：<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(gdb) set serial baud 115200</span><br><span class="line">(gdb) target remote /dev/ttyS0</span><br></pre></td></tr></table></figure></li>
+</ul>
+</li>
+</ol>
+</li>
+<li><p><strong>设置调试环境 (网络方式, kgdboe)</strong>:</p>
+<ul>
+<li>需要内核开启 <code>CONFIG_KGDB_ETH=y</code> (较新内核) 或依赖 <code>netconsole</code>。</li>
+<li>目标机启动参数: <code>kgdboe=&lt;netdev&gt;,&lt;server-ip&gt;:&lt;port&gt;[,&lt;client-ip&gt;]</code></li>
+<li>开发机 <code>gdb</code> 连接: <code>target remote udp:&lt;target-ip&gt;:&lt;port&gt;</code></li>
+<li>网络方式配置相对复杂，串口更常用。</li>
+</ul>
+</li>
+<li><p><strong>进入调试模式</strong>:</p>
+<ul>
+<li><strong><code>kgdbwait</code></strong>: 内核启动时自动进入。</li>
+<li><strong>SysRq</strong>: 在目标机控制台按 <code>Alt + SysRq + g</code> (如果 Magic SysRq key 启用)。</li>
+<li><strong>串口中断</strong>: 从开发机向目标机串口发送 <code>BREAK</code> 信号 (如 <code>gdb</code> 中 <code>Ctrl+C</code>，或 <code>minicom</code> 中 <code>Ctrl+A F</code>)。</li>
+<li><strong>代码触发</strong>: 在内核代码中调用 <code>kgdb_breakpoint()</code>。</li>
+</ul>
+</li>
+<li><p><strong><code>gdb</code> 常用命令 (内核调试补充)</strong>:</p>
+<ul>
+<li><code>lx-symbols</code>: 加载模块的符号信息 (在 <code>gdb</code> 中执行 <code>add-symbol-file /path/to/module.ko &lt;text_address&gt;</code>)。<code>lx-symbols</code> 命令（需要内核源码树中的 <code>vmlinux-gdb.py</code> 脚本支持）可以自动完成这个过程。<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(gdb) lx-symbols /path/to/modules/directory</span><br></pre></td></tr></table></figure></li>
+<li><code>info threads</code>: 查看所有 CPU 线程。</li>
+<li><code>thread &lt;N&gt;</code>: 切换到 CPU N 的上下文。</li>
+<li>访问 Per-CPU 变量: 需要知道变量地址和当前 CPU。<code>p per_cpu(&lt;variable&gt;, &lt;cpu_id&gt;)</code> (需要 <code>vmlinux-gdb.py</code> 脚本)。</li>
+<li><code>break &lt;module_name&gt;:&lt;function_name&gt;</code>: 在模块函数中设置断点 (需先加载符号)。</li>
+<li><code>hbreak</code>: 设置硬件断点 (数量有限，但通常更快)。</li>
+<li><code>watch &lt;expression&gt;</code>: 设置观察点 (watchpoint)，在表达式值改变时暂停 (硬件支持时效率较高)。</li>
+<li><code>directory /path/to/source/code</code>: 添加源代码搜索路径。</li>
+<li><code>set logging on</code>: 将 <code>gdb</code> 输出记录到文件 <code>gdb.txt</code>。</li>
+</ul>
+</li>
+<li><p><strong>调试内核模块</strong>:</p>
+<ol>
+<li>确保模块编译时带有调试信息 (<code>-g</code> 选项，通常 Kbuild 会自动处理)。</li>
+<li>加载模块到目标内核 (<code>insmod</code>)。</li>
+<li>在 <code>gdb</code> 中，找到模块加载的基地址。可以通过查看 <code>/sys/module/&lt;module_name&gt;/sections/.text</code> 或在 <code>dmesg</code> 中查找模块加载信息。</li>
+<li>使用 <code>add-symbol-file /path/to/module.ko &lt;text_section_address&gt;</code> 命令加载模块符号。<code>&lt;text_section_address&gt;</code> 是模块 <code>.text</code> 段在内核中的加载地址。</li>
+<li>现在可以在模块代码中设置断点、查看变量等。</li>
+<li>(推荐) 使用内核源码树中的 <code>vmlinux-gdb.py</code> 脚本，它可以简化模块符号加载 (<code>lx-symbols</code>) 和 Per-CPU 变量访问。</li>
+</ol>
+</li>
+<li><p><strong>常见问题与提示</strong>:</p>
+<ul>
+<li><strong>无法连接</strong>: 检查串口线 (Null Modem)、串口设备权限、波特率设置是否一致。检查目标机内核参数 (<code>kgdboc</code>) 是否正确。网络方式检查 IP 和端口。</li>
+<li><strong>连接后无响应或卡死</strong>: 可能是 <code>gdb</code> 与目标内核版本不完全兼容。尝试更新 <code>gdb</code> 或使用目标系统发行版推荐的 <code>gdb</code> 版本。确保加载的 <code>vmlinux</code> 与目标运行的内核完全匹配。</li>
+<li><strong>无法设置断点</strong>: 确认 <code>vmlinux</code> 包含调试信息 (<code>CONFIG_DEBUG_INFO=y</code>)。确认函数名拼写正确。对于模块函数，确保已使用 <code>add-symbol-file</code> 或 <code>lx-symbols</code> 加载符号。</li>
+<li><strong>栈回溯 (bt) 不完整或错误</strong>: 确保内核编译时开启 <code>CONFIG_FRAME_POINTER=y</code>。尝试 <code>bt full</code>。</li>
+</ul>
+</li>
+<li><p><strong>优点</strong>: 功能强大，提供完整的源码级调试能力。</p>
+</li>
+<li><p><strong>缺点</strong>: 配置复杂，需要两台机器或特殊设置，目标机在调试期间完全停止响应。<code>QEMU</code> 方式相对简单但可能与真实硬件行为有差异。调试 I&#x2F;O 密集型或对时序敏感的问题可能效果不佳。<strong>对于需要精确硬件交互的驱动调试可能不适用。</strong></p>
+</li>
+</ul>
+<h3 id="4-2-gdb-QEMU：一台机器上的源码级调试">4.2 gdb + QEMU：一台机器上的源码级调试<a class="hlink" data-h="4-2-gdb-QEMU：一台机器上的源码级调试" href="#4-2-gdb-QEMU：一台机器上的源码级调试" title="跳到本节">¶</a></h3><p>使用 QEMU 虚拟机可以更方便地在单台机器上进行内核调试。QEMU 内置了 GDB Stub，可以将虚拟机的状态暴露给 <code>gdb</code>。</p>
+<ul>
+<li><p><strong>工作原理</strong>:</p>
+<ol>
+<li><strong>目标机 (QEMU 虚拟机)</strong>: 运行待调试的内核。启动 QEMU 时添加 <code>-s</code> (等同于 <code>-gdb tcp::1234</code>) 或 <code>-gdb &lt;device&gt;</code> 参数，使 QEMU 监听来自 <code>gdb</code> 的连接。添加 <code>-S</code> 参数使 QEMU 在启动时暂停，等待 <code>gdb</code> 连接后再开始执行。</li>
+<li><strong>开发机 (Host)</strong>: 运行 <code>gdb</code>，加载带调试信息的内核镜像 (<code>vmlinux</code>)。</li>
+<li><strong>连接</strong>: <code>gdb</code> 通过 TCP 连接到 QEMU 的 GDB Stub。<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(gdb) target remote localhost:1234</span><br></pre></td></tr></table></figure></li>
+</ol>
+</li>
+<li><p><strong>启动 QEMU 示例</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">qemu-system-x86_64 \</span><br><span class="line">    -kernel <span class="built_in">arch</span>/x86/boot/bzImage \ <span class="comment"># 指定内核镜像</span></span><br><span class="line">    -hda /path/to/rootfs.img \     <span class="comment"># 指定根文件系统镜像</span></span><br><span class="line">    -append <span class="string">&quot;root=/dev/sda console=ttyS0&quot;</span> \ <span class="comment"># 内核启动参数</span></span><br><span class="line">    -nographic \                   <span class="comment"># 无图形界面，使用串口控制台</span></span><br><span class="line">    -serial mon:stdio \            <span class="comment"># 将串口重定向到标准输入输出</span></span><br><span class="line">    -s \                           <span class="comment"># 监听 GDB 连接 (默认端口 1234)</span></span><br><span class="line">    -S                              <span class="comment"># 启动时暂停</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong><code>gdb</code> 连接与调试</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">gdb /path/to/linux-source/vmlinux</span><br><span class="line">(gdb) target remote localhost:1234</span><br><span class="line">(gdb) <span class="comment"># 现在可以使用 gdb 命令进行调试了</span></span><br><span class="line">(gdb) b start_kernel</span><br><span class="line">(gdb) c</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>常见问题与提示</strong>:</p>
+<ul>
+<li><strong>QEMU 启动失败</strong>: 检查 <code>-kernel</code>, <code>-hda</code>, <code>-append</code> 等参数是否正确。确保内核镜像和根文件系统有效。</li>
+<li><strong>GDB 无法连接</strong>: 确认 QEMU 使用了 <code>-s</code> 或 <code>-gdb</code> 参数。确认 <code>gdb</code> 连接的端口 (<code>localhost:1234</code>) 与 QEMU 监听的一致。</li>
+<li><strong>GDB 连接后立即断开</strong>: 可能是 <code>vmlinux</code> 与 QEMU 中运行的内核不匹配。</li>
+</ul>
+</li>
+<li><p><strong>优点</strong>: 设置相对简单，只需一台物理机，方便进行早期内核启动调试。</p>
+</li>
+<li><p><strong>缺点</strong>: QEMU 模拟可能引入性能开销或与真实硬件行为不完全一致。调试 I&#x2F;O 密集型或对时序敏感的问题可能效果不佳。<strong>对于需要精确硬件交互的驱动调试可能不适用。</strong></p>
+</li>
+</ul>
+<h3 id="4-3-JTAG：不依赖内核运行状态的最底层手段">4.3 JTAG：不依赖内核运行状态的最底层手段<a class="hlink" data-h="4-3-JTAG：不依赖内核运行状态的最底层手段" href="#4-3-JTAG：不依赖内核运行状态的最底层手段" title="跳到本节">¶</a></h3><p>对于非常底层的调试（如 Bootloader、早期启动代码、硬件相关问题），或者当 <code>kgdb</code> 无法使用时，可以使用 <strong>JTAG (Joint Test Action Group)</strong> 接口配合硬件调试器（如 OpenOCD, Lauterbach TRACE32）和 <code>gdb</code> 进行调试。这允许直接控制 CPU，访问内存和寄存器，独立于操作系统运行状态。</p>
+<ul>
+<li><strong>优点</strong>: 最底层的调试能力，不依赖于内核运行状态。</li>
+<li><strong>缺点</strong>: 需要专门的 JTAG 硬件调试器和目标硬件支持，配置复杂，价格昂贵。</li>
+</ul>
+<div class="mermaid">
+sequenceDiagram
+    participant HostGDB as 开发机 GDB
+    participant TargetKGDB as 目标机 KGDB Agent
+    participant TargetKernel as 目标机 内核代码
+    Note over HostGDB, TargetKGDB: KGDB 调试流程 (串口/网络)
+    HostGDB-&gt;&gt;TargetKGDB: 连接请求 (target remote)
+    TargetKGDB--&gt;&gt;HostGDB: 连接确认
+    HostGDB-&gt;&gt;TargetKGDB: 设置断点 (b start_kernel)
+    TargetKGDB-&gt;&gt;TargetKernel: 在 start_kernel 设置断点
+    HostGDB-&gt;&gt;TargetKGDB: 继续执行 (c)
+    TargetKGDB-&gt;&gt;TargetKernel: 恢复执行
+    Note right of TargetKernel: 内核执行...
+    TargetKernel-&gt;&gt;TargetKGDB: 触发断点 (到达 start_kernel)
+    TargetKGDB--&gt;&gt;HostGDB: 报告断点命中
+    HostGDB-&gt;&gt;TargetKGDB: 请求调用栈 (bt)
+    TargetKGDB-&gt;&gt;TargetKernel: 获取调用栈信息
+    TargetKernel--&gt;&gt;TargetKGDB: 返回调用栈
+    TargetKGDB--&gt;&gt;HostGDB: 发送调用栈信息
+    HostGDB-&gt;&gt;TargetKGDB: 单步执行 (n/s)
+    TargetKGDB-&gt;&gt;TargetKernel: 执行单步
+    TargetKernel--&gt;&gt;TargetKGDB: 单步完成
+    TargetKGDB--&gt;&gt;HostGDB: 报告单步结果
+    Note over HostGDB, TargetKGDB: ...重复交互...
+</div>
+
+<div class="mermaid">
+sequenceDiagram
+    participant HostGDB as 开发机 GDB
+    participant QEMU as QEMU (含 GDB Stub)
+    participant GuestKernel as 虚拟机 内核代码
+    Note over HostGDB, QEMU: QEMU + GDB 调试流程
+    HostGDB-&gt;&gt;QEMU: 连接请求 (target remote localhost:1234)
+    QEMU--&gt;&gt;HostGDB: 连接确认
+    HostGDB-&gt;&gt;QEMU: 设置断点 (b start_kernel)
+    QEMU-&gt;&gt;GuestKernel: (通过 GDB Stub) 在 start_kernel 设置断点
+    HostGDB-&gt;&gt;QEMU: 继续执行 (c)
+    QEMU-&gt;&gt;GuestKernel: 恢复虚拟机执行
+    Note right of GuestKernel: 内核执行...
+    GuestKernel-&gt;&gt;QEMU: 触发断点 (到达 start_kernel)
+    QEMU--&gt;&gt;HostGDB: 报告断点命中
+    HostGDB-&gt;&gt;QEMU: 请求变量值 (p init_task)
+    QEMU-&gt;&gt;GuestKernel: (通过 GDB Stub) 读取 init_task 内存
+    GuestKernel--&gt;&gt;QEMU: 返回内存值
+    QEMU--&gt;&gt;HostGDB: 发送变量值
+    Note over HostGDB, QEMU: ...重复交互...
+</div>
+
+<h2 id="5-崩溃转储：kdump-留现场，crash-做事后复盘">5. 崩溃转储：kdump 留现场，crash 做事后复盘<a class="hlink" data-h="5-崩溃转储：kdump-留现场，crash-做事后复盘" href="#5-崩溃转储：kdump-留现场，crash-做事后复盘" title="跳到本节">¶</a></h2><p>当内核发生严重错误导致系统崩溃 (Panic) 时，如果配置了 <code>kdump</code>，系统可以在主内核崩溃后启动一个独立的、小型的“捕获内核”(Capture Kernel)，将主内核崩溃时的内存镜像保存到磁盘或网络。之后，可以使用 <code>crash</code> 工具对这个内存转储文件 (vmcore) 进行事后分析。我进 crash 后第一件事是敲 log，先把 Panic 消息和前面的警告读完，再看 bt。</p>
+<h3 id="5-1-kdump：预留内存启动捕获内核">5.1 kdump：预留内存启动捕获内核<a class="hlink" data-h="5-1-kdump：预留内存启动捕获内核" href="#5-1-kdump：预留内存启动捕获内核" title="跳到本节">¶</a></h3><ul>
+<li><p><strong>工作原理</strong>:</p>
+<ol>
+<li><strong>预留内存</strong>: 系统启动时，主内核会预留一小部分物理内存供捕获内核使用。</li>
+<li><strong>加载捕获内核</strong>: <code>kdump</code> 服务会将捕获内核镜像和 initramfs 加载到预留内存中。</li>
+<li><strong>崩溃触发</strong>: 当主内核发生 Panic 时，它会跳转到预加载的捕获内核入口点。</li>
+<li><strong>捕获内核启动</strong>: 捕获内核启动，它拥有自己独立的环境，不会使用主内核崩溃时的内存（除了读取）。</li>
+<li><strong>转储内存</strong>: 捕获内核通过 <code>/proc/vmcore</code> 接口访问主内核崩溃时的物理内存内容，并将其写入配置的目标位置（如本地文件系统 <code>/var/crash</code> 或通过 NFS&#x2F;SSH 传输到远程服务器）。</li>
+<li><strong>重启</strong>: 转储完成后，系统通常会重启。</li>
+</ol>
+</li>
+<li><p><strong>配置 (以 RHEL&#x2F;CentOS&#x2F;Fedora 为例)</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装 kdump 工具</span></span><br><span class="line"><span class="built_in">sudo</span> yum install kexec-tools crash</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置预留内存 (编辑 /etc/default/grub，修改 GRUB_CMDLINE_LINUX)</span></span><br><span class="line"><span class="comment"># 添加 crashkernel=auto 或 crashkernel=XM (如 crashkernel=128M)</span></span><br><span class="line"><span class="comment"># 例如: GRUB_CMDLINE_LINUX=&quot;... rhgb quiet crashkernel=auto&quot;</span></span><br><span class="line"><span class="built_in">sudo</span> grub2-mkconfig -o /boot/grub2/grub.cfg <span class="comment"># 或 /boot/efi/EFI/redhat/grub.cfg</span></span><br><span class="line"><span class="comment"># 重启使内存预留生效</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置转储目标 (编辑 /etc/kdump.conf)</span></span><br><span class="line"><span class="comment"># path /var/crash  # 本地路径</span></span><br><span class="line"><span class="comment"># core_collector makedumpfile -l --message-level 1 -d 31 # 压缩并过滤掉不需要的页</span></span><br><span class="line"><span class="comment"># default reboot # 转储后默认操作</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用并启动 kdump 服务</span></span><br><span class="line"><span class="built_in">sudo</span> systemctl <span class="built_in">enable</span> kdump.service</span><br><span class="line"><span class="built_in">sudo</span> systemctl start kdump.service</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>测试 <code>kdump</code></strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 手动触发 Panic (危险操作，仅用于测试！)</span></span><br><span class="line"><span class="built_in">echo</span> c | <span class="built_in">sudo</span> <span class="built_in">tee</span> /proc/sysrq-trigger</span><br></pre></td></tr></table></figure>
+<p>系统应该会崩溃，然后启动捕获内核进行转储，最后重启。检查 <code>/var/crash</code> 目录下是否生成了 <code>vmcore</code> 文件。</p>
+</li>
+</ul>
+<h3 id="5-2-crash：从-vmcore-里还原崩溃现场">5.2 crash：从 vmcore 里还原崩溃现场<a class="hlink" data-h="5-2-crash：从-vmcore-里还原崩溃现场" href="#5-2-crash：从-vmcore-里还原崩溃现场" title="跳到本节">¶</a></h3><p><code>crash</code> 是一个强大的交互式工具，用于分析 <code>kdump</code> 生成的 <code>vmcore</code> 文件或实时运行的内核。</p>
+<ul>
+<li><p><strong>启动 <code>crash</code></strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 分析 vmcore 文件</span></span><br><span class="line">crash /path/to/debug/vmlinux /path/to/vmcore</span><br><span class="line"><span class="comment"># 或者分析当前运行的内核 (需要 root)</span></span><br><span class="line"><span class="comment"># crash</span></span><br></pre></td></tr></table></figure>
+<p>需要提供带调试信息的内核镜像 (<code>vmlinux</code>) 和 <code>vmcore</code> 文件。</p>
+</li>
+<li><p><strong>常用命令</strong>:</p>
+<ul>
+<li><code>log</code> 或 <code>dmesg</code>: 查看崩溃时的内核日志缓冲区。<strong>通常是分析的第一步！</strong></li>
+<li><code>bt</code>: 查看崩溃时所有 CPU 上活动进程的调用栈 (backtrace)。<code>bt -a</code> 查看所有进程。<code>bt &lt;PID&gt;</code> 查看特定进程。</li>
+<li><code>ps</code>: 查看崩溃时的进程列表。</li>
+<li><code>files &lt;PID&gt;</code>: 查看特定进程打开的文件。</li>
+<li><code>vm &lt;PID&gt;</code>: 查看特定进程的内存映射信息 (VMA)。</li>
+<li><code>struct &lt;struct_name&gt; &lt;address&gt;</code>: 按结构体格式解析内存地址。例如 <code>struct task_struct ffff88810abcde00</code>。</li>
+<li><code>rd &lt;address&gt; &lt;count&gt;</code>: 读取内存 (read memory)。</li>
+<li><code>wr &lt;address&gt; &lt;value&gt;</code>: 写入内存 (write memory, 仅限实时内核，危险)。</li>
+<li><code>sym &lt;symbol_name&gt;</code>: 查看符号地址或名称。</li>
+<li><code>kmem -i</code>: 查看内存使用统计。</li>
+<li><code>kmem -s &lt;address&gt;</code>: 查看 Slab 缓存信息。</li>
+<li><code>net</code>: 查看网络相关信息 (socket, sk_buff)。</li>
+<li><code>mod</code>: 查看加载的模块信息。</li>
+<li><code>help</code>: 获取帮助。<code>help &lt;command&gt;</code> 查看特定命令帮助。</li>
+<li><code>q</code>: 退出。</li>
+</ul>
+</li>
+<li><p><strong>常用命令 (补充)</strong>:</p>
+<ul>
+<li><code>p &lt;symbol_name&gt;</code>: 打印符号的值 (通常是地址)。</li>
+<li><code>*&lt;address&gt;</code>: 解引用地址，显示该地址处的值 (类似 C 的 <code>*</code>)。</li>
+<li><code>struct &lt;struct_name&gt;.&lt;member&gt; &lt;address&gt;</code>: 直接访问结构体成员。例如 <code>struct task_struct.pid ffff88810abcde00</code>。</li>
+<li><code>list &lt;address&gt;</code>: 反汇编指定地址周围的代码。<code>list &lt;function_name&gt;</code> 反汇编函数。</li>
+<li><code>foreach bt</code>: 显示所有进程的调用栈。</li>
+<li><code>foreach ps</code>: 显示所有进程信息。</li>
+<li><code>timer</code>: 查看定时器队列。</li>
+<li><code>irq</code>: 查看中断相关信息。</li>
+<li><code>dev</code>: 查看设备相关信息。</li>
+<li><code>mount</code>: 查看挂载的文件系统信息。</li>
+<li><code>search &lt;value&gt;</code>: 在内存中搜索特定值。</li>
+<li><code>whatis &lt;address_or_symbol&gt;</code>: 显示地址或符号所属的内存区域或数据结构类型。</li>
+<li><code>extend /path/to/crash_extension.so</code>: 加载 <code>crash</code> 扩展模块，提供额外命令（例如，特定驱动或子系统的分析命令）。许多内核子系统（如 <code>drbd</code>, <code>lustre</code>）提供自己的 <code>crash</code> 扩展。</li>
+</ul>
+</li>
+<li><p><strong>分析流程示例 (更详细)</strong>:</p>
+<ol>
+<li><strong>启动 <code>crash</code></strong>: <code>crash vmlinux vmcore</code>。</li>
+<li><strong>查看 Panic 信息和日志</strong>: <code>log</code> 或 <code>dmesg</code>。仔细阅读 Panic 消息、OOPS 信息以及之前的警告或错误。记录关键函数名、地址、错误码。</li>
+<li><strong>查看崩溃时的调用栈</strong>: <code>bt</code>。关注导致崩溃的 CPU 上的栈。如果栈不清晰或损坏，尝试 <code>bt -f</code> (强制回溯) 或 <code>bt -F</code> (使用 Frame Pointer)。</li>
+<li><strong>识别关键函数和地址</strong>: 从调用栈和日志中找出可疑的函数调用。使用 <code>sym &lt;address&gt;</code> 或 <code>whatis &lt;address&gt;</code> 确认地址对应的符号。</li>
+<li><strong>检查函数参数和局部变量</strong>: 切换到可疑的栈帧 (<code>set &lt;frame_number&gt;</code>)，使用 <code>info args</code> 和 <code>info locals</code> 查看参数和局部变量值 (需要调试信息)。如果不可用，尝试根据汇编代码和寄存器值 (<code>bt -r</code>) 手动推断。</li>
+<li><strong>检查相关数据结构</strong>: 使用 <code>struct &lt;name&gt; &lt;addr&gt;</code> 或 <code>p &lt;variable&gt;</code> 检查调用栈中涉及的关键数据结构（如 <code>task_struct</code>, <code>sk_buff</code>, <code>inode</code> 等）的内容。特别关注指针是否为 NULL 或无效地址 (如 0xdeadbeef)。</li>
+<li><strong>反汇编代码</strong>: 使用 <code>list &lt;function&gt;</code> 或 <code>list &lt;address&gt;</code> 查看崩溃点附近的汇编代码，结合源代码理解执行逻辑。</li>
+<li><strong>查看系统状态</strong>: 使用 <code>ps</code>, <code>kmem -i</code>, <code>files</code>, <code>net</code>, <code>mount</code> 等命令了解崩溃时的整体系统状态，判断是否与资源耗尽、特定进程行为等有关。</li>
+<li><strong>关联源代码</strong>: 打开内核源代码，对照 <code>crash</code> 中看到的信息，逐步跟踪代码逻辑，找出导致错误的条件。</li>
+<li><strong>迭代分析</strong>: 根据发现的信息，提出假设，然后使用 <code>crash</code> 命令进一步验证或排除假设。</li>
+</ol>
+</li>
+<li><p><strong>优点</strong>: 事后分析，不影响线上系统运行；可以全面检查崩溃时的内核状态。</p>
+</li>
+<li><p><strong>缺点</strong>: 需要预先配置 <code>kdump</code>；<code>vmcore</code> 文件可能很大；分析需要对内核有较深理解和经验。</p>
+</li>
+</ul>
+<h2 id="6-内存调试：开发用-KASAN，生产用-KFENCE">6. 内存调试：开发用 KASAN，生产用 KFENCE<a class="hlink" data-h="6-内存调试：开发用-KASAN，生产用-KFENCE" href="#6-内存调试：开发用-KASAN，生产用-KFENCE" title="跳到本节">¶</a></h2><p>内存错误（如 use-after-free, buffer overflow）是内核中最常见和最危险的 Bug 之一。内核提供了多种工具来帮助检测这些问题。我一般开发和测试阶段直接上 KASAN，只有要看生产环境的低概率问题才换成 KFENCE。</p>
+<h3 id="6-1-KASAN：影子内存加插桩，检测最强">6.1 KASAN：影子内存加插桩，检测最强<a class="hlink" data-h="6-1-KASAN：影子内存加插桩，检测最强" href="#6-1-KASAN：影子内存加插桩，检测最强" title="跳到本节">¶</a></h3><ul>
+<li><strong>原理</strong>: 基于编译时插桩技术，在内存访问指令（读、写）之前插入检查代码。它将内核内存映射区域划分为正常内存和影子内存 (shadow memory)。影子内存中的字节对应正常内存的状态（是否可用、是否已释放等）。访问内存时，检查影子内存以判断访问是否合法。</li>
+<li><strong>检测能力</strong>: 可以检测 use-after-free, heap buffer overflow&#x2F;underflow, stack buffer overflow, global buffer overflow, use-after-return, use-after-scope 等多种内存错误。</li>
+<li><strong>类型</strong>:<ul>
+<li><strong>Generic KASAN</strong>: 通用模式，支持 SLUB 和 SLAB 分配器。</li>
+<li><strong>Software Tag-Based KASAN</strong>: 利用 ARMv8.5 MTE (Memory Tagging Extension) 或 SPARC ADI (Application Data Integrity) 硬件特性，性能开销更低。</li>
+<li><strong>Hardware Tag-Based KASAN</strong>: 依赖硬件 MTE，开销最低。</li>
+</ul>
+</li>
+<li><strong>启用</strong>: 内核配置选项 <code>CONFIG_KASAN=y</code>，并选择 KASAN 类型。通常还需要关闭 <code>CONFIG_SLAB</code> 并使用 <code>CONFIG_SLUB=y</code> (对于 Generic KASAN)。</li>
+<li><strong>优点</strong>: 检测能力强，报告详细（包含分配和释放时的调用栈）。</li>
+<li><strong>缺点</strong>: 性能开销和内存开销较大（尤其是 Generic KASAN），通常只在调试版本中启用。</li>
+</ul>
+<h3 id="6-2-KFENCE：采样加保护页，开销极低">6.2 KFENCE：采样加保护页，开销极低<a class="hlink" data-h="6-2-KFENCE：采样加保护页，开销极低" href="#6-2-KFENCE：采样加保护页，开销极低" title="跳到本节">¶</a></h3><ul>
+<li><strong>原理</strong>: 一种低开销的内存安全错误检测器。它在 SLUB&#x2F;SLAB 分配器的基础上，采样性地将部分内存分配请求重定向到一个特殊的内存区域。在这个区域中，每个分配的对象前后都放置了保护页 (guard pages)。访问这些保护页会触发 Page Fault。</li>
+<li><strong>检测能力</strong>: 可以检测 use-after-free 和 buffer overflow&#x2F;underflow。</li>
+<li><strong>启用</strong>: 内核配置选项 <code>CONFIG_KFENCE=y</code>。</li>
+<li><strong>优点</strong>: 性能开销和内存开销极低，可以用于生产环境，旨在捕获那些在常规测试中难以发现的低概率内存错误。</li>
+<li><strong>缺点</strong>: 采样性质意味着它不能保证检测到所有错误，只检测被采样到的分配。报告信息可能不如 KASAN 详细。</li>
+</ul>
+<h3 id="6-3-SLUB-SLAB-Debug：红区与-Poisoning">6.3 SLUB&#x2F;SLAB Debug：红区与 Poisoning<a class="hlink" data-h="6-3-SLUB-SLAB-Debug：红区与-Poisoning" href="#6-3-SLUB-SLAB-Debug：红区与-Poisoning" title="跳到本节">¶</a></h3><p>SLUB 和 SLAB 分配器自身也提供了一些调试选项，用于检测内存损坏和泄漏。</p>
+<ul>
+<li><strong>启用</strong>: 通过内核配置选项 (<code>CONFIG_SLUB_DEBUG=y</code>, <code>CONFIG_SLAB_DEBUG_OPTIONS=y</code>) 或内核启动参数 (<code>slub_debug</code>, <code>slab_flags</code>)。</li>
+<li><strong>功能</strong>:<ul>
+<li><strong>Red zoning</strong>: 在对象前后添加红色区域，检测溢出。</li>
+<li><strong>Poisoning</strong>: 在分配和释放时用特定模式填充内存，检测 use-after-free 或未初始化使用。</li>
+<li><strong>Tracking</strong>: 跟踪对象的分配和释放调用栈，帮助定位内存泄漏。</li>
+</ul>
+</li>
+<li><strong>优点</strong>: 集成在内存分配器中，相对 KASAN 开销较低。</li>
+<li><strong>缺点</strong>: 检测能力不如 KASAN 全面，可能需要手动检查日志或 <code>/proc/slabinfo</code>。</li>
+</ul>
+<p><strong>选择</strong>:</p>
+<ul>
+<li>对于<strong>开发和测试阶段</strong>，优先使用 <strong>KASAN</strong> 以获得最强的检测能力。</li>
+<li>对于<strong>生产环境</strong>或需要<strong>低开销</strong>检测，使用 <strong>KFENCE</strong>。</li>
+<li><strong>SLUB&#x2F;SLAB Debug</strong> 可作为补充，或在无法使用 KASAN&#x2F;KFENCE 时使用。</li>
+</ul>
+<h2 id="7-高级探测：SystemTap-脚本化，eBPF-靠验证器兜底">7. 高级探测：SystemTap 脚本化，eBPF 靠验证器兜底<a class="hlink" data-h="7-高级探测：SystemTap-脚本化，eBPF-靠验证器兜底" href="#7-高级探测：SystemTap-脚本化，eBPF-靠验证器兜底" title="跳到本节">¶</a></h2><p>这两个工具提供了更灵活、更强大的内核探测能力，允许用户编写脚本或程序来动态地分析和修改内核行为。我选型时通常先问一句：有没有现成的 tracepoint？有的话就不必上 kprobe。</p>
+<h3 id="7-1-SystemTap：-stp-脚本编译成模块">7.1 SystemTap：.stp 脚本编译成模块<a class="hlink" data-h="7-1-SystemTap：-stp-脚本编译成模块" href="#7-1-SystemTap：-stp-脚本编译成模块" title="跳到本节">¶</a></h3><ul>
+<li><p><strong>工作原理</strong>: 用户编写 <code>.stp</code> 脚本，<code>stap</code> 工具将脚本编译成内核模块，加载到内核中执行探测和数据收集，然后卸载模块。它使用 <code>kprobes</code> 等机制来放置探针。</p>
+</li>
+<li><p><strong>优点</strong>: 脚本语言相对易学，可以方便地访问内核变量和数据结构，适合快速原型开发和特定问题分析。</p>
+</li>
+<li><p><strong>缺点</strong>: 需要内核编译时开启 <code>CONFIG_DEBUG_INFO</code> 和 <code>CONFIG_KPROBES</code> 等选项，并且通常需要安装对应的 <code>kernel-debuginfo</code> 包。编译脚本和加载模块有一定开销。安全性模型不如 eBPF 严格。</p>
+</li>
+<li><p><strong>示例脚本 (<code>hello.stp</code>)</strong>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">probe kernel.function(&quot;SyS_open&quot;) &#123;</span><br><span class="line">  printf(&quot;Process %s (%d) opened file: %s\\n&quot;, execname(), pid(), kernel_string($filename));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">probe timer.ms(1000) &#123;</span><br><span class="line">  printf(&quot;One second passed.\\n&quot;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>运行: <code>sudo stap hello.stp</code></p>
+</li>
+<li><p><strong>示例脚本 (更多)</strong>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">// 监控特定进程的文件打开</span><br><span class="line">probe syscall.open &#123;</span><br><span class="line">  if (pid() == target()) &#123; // target() 是 stap 命令行 -x PID 或 -c CMD 的进程 ID</span><br><span class="line">    printf(\\\&quot;%s(%d) open \\\\\\\&quot;%s\\\\\\\&quot; flags=%d mode=%o\\n\\\&quot;,\n               execname(), pid(), filename, flags, mode);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">// 统计 kmalloc 调用大小分布</span><br><span class="line">global alloc_sizes;</span><br><span class="line">probe kernel.function(\\\&quot;__kmalloc\\\&quot;) &#123;</span><br><span class="line">  alloc_sizes[caller()] &lt;&lt;&lt; $size; // &lt;&lt;&lt; 聚合操作，记录每次调用的 size</span><br><span class="line">&#125;</span><br><span class="line">probe end &#123;</span><br><span class="line">  foreach (func in alloc_sizes) &#123;</span><br><span class="line">    print_hist(alloc_sizes[func]); // 打印直方图</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h3 id="7-2-eBPF：验证器保安全，CO-RE-保可移植">7.2 eBPF：验证器保安全，CO-RE 保可移植<a class="hlink" data-h="7-2-eBPF：验证器保安全，CO-RE-保可移植" href="#7-2-eBPF：验证器保安全，CO-RE-保可移植" title="跳到本节">¶</a></h3><ul>
+<li><strong>工作原理</strong>: <code>eBPF</code> 允许在内核中运行用户编写的、经过<strong>验证器 (Verifier)</strong> 检查以确保安全的字节码程序。这些程序可以在各种**钩子点 (Hook Points)**（如 tracepoints, kprobes, network events, perf events）触发执行，用于收集信息、修改行为等。</li>
+<li><strong>生态系统</strong>:<ul>
+<li><strong>BCC (BPF Compiler Collection)</strong>: 提供 Python&#x2F;Lua 等前端，简化 eBPF 程序的编写、加载和交互。包含大量实用的预制工具。</li>
+<li><strong>bpftrace</strong>: 提供类似 <code>awk</code> 或 <code>dtrace</code> 的高级追踪语言，用于快速编写 eBPF 追踪脚本。</li>
+<li><strong>libbpf + CO-RE</strong>: C 库 (<code>libbpf</code>) 结合 BTF (BPF Type Format) 调试信息，实现 **CO-RE (Compile Once - Run Everywhere)**。这是现代 eBPF 开发的主流方式，允许预编译的 eBPF 程序在不同内核版本上运行，大大提高了可移植性。</li>
+</ul>
+</li>
+<li><strong>优点</strong>:<ul>
+<li><strong>安全</strong>: 内核验证器确保 eBPF 程序不会导致内核崩溃或死循环。</li>
+<li><strong>高效</strong>: JIT 编译器将 eBPF 字节码编译成本地机器码执行。</li>
+<li><strong>灵活强大</strong>: 支持多种钩子点，可以通过 Maps 在内核和用户空间共享数据，甚至修改内核行为（如 XDP）。</li>
+<li><strong>可移植性 (CO-RE)</strong>: 使用 libbpf 和 BTF 可以编写一次，到处运行。</li>
+<li><strong>社区活跃</strong>: 发展迅速，工具链和应用场景不断丰富。</li>
+</ul>
+</li>
+<li><strong>缺点</strong>: 学习曲线较陡峭（尤其是直接编写 C 程序或理解验证器规则），需要较新版本的内核支持。</li>
+<li><strong>示例 (<code>bpftrace</code> 更多)</strong>:<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 追踪所有分配大于 1KB 的 kmalloc 调用，并显示调用栈</span></span><br><span class="line"><span class="built_in">sudo</span> bpftrace -e \\\&#x27;kprobe:__kmalloc /args-&gt;size &gt; 1024/ &#123; <span class="built_in">printf</span>(\\\&quot;kmalloc size %d\\\\n\\\&quot;, args-&gt;size); kstack(); &#125;\\\&#x27;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 统计每个 CPU 上的软中断处理次数</span></span><br><span class="line"><span class="built_in">sudo</span> bpftrace -e \\\&#x27;tracepoint:irq:softirq_entry &#123; @counts[cpu, args-&gt;vec] = count(); &#125;\\\&#x27;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 计算系统调用耗时直方图 (微妙)</span></span><br><span class="line"><span class="built_in">sudo</span> bpftrace -e \\\&#x27;tracepoint:raw_syscalls:sys_enter &#123; @start[tid] = nsecs; &#125; tracepoint:raw_syscalls:sys_exit /@start[tid]/ &#123; @syscall_latency[<span class="built_in">comm</span>] = hist((nsecs - @start[tid]) / <span class="number">1000</span>); delete(@start[tid]); &#125;\\\&#x27;</span><br></pre></td></tr></table></figure></li>
+<li><strong>示例 (BCC - 更多工具)</strong>:<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装 bcc-tools</span></span><br><span class="line"><span class="comment"># sudo apt install bpfcc-tools / sudo yum install bcc-tools</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪新创建的进程</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/execsnoop</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪打开的文件</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/opensnoop</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪块设备 I/O 延迟</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/biolatency</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪 TCP 连接</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/tcptracer</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪 TCP 重传</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/tcpretrans</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪文件系统同步操作</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/syncsnoop</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪内核函数调用延迟</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/funclatency do_sys_open</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪 CPU 运行队列延迟</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/runqlat</span><br><span class="line"></span><br><span class="line"><span class="comment"># 追踪内存分配失败</span></span><br><span class="line"><span class="built_in">sudo</span> /usr/share/bcc/tools/memleak -a <span class="comment"># -a 显示每次分配</span></span><br></pre></td></tr></table></figure></li>
+</ul>
+<h2 id="8-工具选择：按问题场景对号入座">8. 工具选择：按问题场景对号入座<a class="hlink" data-h="8-工具选择：按问题场景对号入座" href="#8-工具选择：按问题场景对号入座" title="跳到本节">¶</a></h2><p>面对众多的调试工具，如何选择合适的工具取决于具体的问题场景。我一般按下面这张表从上往下试，先简单后复杂，别一上来就架 kgdb——多数问题在前面几节就能定位。</p>
+<table>
+<thead>
+<tr>
+<th align="left">场景</th>
+<th align="left">推荐工具</th>
+<th align="left">备选&#x2F;补充工具</th>
+<th align="left">说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><strong>快速检查变量值&#x2F;简单流程</strong></td>
+<td align="left"><code>printk</code>, <code>pr_debug</code>&#x2F;<code>dev_dbg</code> (<code>dynamic_debug</code>)</td>
+<td align="left"><code>dump_stack</code></td>
+<td align="left">最简单直接，但需要修改代码和重新编译（<code>dynamic_debug</code> 除外）。</td>
+</tr>
+<tr>
+<td align="left"><strong>查看系统状态&#x2F;统计信息</strong></td>
+<td align="left"><code>/proc</code>, <code>/sys</code></td>
+<td align="left"><code>perf stat</code>, <code>crash</code> (实时模式)</td>
+<td align="left">查看 CPU、内存、进程、中断、模块等信息。</td>
+</tr>
+<tr>
+<td align="left"><strong>理解函数调用流程&#x2F;耗时</strong></td>
+<td align="left"><code>ftrace</code> (<code>function_graph</code> tracer)</td>
+<td align="left"><code>perf record -g</code>, <code>SystemTap</code>, <code>eBPF</code></td>
+<td align="left"><code>function_graph</code> 直观展示调用关系和时间。</td>
+</tr>
+<tr>
+<td align="left"><strong>定位性能瓶颈&#x2F;热点函数</strong></td>
+<td align="left"><code>perf record -g</code> + <code>perf report</code> &#x2F; 火焰图</td>
+<td align="left"><code>ftrace</code> (latency tracers), <code>SystemTap</code>, <code>eBPF</code></td>
+<td align="left"><code>perf</code> 采样是定位 CPU 密集型瓶颈的利器。</td>
+</tr>
+<tr>
+<td align="left"><strong>追踪特定内核事件 (系统调用、调度等)</strong></td>
+<td align="left"><code>ftrace</code> (event tracing), <code>perf trace</code>, <code>perf record -e &lt;tracepoint&gt;</code></td>
+<td align="left"><code>SystemTap</code>, <code>eBPF</code> (tracepoint)</td>
+<td align="left"><code>tracepoint</code> 开销低，API 稳定。</td>
+</tr>
+<tr>
+<td align="left"><strong>追踪任意内核函数&#x2F;地址</strong></td>
+<td align="left"><code>perf probe</code> + <code>perf record</code>, <code>ftrace</code> (kprobe event), <code>SystemTap</code>, <code>eBPF</code> (kprobe)</td>
+<td align="left"><code>gdb</code></td>
+<td align="left">基于 <code>kprobes</code>，更灵活但 API 可能不稳定。</td>
+</tr>
+<tr>
+<td align="left"><strong>需要单步执行&#x2F;检查复杂数据结构</strong></td>
+<td align="left"><code>gdb</code> + <code>kgdb</code>&#x2F;<code>QEMU</code></td>
+<td align="left"><code>crash</code> (分析 vmcore)</td>
+<td align="left">提供完整的源码级调试能力，但会暂停系统或依赖模拟。</td>
+</tr>
+<tr>
+<td align="left"><strong>分析内核崩溃 (Panic&#x2F;Oops)</strong></td>
+<td align="left"><code>crash</code> + <code>vmcore</code> (由 <code>kdump</code> 生成)</td>
+<td align="left"><code>dmesg</code>&#x2F;串口日志, <code>gdb</code> (如果能附加)</td>
+<td align="left">事后分析崩溃现场的最佳方式。</td>
+</tr>
+<tr>
+<td align="left"><strong>检测内存错误 (use-after-free, overflow)</strong></td>
+<td align="left">KASAN (开发&#x2F;测试), KFENCE (生产), SLUB&#x2F;SLAB Debug</td>
+<td align="left"><code>valgrind</code> (用户空间部分), <code>gdb</code></td>
+<td align="left">内存调试专用工具。</td>
+</tr>
+<tr>
+<td align="left"><strong>复杂&#x2F;定制化的动态分析或监控</strong></td>
+<td align="left"><code>eBPF</code> (BCC&#x2F;bpftrace&#x2F;libbpf), <code>SystemTap</code></td>
+<td align="left"><code>perf script</code>, <code>ftrace</code> + 脚本处理</td>
+<td align="left">提供强大的编程&#x2F;脚本能力进行深度分析。</td>
+</tr>
+<tr>
+<td align="left"><strong>早期启动&#x2F;Bootloader&#x2F;硬件相关问题</strong></td>
+<td align="left"><code>printk</code> (早期), <code>gdb</code> + <code>QEMU</code> (<code>-S</code>), JTAG</td>
+<td align="left">串口日志</td>
+<td align="left">需要在操作系统完全启动前介入。</td>
+</tr>
+</tbody></table>
+<p><strong>通用流程建议</strong>:</p>
+<ol>
+<li><strong>观察现象，收集信息</strong>: 查看 <code>dmesg</code>、系统日志、<code>/proc</code>, <code>/sys</code>，使用 <code>perf stat</code> 初步判断性能特征。</li>
+<li><strong>缩小范围</strong>: 使用 <code>ftrace</code> 或 <code>perf</code> 追踪相关事件或函数，定位可疑代码区域或瓶颈。</li>
+<li><strong>深入分析</strong>:<ul>
+<li>对于逻辑错误，使用 <code>gdb</code> 单步调试或 <code>printk</code> 打印关键变量。</li>
+<li>对于性能问题，使用 <code>perf report</code> 或火焰图分析热点。</li>
+<li>对于崩溃问题，使用 <code>crash</code> 分析 <code>vmcore</code>。</li>
+<li>对于内存问题，启用 KASAN&#x2F;KFENCE。</li>
+<li>对于复杂追踪，使用 <code>eBPF</code>&#x2F;<code>SystemTap</code>。</li>
+</ul>
+</li>
+<li><strong>验证修复</strong>: 修复问题后，使用之前的调试工具验证问题是否解决，性能是否恢复。</li>
+</ol>
+<h2 id="9-环境搭建：虚拟机加串口和符号是标配">9. 环境搭建：虚拟机加串口和符号是标配<a class="hlink" data-h="9-环境搭建：虚拟机加串口和符号是标配" href="#9-环境搭建：虚拟机加串口和符号是标配" title="跳到本节">¶</a></h2><p>我自己的习惯是先在 QEMU 里把 console&#x3D;ttyS0 配通，再谈别的调试手段——系统起不来的时候，串口往往是唯一能看到现场的地方。</p>
+<ul>
+<li><strong>虚拟机是首选</strong>: 使用 VirtualBox, VMware 或 QEMU+KVM。可以方便地创建快照、克隆环境、进行破坏性实验，并且易于设置 <code>gdb</code> 调试。</li>
+<li><strong>串口控制台</strong>: 即使不使用 <code>kgdb</code>，配置串口控制台（物理串口或虚拟机的模拟串口）也非常有用。当系统因图形驱动或网络问题无法访问时，串口通常是最后的救命稻草，可以看到内核启动日志和 Panic 信息。<ul>
+<li>QEMU: <code>-nographic -serial mon:stdio</code></li>
+<li>内核参数: <code>console=ttyS0,115200</code> (或相应的串口设备和波特率)</li>
+</ul>
+</li>
+<li><strong>调试符号</strong>: 始终保留与内核版本匹配的 <code>vmlinux</code> 文件（未压缩、带调试信息）。这是 <code>gdb</code> 和 <code>crash</code> 进行符号解析的基础。如果使用发行版内核，安装对应的 <code>kernel-debuginfo</code> 或 <code>linux-image-*-dbg</code> 包。</li>
+<li><strong>源码访问</strong>: 方便地访问内核源代码，用于 <code>gdb</code> 调试时查看代码，或结合追踪工具理解执行流程。<strong>使用 <code>ctags</code> 或 <code>cscope</code> 为源码建立索引，可以快速跳转和查找。</strong></li>
+</ul>
+<h2 id="10-落地建议：从-dmesg-起步，按场景往上加工具">10. 落地建议：从 dmesg 起步，按场景往上加工具<a class="hlink" data-h="10-落地建议：从-dmesg-起步，按场景往上加工具" href="#10-落地建议：从-dmesg-起步，按场景往上加工具" title="跳到本节">¶</a></h2><p>工具没有高低之分，只有合不合适：</p>
+<ul>
+<li>从简单的 <strong><code>printk</code></strong> 和 <strong><code>/proc</code>, <code>/sys</code></strong> 开始，了解基本信息。</li>
+<li>使用 <strong><code>ftrace</code></strong> 和 <strong><code>perf</code></strong> 进行动态追踪和性能分析，定位问题区域和瓶颈。</li>
+<li>当需要深入代码逻辑时，配置 <strong><code>gdb</code> + <code>kgdb</code>&#x2F;<code>QEMU</code></strong> 进行源码级调试。</li>
+<li>配置 <strong><code>kdump</code></strong> 并在发生崩溃时使用 <strong><code>crash</code></strong> 进行事后分析。</li>
+<li>利用 <strong>KASAN, KFENCE</strong> 等工具检测内存错误。</li>
+<li>对于复杂或需要高度定制化的探测，学习使用 <strong><code>SystemTap</code></strong> 或 <strong><code>eBPF</code></strong> (BCC&#x2F;bpftrace&#x2F;libbpf)。</li>
+<li>参考 <strong>工具选择指南</strong> 选择最适合当前问题的工具。</li>
+</ul>
+<p>下一步建议：挑一个能在 QEMU 里稳定复现的问题，按第 8 节的表从 <code>printk</code> 走到 <code>ftrace</code>，把这条链先跑通一遍；能复现、能观测，后面的工具才有意义。</p>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"14-内核调试工具与方法","description":"内核调试要解决的是「系统自己出了问题、而普通调试器插不上手」这类场景：驱动加载失败、系统无故重启、性能突然掉下来，或者进程在内核态卡死。","datePublished":"2026-11-07T00:00:00+08:00","dateModified":"2026-11-07T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/204754706.html"},"url":"https://zeek-zhao.github.io/posts/204754706.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"操作系统与机器人","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/"},{"@type":"ListItem","position":4,"name":"Linux","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/"},{"@type":"ListItem","position":5,"name":"14-内核调试工具与方法","item":"https://zeek-zhao.github.io/posts/204754706.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#1-内核调试概述：为什么它和用户态调试不是一回事" data-h="1-内核调试概述：为什么它和用户态调试不是一回事" class="">1. 内核调试概述：为什么它和用户态调试不是一回事</a>
+      
+        <a href="#1-1-五个典型场景" data-h="1-1-五个典型场景" class="l2">1.1 五个典型场景</a>
+      
+        <a href="#1-2-难点：Ring-0、不能停、并发与硬件耦合" data-h="1-2-难点：Ring-0、不能停、并发与硬件耦合" class="l2">1.2 难点：Ring 0、不能停、并发与硬件耦合</a>
+      
+        <a href="#1-3-六类方法：从日志打印到高级探测" data-h="1-3-六类方法：从日志打印到高级探测" class="l2">1.3 六类方法：从日志打印到高级探测</a>
+      
+        <a href="#2-基础调试技术：printk-打点、调用栈与动态开关" data-h="2-基础调试技术：printk-打点、调用栈与动态开关" class="">2. 基础调试技术：printk 打点、调用栈与动态开关</a>
+      
+        <a href="#2-1-printk：日志级别、缓冲区与指针修饰符" data-h="2-1-printk：日志级别、缓冲区与指针修饰符" class="l2">2.1 printk：日志级别、缓冲区与指针修饰符</a>
+      
+        <a href="#2-2-dump-stack：把调用路径打出来" data-h="2-2-dump-stack：把调用路径打出来" class="l2">2.2 dump_stack：把调用路径打出来</a>
+      
+        <a href="#2-3-dynamic-debug：运行时开关-pr-debug-打印点" data-h="2-3-dynamic-debug：运行时开关-pr-debug-打印点" class="l2">2.3 dynamic_debug：运行时开关 pr_debug 打印点</a>
+      
+        <a href="#2-4-proc-与-sys：不用改代码的状态入口" data-h="2-4-proc-与-sys：不用改代码的状态入口" class="l2">2.4 &#x2F;proc 与 &#x2F;sys：不用改代码的状态入口</a>
+      
+        <a href="#3-动态追踪：ftrace-看流程，perf-看热点" data-h="3-动态追踪：ftrace-看流程，perf-看热点" class="">3. 动态追踪：ftrace 看流程，perf 看热点</a>
+      
+        <a href="#3-1-ftrace：function-graph-与事件追踪" data-h="3-1-ftrace：function-graph-与事件追踪" class="l2">3.1 ftrace：function_graph 与事件追踪</a>
+      
+        <a href="#3-2-perf：stat-看计数，record-report-找热点" data-h="3-2-perf：stat-看计数，record-report-找热点" class="l2">3.2 perf：stat 看计数，record&#x2F;report 找热点</a>
+      
+        <a href="#3-3-底层机制：kprobes-灵活，tracepoints-稳定" data-h="3-3-底层机制：kprobes-灵活，tracepoints-稳定" class="l2">3.3 底层机制：kprobes 灵活，tracepoints 稳定</a>
+      
+        <a href="#4-源码级调试：gdb-借-kgdb-或-QEMU-打进内核" data-h="4-源码级调试：gdb-借-kgdb-或-QEMU-打进内核" class="">4. 源码级调试：gdb 借 kgdb 或 QEMU 打进内核</a>
+      
+        <a href="#4-1-kgdb：串口或网络把目标机交给-gdb" data-h="4-1-kgdb：串口或网络把目标机交给-gdb" class="l2">4.1 kgdb：串口或网络把目标机交给 gdb</a>
+      
+        <a href="#4-2-gdb-QEMU：一台机器上的源码级调试" data-h="4-2-gdb-QEMU：一台机器上的源码级调试" class="l2">4.2 gdb + QEMU：一台机器上的源码级调试</a>
+      
+        <a href="#4-3-JTAG：不依赖内核运行状态的最底层手段" data-h="4-3-JTAG：不依赖内核运行状态的最底层手段" class="l2">4.3 JTAG：不依赖内核运行状态的最底层手段</a>
+      
+        <a href="#5-崩溃转储：kdump-留现场，crash-做事后复盘" data-h="5-崩溃转储：kdump-留现场，crash-做事后复盘" class="">5. 崩溃转储：kdump 留现场，crash 做事后复盘</a>
+      
+        <a href="#5-1-kdump：预留内存启动捕获内核" data-h="5-1-kdump：预留内存启动捕获内核" class="l2">5.1 kdump：预留内存启动捕获内核</a>
+      
+        <a href="#5-2-crash：从-vmcore-里还原崩溃现场" data-h="5-2-crash：从-vmcore-里还原崩溃现场" class="l2">5.2 crash：从 vmcore 里还原崩溃现场</a>
+      
+        <a href="#6-内存调试：开发用-KASAN，生产用-KFENCE" data-h="6-内存调试：开发用-KASAN，生产用-KFENCE" class="">6. 内存调试：开发用 KASAN，生产用 KFENCE</a>
+      
+        <a href="#6-1-KASAN：影子内存加插桩，检测最强" data-h="6-1-KASAN：影子内存加插桩，检测最强" class="l2">6.1 KASAN：影子内存加插桩，检测最强</a>
+      
+        <a href="#6-2-KFENCE：采样加保护页，开销极低" data-h="6-2-KFENCE：采样加保护页，开销极低" class="l2">6.2 KFENCE：采样加保护页，开销极低</a>
+      
+        <a href="#6-3-SLUB-SLAB-Debug：红区与-Poisoning" data-h="6-3-SLUB-SLAB-Debug：红区与-Poisoning" class="l2">6.3 SLUB&#x2F;SLAB Debug：红区与 Poisoning</a>
+      
+        <a href="#7-高级探测：SystemTap-脚本化，eBPF-靠验证器兜底" data-h="7-高级探测：SystemTap-脚本化，eBPF-靠验证器兜底" class="">7. 高级探测：SystemTap 脚本化，eBPF 靠验证器兜底</a>
+      
+        <a href="#7-1-SystemTap：-stp-脚本编译成模块" data-h="7-1-SystemTap：-stp-脚本编译成模块" class="l2">7.1 SystemTap：.stp 脚本编译成模块</a>
+      
+        <a href="#7-2-eBPF：验证器保安全，CO-RE-保可移植" data-h="7-2-eBPF：验证器保安全，CO-RE-保可移植" class="l2">7.2 eBPF：验证器保安全，CO-RE 保可移植</a>
+      
+        <a href="#8-工具选择：按问题场景对号入座" data-h="8-工具选择：按问题场景对号入座" class="">8. 工具选择：按问题场景对号入座</a>
+      
+        <a href="#9-环境搭建：虚拟机加串口和符号是标配" data-h="9-环境搭建：虚拟机加串口和符号是标配" class="">9. 环境搭建：虚拟机加串口和符号是标配</a>
+      
+        <a href="#10-落地建议：从-dmesg-起步，按场景往上加工具" data-h="10-落地建议：从-dmesg-起步，按场景往上加工具" class="">10. 落地建议：从 dmesg 起步，按场景往上加工具</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

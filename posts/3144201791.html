@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>07-Sanitizer内存泄漏分析 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="C/C++ 里那些越界几字节释放后又用的问题，光靠 review 很难一眼看出来，我一般直接让编译器插桩来抓。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/3144201791.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="07-Sanitizer内存泄漏分析">
+<meta property="og:description" content="C/C++ 里那些越界几字节释放后又用的问题，光靠 review 很难一眼看出来，我一般直接让编译器插桩来抓。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3144201791.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="07-Sanitizer内存泄漏分析">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-14T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="操作系统与机器人">
+          <div class="sg-head">
+            <span>🤖</span><span>操作系统与机器人</span><span class="cnt">447 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Linux">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/" class=""><span>🐧</span><span>Linux</span><span class="cnt">129</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Linux 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1681936644.html" class="">01-EC20模块4G拨号与GPS定位开发</a>
+                  
+                    <a href="/posts/4083254943.html" class="">01-Linux安全子系统访问控制与隔离</a>
+                  
+                    <a href="/posts/2415137652.html" class="">01-Linux常用命令速查</a>
+                  
+                    <a href="/posts/533232104.html" class="">01-U-Boot基础与启动流程</a>
+                  
+                    <a href="/posts/3075951192.html" class="">01-Systemd核心组件架构与功能</a>
+                  
+                    <a href="/posts/228001063.html" class="">01-基础工具排查内存泄漏</a>
+                  
+                    <a href="/posts/2735785623.html" class="">01-工业控制器软硬件测试方案</a>
+                  
+                    <a href="/posts/419018602.html" class="">01-裸机开发流程与硬件操控</a>
+                  
+                    <a href="/posts/1072254920.html" class="">02-Linux系统网络配置方法与排障</a>
+                  
+                    <a href="/posts/299621239.html" class="">02-Linux电源管理子系统架构与调优</a>
+                  
+                    <a href="/posts/1221451.html" class="">02-U-Boot新板移植适配流程</a>
+                  
+                    <a href="/posts/4128798125.html" class="">02-systemd-analyze启动性能分析</a>
+                  
+                    <a href="/posts/3888100408.html" class="">02-内核功能与模块管理命令</a>
+                  
+                    <a href="/posts/1471709349.html" class="">02-外设接口测试指南</a>
+                  
+                    <a href="/posts/609416877.html" class="">02-嵌入式开发板硬件接口速查</a>
+                  
+                    <a href="/posts/711801502.html" class="">02-磁盘与文件系统管理</a>
+                  
+                    <a href="/posts/2990991122.html" class="">03-Linux进程管理调度与IPC机制</a>
+                  
+                    <a href="/posts/2680037132.html" class="">03-U-Boot源码结构与启动流程</a>
+                  
+                    <a href="/posts/101579121.html" class="">03-mmap内存映射原理与驱动实现</a>
+                  
+                    <a href="/posts/4216171518.html" class="">03-systemd服务配置与管理</a>
+                  
+                    <a href="/posts/2319334978.html" class="">03-内核基础编译与模块开发</a>
+                  
+                    <a href="/posts/3923580784.html" class="">03-各类工具代理配置</a>
+                  
+                    <a href="/posts/3161741332.html" class="">03-开发板SSH默认端口修改与安全连接</a>
+                  
+                    <a href="/posts/3641886687.html" class="">03-网络测试指南</a>
+                  
+                    <a href="/posts/3785836924.html" class="">04-systemd核心概念与基础</a>
+                  
+                    <a href="/posts/3734120973.html" class="">04-内存管理子系统的层次与机制</a>
+                  
+                    <a href="/posts/972888713.html" class="">04-内核编译与模块功能定制</a>
+                  
+                    <a href="/posts/3751178843.html" class="">04-开发板Linux下修改MAC地址</a>
+                  
+                    <a href="/posts/1112658189.html" class="">04-根文件系统开发实践</a>
+                  
+                    <a href="/posts/1854171497.html" class="">04-芯片四大组件性能测试与选型</a>
+                  
+                    <a href="/posts/262344998.html" class="">04-驱动开发概念分类与架构流程</a>
+                  
+                    <a href="/posts/1094537113.html" class="">05-IMA完整性测量架构与配置</a>
+                  
+                    <a href="/posts/2881050404.html" class="">05-kmemleak内核内存泄漏检测</a>
+                  
+                    <a href="/posts/1992174196.html" class="">05-systemd启动流程与机制</a>
+                  
+                    <a href="/posts/3908546189.html" class="">05-内核架构与子系统协作</a>
+                  
+                    <a href="/posts/3140138007.html" class="">05-根文件系统类型与构建方法</a>
+                  
+                    <a href="/posts/2172472796.html" class="">05-音频设备测试与故障排查</a>
+                  
+                    <a href="/posts/2557508733.html" class="">05-驱动开发框架与通用子系统</a>
+                  
+                    <a href="/posts/862017958.html" class="">06-ICM20608六轴传感器驱动移植</a>
+                  
+                    <a href="/posts/4115811846.html" class="">06-Linux基础术语与核心概念</a>
+                  
+                    <a href="/posts/2015394678.html" class="">06-S3C2440时钟体系与寄存器配置</a>
+                  
+                    <a href="/posts/1758255262.html" class="">06-journald日志查询与管理</a>
+                  
+                    <a href="/posts/45575455.html" class="">06-mtrace内存泄漏分析技巧</a>
+                  
+                    <a href="/posts/3755082214.html" class="">06-内核同步机制与并发控制</a>
+                  
+                    <a href="/posts/3813382677.html" class="">07-Linux计划任务配置与选型</a>
+                  
+                    <a href="/posts/1886591968.html" class="">07-Linux设备驱动模型核心机制</a>
+                  
+                    <a href="/posts/3144201791.html" class="active">07-Sanitizer内存泄漏分析</a>
+                  
+                    <a href="/posts/1893451115.html" class="">07-systemd架构与服务管理</a>
+                  
+                    <a href="/posts/992563292.html" class="">07-内核子系统总览</a>
+                  
+                    <a href="/posts/2252012541.html" class="">07-裸机点亮LED与GPIO寄存器操作</a>
+                  
+                    <a href="/posts/2494136140.html" class="">08-Linux图像设备V4L2开发</a>
+                  
+                    <a href="/posts/2551125294.html" class="">08-TCMalloc内存分配器与内存泄漏分析</a>
+                  
+                    <a href="/posts/286299626.html" class="">08-网络协议与通信原理</a>
+                  
+                    <a href="/posts/2856475980.html" class="">08-裸机交叉编译工具链与链接脚本</a>
+                  
+                    <a href="/posts/423458188.html" class="">08-设备驱动模型与开发实践</a>
+                  
+                    <a href="/posts/4014961628.html" class="">09-Linux网卡流量统计工具选型与用法</a>
+                  
+                    <a href="/posts/4142321600.html" class="">09-Ubuntu2004禁止自动休眠的几种方式</a>
+                  
+                    <a href="/posts/1114536982.html" class="">09-内存管理基础</a>
+                  
+                    <a href="/posts/1702870561.html" class="">09-时间子系统原理与实现</a>
+                  
+                    <a href="/posts/729158944.html" class="">09-设备树DTS语法与内核解析</a>
+                  
+                    <a href="/posts/1720365042.html" class="">10-GPIO三种操作方式与设备树配置</a>
+                  
+                    <a href="/posts/1524901879.html" class="">10-Valgrind内存泄漏分析实战</a>
+                  
+                    <a href="/posts/683186726.html" class="">10-内存泄漏分析与定位流程</a>
+                  
+                    <a href="/posts/1370598446.html" class="">10-图形子系统架构与渲染栈</a>
+                  
+                    <a href="/posts/1626889410.html" class="">10-设备树架构与内核处理流程</a>
+                  
+                    <a href="/posts/1631881322.html" class="">11-CAN总线SocketCAN与CANopen开发</a>
+                  
+                    <a href="/posts/3507320406.html" class="">11-内存泄漏概念检测与修复</a>
+                  
+                    <a href="/posts/2395844944.html" class="">11-网络子系统架构与数据包流程</a>
+                  
+                    <a href="/posts/3827344601.html" class="">11-设备树开发流程与驱动实践</a>
+                  
+                    <a href="/posts/2542203250.html" class="">12-Flash驱动开发与MTD测试体系</a>
+                  
+                    <a href="/posts/3601506011.html" class="">12-嵌入式设备烧录与自动烧录SD卡</a>
+                  
+                    <a href="/posts/1249611102.html" class="">12-文件系统VFS架构与调优</a>
+                  
+                    <a href="/posts/3302243246.html" class="">12-设备树语法规则与节点属性</a>
+                  
+                    <a href="/posts/4232086438.html" class="">13-I2C协议与驱动开发调试</a>
+                  
+                    <a href="/posts/1745770341.html" class="">13-系统调用接口与陷入机制</a>
+                  
+                    <a href="/posts/3541193669.html" class="">13-设备树源码与内核实现</a>
+                  
+                    <a href="/posts/1932562151.html" class="">13-软件包管理工具与依赖排障</a>
+                  
+                    <a href="/posts/3679683762.html" class="">14-kmod工具集与内核模块管理</a>
+                  
+                    <a href="/posts/204754706.html" class="">14-内核调试工具与方法</a>
+                  
+                    <a href="/posts/337401038.html" class="">14-虚拟化子系统架构与实现</a>
+                  
+                    <a href="/posts/3619291073.html" class="">14-网络编程基础与高性能实践</a>
+                  
+                    <a href="/posts/30952159.html" class="">15-PWM子系统与三种开发方式</a>
+                  
+                    <a href="/posts/3428022739.html" class="">15-内核体系结构与学习路径</a>
+                  
+                    <a href="/posts/1156349833.html" class="">15-网络调试工具与防火墙配置</a>
+                  
+                    <a href="/posts/2084393826.html" class="">15-虚拟文件系统VFS架构与缓存</a>
+                  
+                    <a href="/posts/1492466562.html" class="">16-Linux网络基础与协议栈</a>
+                  
+                    <a href="/posts/1443612112.html" class="">16-RPMSG核间通信与开发流程</a>
+                  
+                    <a href="/posts/64163175.html" class="">16-中断处理子系统与上下半部</a>
+                  
+                    <a href="/posts/1662370678.html" class="">17-Linux网络配置与故障排查</a>
+                  
+                    <a href="/posts/3499888327.html" class="">17-RTC驱动与应用开发</a>
+                  
+                    <a href="/posts/1472071864.html" class="">17-内核子系统间交互与IPC机制</a>
+                  
+                    <a href="/posts/3375308729.html" class="">18-GPIO子系统与引脚控制架构</a>
+                  
+                    <a href="/posts/413524861.html" class="">18-Linux网络驱动与收发流程</a>
+                  
+                    <a href="/posts/1787716189.html" class="">18-Socket网络编程与粘包处理</a>
+                  
+                    <a href="/posts/2536056501.html" class="">19-SPI总线驱动与设备树配置</a>
+                  
+                    <a href="/posts/1043009254.html" class="">19-TTY子系统架构与驱动</a>
+                  
+                    <a href="/posts/2820206790.html" class="">19-以太网MAC与PHY接口</a>
+                  
+                    <a href="/posts/1783654330.html" class="">20-Linux文本处理命令与实战</a>
+                  
+                    <a href="/posts/4179949671.html" class="">20-UART串口驱动与RS485应用</a>
+                  
+                    <a href="/posts/865986603.html" class="">21-USB总线驱动框架与设备枚举</a>
+                  
+                    <a href="/posts/3847399252.html" class="">21-无线网络基础与部署排查</a>
+                  
+                    <a href="/posts/4143405040.html" class="">22-看门狗机制与软硬死锁检测</a>
+                  
+                    <a href="/posts/2990894265.html" class="">22-系统掉电保护与日志文件系统</a>
+                  
+                    <a href="/posts/3047565199.html" class="">23-Linux用户与组权限管理</a>
+                  
+                    <a href="/posts/4251339438.html" class="">23-WiFi模块PEB-WLBT-01配置与排障</a>
+                  
+                    <a href="/posts/3144456274.html" class="">24-环境变量修改与生效方法</a>
+                  
+                    <a href="/posts/2406993733.html" class="">25-ADC基础知识与工程实现</a>
+                  
+                    <a href="/posts/901317427.html" class="">26-ADB设备调试命令指南</a>
+                  
+                    <a href="/posts/970239254.html" class="">27-ARM-DSP-FPGA技术对比</a>
+                  
+                    <a href="/posts/1599150771.html" class="">28-awk文本处理与实战</a>
+                  
+                    <a href="/posts/1554852273.html" class="">29-can总线协议与编程基础</a>
+                  
+                    <a href="/posts/3987772023.html" class="">30-diff与patch补丁实战</a>
+                  
+                    <a href="/posts/663676011.html" class="">Linux 技能总览与索引</a>
+                  
+                    <a href="/posts/212295555.html" class="">31-DMA工作原理与内核API</a>
+                  
+                    <a href="/posts/2335117280.html" class="">32-eMMC嵌入式存储原理与优化</a>
+                  
+                    <a href="/posts/3281658937.html" class="">33-Flash存储器原理与编程实例</a>
+                  
+                    <a href="/posts/449212517.html" class="">34-GPIO工作模式与寄存器控制</a>
+                  
+                    <a href="/posts/2802968252.html" class="">35-I2C总线协议与驱动编程</a>
+                  
+                    <a href="/posts/646183460.html" class="">36-I2S音频总线与时钟配置</a>
+                  
+                    <a href="/posts/3921515715.html" class="">37-iMX8处理器系列与型号对比</a>
+                  
+                    <a href="/posts/3676773691.html" class="">38-KVM架构与CPU内存中断虚拟化</a>
+                  
+                    <a href="/posts/2296163704.html" class="">39-xPico240网卡配置与固件升级</a>
+                  
+                    <a href="/posts/4048648752.html" class="">40-MMU地址转换与页表管理</a>
+                  
+                    <a href="/posts/3573195005.html" class="">41-RK平台开发流程与组件</a>
+                  
+                    <a href="/posts/1368966976.html" class="">42-Shell脚本编程与实用案例</a>
+                  
+                    <a href="/posts/3800580745.html" class="">43-SPI总线原理与驱动实战</a>
+                  
+                    <a href="/posts/4029932750.html" class="">44-UART串口原理与通信实战</a>
+                  
+                    <a href="/posts/3428875847.html" class="">45-USB固件开发全流程</a>
+                  
+                    <a href="/posts/1079176846.html" class="">46-USB总线协议与驱动开发基础</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="apollo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/apollo/" class=""><span>🚗</span><span>apollo</span><span class="cnt">62</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 apollo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2818472804.html" class="">01-百度Apollo概述与生态</a>
+                  
+                    <a href="/posts/452198409.html" class="">02-版本发展与架构演进</a>
+                  
+                    <a href="/posts/1132755144.html" class="">03-自动驾驶技术基础</a>
+                  
+                    <a href="/posts/260457831.html" class="">04-开发环境搭建（Docker）</a>
+                  
+                    <a href="/posts/3892420017.html" class="">05-源码编译与部署</a>
+                  
+                    <a href="/posts/4189053877.html" class="">06-核心模块总览</a>
+                  
+                    <a href="/posts/2291656538.html" class="">07-高精地图HD Map</a>
+                  
+                    <a href="/posts/1640301657.html" class="">08-定位模块</a>
+                  
+                    <a href="/posts/2974331331.html" class="">09-传感器接入（相机激光雷达毫米波）</a>
+                  
+                    <a href="/posts/1455150168.html" class="">10-CAN总线与车辆控制接口</a>
+                  
+                    <a href="/posts/2682517011.html" class="">11-Apollo Cyber RT框架</a>
+                  
+                    <a href="/posts/1297150334.html" class="">12-Cyber消息通信与组件开发</a>
+                  
+                    <a href="/posts/3060441397.html" class="">13-Apollo配置文件与参数</a>
+                  
+                    <a href="/posts/1643555401.html" class="">14-调试与可视化工具（DreamView）</a>
+                  
+                    <a href="/posts/1298984781.html" class="">15-感知模块总览与点云感知</a>
+                  
+                    <a href="/posts/2907166516.html" class="">16-感知模块-视觉感知</a>
+                  
+                    <a href="/posts/4078895387.html" class="">17-感知模块-雷达感知</a>
+                  
+                    <a href="/posts/2013834045.html" class="">18-传感器标定与坐标转换</a>
+                  
+                    <a href="/posts/3984938707.html" class="">19-预测模块</a>
+                  
+                    <a href="/posts/1834975411.html" class="">20-规划模块</a>
+                  
+                    <a href="/posts/4019786798.html" class="">21-决策模块与场景决策</a>
+                  
+                    <a href="/posts/122258190.html" class="">22-控制模块</a>
+                  
+                    <a href="/posts/3133762148.html" class="">23-车辆动力学基础</a>
+                  
+                    <a href="/posts/1453710074.html" class="">24-仿真平台与场景数据</a>
+                  
+                    <a href="/posts/2673778811.html" class="">25-Cyber启动系统详解</a>
+                  
+                    <a href="/posts/2526415752.html" class="">26-Cyber调度系统详解</a>
+                  
+                    <a href="/posts/2588802797.html" class="">27-Cyber时间系统与定时器</a>
+                  
+                    <a href="/posts/3670574823.html" class="">28-Cyber异步调用机制</a>
+                  
+                    <a href="/posts/3931639321.html" class="">29-Cyber数据系统详解</a>
+                  
+                    <a href="/posts/2442147404.html" class="">30-Cyber网络IO详解</a>
+                  
+                    <a href="/posts/789481480.html" class="">apollo 90-资料索引指南</a>
+                  
+                    <a href="/posts/4180254357.html" class="">apollo 00-索引</a>
+                  
+                    <a href="/posts/4241092442.html" class="">31-Cyber Transform与坐标变换</a>
+                  
+                    <a href="/posts/1946355615.html" class="">32-历史版本模块演进（2.0-5.0）</a>
+                  
+                    <a href="/posts/460001587.html" class="">33-车道级导航与决策</a>
+                  
+                    <a href="/posts/2878817428.html" class="">34-红绿灯感知与通行</a>
+                  
+                    <a href="/posts/3264947560.html" class="">35-泊车场景</a>
+                  
+                    <a href="/posts/3477625335.html" class="">36-高速场景</a>
+                  
+                    <a href="/posts/2091754220.html" class="">37-城市道路场景</a>
+                  
+                    <a href="/posts/3677233744.html" class="">38-端到端自动驾驶与大模型</a>
+                  
+                    <a href="/posts/3012449597.html" class="">39-车路协同与V2X</a>
+                  
+                    <a href="/posts/2752057546.html" class="">40-安全机制与冗余设计</a>
+                  
+                    <a href="/posts/143389874.html" class="">41-性能优化与车规级部署</a>
+                  
+                    <a href="/posts/2080454184.html" class="">42-实战：搭建Demo自动驾驶演示</a>
+                  
+                    <a href="/posts/1558901718.html" class="">43-常见问题排查</a>
+                  
+                    <a href="/posts/711159921.html" class="">45-SLAM概述与开发指南</a>
+                  
+                    <a href="/posts/519418161.html" class="">44-Apollo与ROS对比及生态互通</a>
+                  
+                    <a href="/posts/1474075229.html" class="">46-激光雷达技术原理与发展</a>
+                  
+                    <a href="/posts/1848584950.html" class="">47-激光雷达算法与Lidar模块详解</a>
+                  
+                    <a href="/posts/2562893149.html" class="">48-自动驾驶数据集总览</a>
+                  
+                    <a href="/posts/1294651885.html" class="">49-KITTI与Waymo数据集实战</a>
+                  
+                    <a href="/posts/2011272759.html" class="">50-仿真平台对比与Gazebo-LGSVL实战</a>
+                  
+                    <a href="/posts/1352878638.html" class="">51-深度学习基础与CNN</a>
+                  
+                    <a href="/posts/48707843.html" class="">52-PyTorch与自动驾驶实践</a>
+                  
+                    <a href="/posts/2665165307.html" class="">53-TensorFlow与Caffe2在自动驾驶中的应用</a>
+                  
+                    <a href="/posts/2511406057.html" class="">54-自动驾驶测试方法</a>
+                  
+                    <a href="/posts/1279187638.html" class="">55-标注工具与数据闭环</a>
+                  
+                    <a href="/posts/370472885.html" class="">56-自动驾驶云服务与基础设施</a>
+                  
+                    <a href="/posts/140110120.html" class="">57-自动驾驶操作系统</a>
+                  
+                    <a href="/posts/664493653.html" class="">58-自动驾驶运行时框架对比</a>
+                  
+                    <a href="/posts/1203635596.html" class="">59-自动驾驶学习资源与链接</a>
+                  
+                    <a href="/posts/2049739451.html" class="">60-Audio模块与扩展开发</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FreeRTOS">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/FreeRTOS/" class=""><span>⏱️</span><span>FreeRTOS</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FreeRTOS 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1571422233.html" class="">01-FreeRTOS简介与内核特性</a>
+                  
+                    <a href="/posts/1616849365.html" class="">02-任务管理与调度</a>
+                  
+                    <a href="/posts/2794860845.html" class="">03-任务创建与删除</a>
+                  
+                    <a href="/posts/1110013041.html" class="">04-任务状态机</a>
+                  
+                    <a href="/posts/45138943.html" class="">05-优先级与时间片</a>
+                  
+                    <a href="/posts/586549084.html" class="">06-队列</a>
+                  
+                    <a href="/posts/129125089.html" class="">07-信号量</a>
+                  
+                    <a href="/posts/2081041408.html" class="">08-互斥量与优先级反转</a>
+                  
+                    <a href="/posts/3205967530.html" class="">09-事件组</a>
+                  
+                    <a href="/posts/1094377116.html" class="">10-任务通知</a>
+                  
+                    <a href="/posts/1628705678.html" class="">11-流缓冲与消息缓冲</a>
+                  
+                    <a href="/posts/479641272.html" class="">12-软件定时器</a>
+                  
+                    <a href="/posts/3143395966.html" class="">13-内存管理</a>
+                  
+                    <a href="/posts/359640070.html" class="">14-中断管理与临界区</a>
+                  
+                    <a href="/posts/339821033.html" class="">15-Tick与时间管理</a>
+                  
+                    <a href="/posts/224362852.html" class="">16-内核裁剪配置</a>
+                  
+                    <a href="/posts/1572534698.html" class="">17-任务栈溢出检测</a>
+                  
+                    <a href="/posts/670312188.html" class="">18-低功耗与tickless</a>
+                  
+                    <a href="/posts/544846964.html" class="">19-多核SMP</a>
+                  
+                    <a href="/posts/1505843641.html" class="">20-FreeRTOS+TCP</a>
+                  
+                    <a href="/posts/2850073665.html" class="">21-CMSIS-RTOS适配</a>
+                  
+                    <a href="/posts/2762677009.html" class="">22-常见移植实践</a>
+                  
+                    <a href="/posts/574731705.html" class="">23-调试与跟踪</a>
+                  
+                    <a href="/posts/1113963761.html" class="">24-内存保护MPU</a>
+                  
+                    <a href="/posts/1361167341.html" class="">25-FreeRTOS与C++</a>
+                  
+                    <a href="/posts/3732453393.html" class="">26-队列集与流操作</a>
+                  
+                    <a href="/posts/3895620481.html" class="">27-实战项目入门</a>
+                  
+                    <a href="/posts/2560978280.html" class="">28-常见问题排查</a>
+                  
+                    <a href="/posts/3215440781.html" class="">29-任务通知进阶</a>
+                  
+                    <a href="/posts/2405586932.html" class="">30-中断安全编程</a>
+                  
+                    <a href="/posts/3652009953.html" class="">FreeRTOS 00-索引</a>
+                  
+                    <a href="/posts/1437498579.html" class="">FreeRTOS 90-资料索引指南</a>
+                  
+                    <a href="/posts/182118895.html" class="">31-内存管理进阶</a>
+                  
+                    <a href="/posts/517617803.html" class="">32-看门狗与可靠性</a>
+                  
+                    <a href="/posts/4097610364.html" class="">33-电源管理实战</a>
+                  
+                    <a href="/posts/918463786.html" class="">34-多核任务设计</a>
+                  
+                    <a href="/posts/316568827.html" class="">35-TCP网络实战</a>
+                  
+                    <a href="/posts/944546225.html" class="">36-外设驱动集成</a>
+                  
+                    <a href="/posts/276185314.html" class="">37-系统测试与验证</a>
+                  
+                    <a href="/posts/2845406665.html" class="">38-任务间通信模式</a>
+                  
+                    <a href="/posts/271812983.html" class="">39-安全与认证</a>
+                  
+                    <a href="/posts/2988932715.html" class="">40-高级主题展望</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros1">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros1/" class=""><span>🐢</span><span>ros1</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros1 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1845556343.html" class="">01-ROS1概述与生态</a>
+                  
+                    <a href="/posts/76272331.html" class="">02-ROS1安装与环境配置</a>
+                  
+                    <a href="/posts/985253049.html" class="">03-核心概念</a>
+                  
+                    <a href="/posts/4040033312.html" class="">04-工作空间与catkin构建</a>
+                  
+                    <a href="/posts/2100167891.html" class="">05-命令行工具</a>
+                  
+                    <a href="/posts/949416713.html" class="">06-话题通信</a>
+                  
+                    <a href="/posts/735184866.html" class="">07-服务通信</a>
+                  
+                    <a href="/posts/1658567558.html" class="">08-动作通信actionlib</a>
+                  
+                    <a href="/posts/3193113578.html" class="">09-参数服务器</a>
+                  
+                    <a href="/posts/951743246.html" class="">10-roscpp编程</a>
+                  
+                    <a href="/posts/3615205173.html" class="">11-rospy编程</a>
+                  
+                    <a href="/posts/2474828684.html" class="">12-tf坐标变换</a>
+                  
+                    <a href="/posts/510479535.html" class="">13-URDF机器人建模</a>
+                  
+                    <a href="/posts/3467326343.html" class="">14-rviz可视化</a>
+                  
+                    <a href="/posts/178034368.html" class="">15-Gazebo仿真</a>
+                  
+                    <a href="/posts/1047193066.html" class="">16-launch启动文件</a>
+                  
+                    <a href="/posts/1386748878.html" class="">17-自定义消息与srv</a>
+                  
+                    <a href="/posts/78293504.html" class="">18-日志与调试</a>
+                  
+                    <a href="/posts/3580172094.html" class="">19-常用传感器驱动</a>
+                  
+                    <a href="/posts/107634443.html" class="">20-机器人运动学基础</a>
+                  
+                    <a href="/posts/1090496406.html" class="">21-导航框架move_base</a>
+                  
+                    <a href="/posts/3445109373.html" class="">22-建图</a>
+                  
+                    <a href="/posts/774536357.html" class="">23-路径规划与避障</a>
+                  
+                    <a href="/posts/2139127442.html" class="">24-AMCL定位</a>
+                  
+                    <a href="/posts/1373317896.html" class="">25-视觉处理</a>
+                  
+                    <a href="/posts/2932687442.html" class="">26-语音交互</a>
+                  
+                    <a href="/posts/1912127119.html" class="">27-MoveIt机械臂控制</a>
+                  
+                    <a href="/posts/2602875264.html" class="">28-多机器人协同</a>
+                  
+                    <a href="/posts/616282562.html" class="">29-rosbridge与Web端</a>
+                  
+                    <a href="/posts/1820681443.html" class="">30-ROS与Docker</a>
+                  
+                    <a href="/posts/1838862059.html" class="">ros1 00-索引</a>
+                  
+                    <a href="/posts/1752376526.html" class="">ros1 90-资料索引指南</a>
+                  
+                    <a href="/posts/520426601.html" class="">31-ROS与嵌入式平台</a>
+                  
+                    <a href="/posts/1774912468.html" class="">32-ROS1与ROS2对比迁移</a>
+                  
+                    <a href="/posts/3778090335.html" class="">33-仿真场景搭建</a>
+                  
+                    <a href="/posts/3561607965.html" class="">34-常见问题排查</a>
+                  
+                    <a href="/posts/1451115071.html" class="">35-性能优化</a>
+                  
+                    <a href="/posts/1856851824.html" class="">36-产品化实践</a>
+                  
+                    <a href="/posts/3405034604.html" class="">37-插件机制与自定义工具</a>
+                  
+                    <a href="/posts/3819213526.html" class="">38-ROS生态常用库</a>
+                  
+                    <a href="/posts/1488454277.html" class="">39-实战：小车自主导航</a>
+                  
+                    <a href="/posts/1504338169.html" class="">40-实战：机械臂抓取</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros2">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros2/" class=""><span>🐢</span><span>ros2</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros2 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1204306053.html" class="">01-ROS2概述与生态</a>
+                  
+                    <a href="/posts/1039368075.html" class="">02-ROS2安装与环境配置</a>
+                  
+                    <a href="/posts/3950396837.html" class="">04-工作空间与colcon构建</a>
+                  
+                    <a href="/posts/3022531917.html" class="">08-动作通信</a>
+                  
+                    <a href="/posts/3927300417.html" class="">09-参数机制</a>
+                  
+                    <a href="/posts/3825548204.html" class="">10-rclcpp编程</a>
+                  
+                    <a href="/posts/3191786011.html" class="">11-rclpy编程</a>
+                  
+                    <a href="/posts/3441056145.html" class="">12-生命周期节点</a>
+                  
+                    <a href="/posts/3898278822.html" class="">13-自定义消息接口</a>
+                  
+                    <a href="/posts/742500733.html" class="">14-执行器与回调组</a>
+                  
+                    <a href="/posts/201369509.html" class="">15-tf2坐标变换</a>
+                  
+                    <a href="/posts/1182880406.html" class="">16-URDF与xacro建模</a>
+                  
+                    <a href="/posts/1106872961.html" class="">17-rviz2可视化</a>
+                  
+                    <a href="/posts/2049131804.html" class="">18-Gazebo与Ignition仿真</a>
+                  
+                    <a href="/posts/3503988486.html" class="">19-launch系统</a>
+                  
+                    <a href="/posts/3559813711.html" class="">20-日志与调试工具</a>
+                  
+                    <a href="/posts/2378366256.html" class="">21-常用传感器驱动</a>
+                  
+                    <a href="/posts/2969019117.html" class="">22-导航2框架</a>
+                  
+                    <a href="/posts/2928992651.html" class="">23-SLAM建图</a>
+                  
+                    <a href="/posts/1486087179.html" class="">24-路径规划与避障</a>
+                  
+                    <a href="/posts/3827643133.html" class="">25-AMCL定位</a>
+                  
+                    <a href="/posts/767168211.html" class="">26-视觉处理</a>
+                  
+                    <a href="/posts/868393764.html" class="">27-语音交互</a>
+                  
+                    <a href="/posts/711846815.html" class="">28-MoveIt2机械臂控制</a>
+                  
+                    <a href="/posts/4265837254.html" class="">29-多机器人协同</a>
+                  
+                    <a href="/posts/1138612136.html" class="">30-rosbridge与Web端</a>
+                  
+                    <a href="/posts/4101548266.html" class="">ros2 00-索引</a>
+                  
+                    <a href="/posts/381645954.html" class="">ros2 03-核心概念</a>
+                  
+                    <a href="/posts/1488323843.html" class="">ros2 05-命令行工具</a>
+                  
+                    <a href="/posts/344998706.html" class="">ros2 06-话题通信</a>
+                  
+                    <a href="/posts/131381209.html" class="">ros2 07-服务通信</a>
+                  
+                    <a href="/posts/172068224.html" class="">ros2 40-实战：机械臂抓取</a>
+                  
+                    <a href="/posts/513154547.html" class="">ros2 90-资料索引指南</a>
+                  
+                    <a href="/posts/1661557767.html" class="">31-ROS2与Docker</a>
+                  
+                    <a href="/posts/1400569321.html" class="">32-ROS2与嵌入式平台</a>
+                  
+                    <a href="/posts/514195102.html" class="">33-实时性与QoS策略</a>
+                  
+                    <a href="/posts/26068340.html" class="">34-安全与权限</a>
+                  
+                    <a href="/posts/4284941043.html" class="">35-性能优化与Benchmark</a>
+                  
+                    <a href="/posts/512206225.html" class="">36-常见问题排查</a>
+                  
+                    <a href="/posts/103591067.html" class="">37-ROS2与ROS1桥接迁移</a>
+                  
+                    <a href="/posts/496626970.html" class="">38-产品化与部署实践</a>
+                  
+                    <a href="/posts/4258040718.html" class="">39-实战：自动驾驶小车</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="RT-Thread">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/RT-Thread/" class=""><span>🧵</span><span>RT-Thread</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 RT-Thread 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3906847031.html" class="">01-RT-Thread简介与生态</a>
+                  
+                    <a href="/posts/610362104.html" class="">02-内核架构</a>
+                  
+                    <a href="/posts/284852137.html" class="">03-线程管理与调度</a>
+                  
+                    <a href="/posts/1006179627.html" class="">04-线程创建与删除</a>
+                  
+                    <a href="/posts/2919135044.html" class="">05-线程状态机与优先级</a>
+                  
+                    <a href="/posts/357331050.html" class="">06-时钟与定时器</a>
+                  
+                    <a href="/posts/1414862789.html" class="">08-互斥量</a>
+                  
+                    <a href="/posts/3456321070.html" class="">09-事件集</a>
+                  
+                    <a href="/posts/2205341896.html" class="">10-邮箱</a>
+                  
+                    <a href="/posts/3843597198.html" class="">11-消息队列</a>
+                  
+                    <a href="/posts/643009288.html" class="">12-内存管理</a>
+                  
+                    <a href="/posts/2340600776.html" class="">13-内存池与内存堆</a>
+                  
+                    <a href="/posts/2027116276.html" class="">14-中断管理</a>
+                  
+                    <a href="/posts/4146654009.html" class="">15-临界区与线程同步</a>
+                  
+                    <a href="/posts/61094340.html" class="">16-设备驱动框架</a>
+                  
+                    <a href="/posts/2180335808.html" class="">17-I-O设备模型</a>
+                  
+                    <a href="/posts/3069243359.html" class="">18-FinSH控制台</a>
+                  
+                    <a href="/posts/3174840723.html" class="">19-组件与软件包</a>
+                  
+                    <a href="/posts/501684497.html" class="">20-Env与menuconfig配置</a>
+                  
+                    <a href="/posts/1358882682.html" class="">21-RT-Thread Studio</a>
+                  
+                    <a href="/posts/1974679192.html" class="">22-Scons构建</a>
+                  
+                    <a href="/posts/1558395596.html" class="">23-AT组件</a>
+                  
+                    <a href="/posts/4270916110.html" class="">24-网络组件lwIP</a>
+                  
+                    <a href="/posts/4025911074.html" class="">25-DFS文件系统</a>
+                  
+                    <a href="/posts/2437688169.html" class="">26-POSIX支持</a>
+                  
+                    <a href="/posts/1239645384.html" class="">27-动态模块加载</a>
+                  
+                    <a href="/posts/4089363247.html" class="">28-常见移植实践</a>
+                  
+                    <a href="/posts/849796471.html" class="">29-低功耗</a>
+                  
+                    <a href="/posts/47134548.html" class="">30-多核与SMP</a>
+                  
+                    <a href="/posts/2902895778.html" class="">RT-Thread 00-索引</a>
+                  
+                    <a href="/posts/4044683037.html" class="">RT-Thread 07-信号量</a>
+                  
+                    <a href="/posts/1755746755.html" class="">RT-Thread 40-高级主题展望</a>
+                  
+                    <a href="/posts/2924604793.html" class="">RT-Thread 90-资料索引指南</a>
+                  
+                    <a href="/posts/603515604.html" class="">31-微内核与混合微内核</a>
+                  
+                    <a href="/posts/1273830891.html" class="">32-调试与优化</a>
+                  
+                    <a href="/posts/2088952723.html" class="">33-安全</a>
+                  
+                    <a href="/posts/3972366794.html" class="">34-GUI组件与柿饼UI</a>
+                  
+                    <a href="/posts/4194237798.html" class="">35-传感器与驱动组件</a>
+                  
+                    <a href="/posts/1254828870.html" class="">36-实时性分析与优化</a>
+                  
+                    <a href="/posts/70811593.html" class="">37-电源管理</a>
+                  
+                    <a href="/posts/192380990.html" class="">38-实战项目入门</a>
+                  
+                    <a href="/posts/1645794736.html" class="">39-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="Zephyr">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Zephyr/" class=""><span>🍃</span><span>Zephyr</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Zephyr 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2998335701.html" class="">01-Zephyr简介与基金会</a>
+                  
+                    <a href="/posts/111570124.html" class="">02-安装与west工具</a>
+                  
+                    <a href="/posts/391350374.html" class="">03-工程结构</a>
+                  
+                    <a href="/posts/1788752700.html" class="">04-设备树Device Tree</a>
+                  
+                    <a href="/posts/2760731910.html" class="">05-Kconfig配置</a>
+                  
+                    <a href="/posts/2266609168.html" class="">06-内核与调度</a>
+                  
+                    <a href="/posts/2595343241.html" class="">07-线程管理</a>
+                  
+                    <a href="/posts/2487926311.html" class="">08-信号量</a>
+                  
+                    <a href="/posts/4159413018.html" class="">09-队列与消息</a>
+                  
+                    <a href="/posts/3342684069.html" class="">10-内存管理</a>
+                  
+                    <a href="/posts/1826938431.html" class="">11-中断处理</a>
+                  
+                    <a href="/posts/3296401581.html" class="">12-时钟与定时器</a>
+                  
+                    <a href="/posts/911217641.html" class="">13-驱动模型</a>
+                  
+                    <a href="/posts/1524886392.html" class="">14-GPIO驱动</a>
+                  
+                    <a href="/posts/497960377.html" class="">15-UART驱动</a>
+                  
+                    <a href="/posts/515235046.html" class="">16-SPI驱动</a>
+                  
+                    <a href="/posts/3496686401.html" class="">17-I2C驱动</a>
+                  
+                    <a href="/posts/2457140616.html" class="">18-ADC驱动</a>
+                  
+                    <a href="/posts/2991435572.html" class="">19-传感器子系统</a>
+                  
+                    <a href="/posts/819898526.html" class="">20-网络栈</a>
+                  
+                    <a href="/posts/551898650.html" class="">21-蓝牙BLE</a>
+                  
+                    <a href="/posts/686766330.html" class="">22-USB支持</a>
+                  
+                    <a href="/posts/4032698702.html" class="">23-文件系统</a>
+                  
+                    <a href="/posts/2833611844.html" class="">24-Shell子系统</a>
+                  
+                    <a href="/posts/2017556036.html" class="">25-日志系统</a>
+                  
+                    <a href="/posts/80085439.html" class="">26-ztest测试框架</a>
+                  
+                    <a href="/posts/3382284514.html" class="">27-twister测试</a>
+                  
+                    <a href="/posts/2853899551.html" class="">28-构建系统CMake</a>
+                  
+                    <a href="/posts/3766947609.html" class="">29-多架构支持</a>
+                  
+                    <a href="/posts/608772131.html" class="">Zephyr 00-索引</a>
+                  
+                    <a href="/posts/2374992791.html" class="">Zephyr 90-资料索引指南</a>
+                  
+                    <a href="/posts/2085179778.html" class="">30-移植新板卡</a>
+                  
+                    <a href="/posts/2023471085.html" class="">31-低功耗管理</a>
+                  
+                    <a href="/posts/447085682.html" class="">32-安全机制</a>
+                  
+                    <a href="/posts/2755005965.html" class="">33-OTA升级</a>
+                  
+                    <a href="/posts/3554942251.html" class="">34-QEMU模拟器</a>
+                  
+                    <a href="/posts/2564223040.html" class="">35-native模拟器</a>
+                  
+                    <a href="/posts/66503584.html" class="">36-调试与追踪</a>
+                  
+                    <a href="/posts/2974884396.html" class="">37-CMake模块</a>
+                  
+                    <a href="/posts/1879468777.html" class="">38-发布与版本管理</a>
+                  
+                    <a href="/posts/1364311534.html" class="">39-实战项目</a>
+                  
+                    <a href="/posts/4081303068.html" class="">40-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ubuntu24.04">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ubuntu24-04/" class=""><span>🐧</span><span>ubuntu24.04</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ubuntu24.04 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2909325257.html" class="">01-apt 与 dpkg</a>
+                  
+                    <a href="/posts/912530846.html" class="">snap</a>
+                  
+                    <a href="/posts/3939215804.html" class="">03-systemctl 与 service</a>
+                  
+                    <a href="/posts/719879336.html" class="">04-journalctl</a>
+                  
+                    <a href="/posts/3351581332.html" class="">05-htop 与 top</a>
+                  
+                    <a href="/posts/3990143705.html" class="">06-ps 与 kill</a>
+                  
+                    <a href="/posts/585076020.html" class="">07-vim 与 nano</a>
+                  
+                    <a href="/posts/1568442627.html" class="">08-grep</a>
+                  
+                    <a href="/posts/1977677039.html" class="">09-awk 与 sed</a>
+                  
+                    <a href="/posts/4049174153.html" class="">10-find 与 locate</a>
+                  
+                    <a href="/posts/3717903947.html" class="">11-tar 与 zip 与 rsync</a>
+                  
+                    <a href="/posts/2237282420.html" class="">12-ssh 与 scp</a>
+                  
+                    <a href="/posts/1707164187.html" class="">13-ufw</a>
+                  
+                    <a href="/posts/55246962.html" class="">14-cron</a>
+                  
+                    <a href="/posts/651339923.html" class="">15-systemd 定时器</a>
+                  
+                    <a href="/posts/3732393277.html" class="">16-netstat 与 ss 与 ip</a>
+                  
+                    <a href="/posts/2075061187.html" class="">17-curl 与 wget</a>
+                  
+                    <a href="/posts/321014113.html" class="">18-git</a>
+                  
+                    <a href="/posts/2822540859.html" class="">19-docker</a>
+                  
+                    <a href="/posts/3712678695.html" class="">20-python3 与 pip</a>
+                  
+                    <a href="/posts/2522287106.html" class="">21-gcc 与 make</a>
+                  
+                    <a href="/posts/635533000.html" class="">22-磁盘与日志排错工具集</a>
+                  
+                    <a href="/posts/1019958619.html" class="">ubuntu24.04 00-索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="windows">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/windows/" class=""><span>🪟</span><span>windows</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 windows 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2345133774.html" class="">01-PowerShell</a>
+                  
+                    <a href="/posts/746402433.html" class="">02-Windows Terminal</a>
+                  
+                    <a href="/posts/119374108.html" class="">03-任务管理器</a>
+                  
+                    <a href="/posts/3593758667.html" class="">04-资源监视器</a>
+                  
+                    <a href="/posts/279260672.html" class="">05-事件查看器</a>
+                  
+                    <a href="/posts/861959827.html" class="">06-注册表编辑器</a>
+                  
+                    <a href="/posts/1682198913.html" class="">07-磁盘管理</a>
+                  
+                    <a href="/posts/2304893546.html" class="">08-系统配置(msconfig)</a>
+                  
+                    <a href="/posts/143523753.html" class="">09-性能监视器</a>
+                  
+                    <a href="/posts/3851129891.html" class="">10-备份与还原</a>
+                  
+                    <a href="/posts/3417706708.html" class="">11-Windows Defender</a>
+                  
+                    <a href="/posts/2900354160.html" class="">12-Sysinternals 套件</a>
+                  
+                    <a href="/posts/569218026.html" class="">13-winget</a>
+                  
+                    <a href="/posts/1864485545.html" class="">14-PowerToys</a>
+                  
+                    <a href="/posts/1859880826.html" class="">15-剪贴板历史与截图工具</a>
+                  
+                    <a href="/posts/2173435638.html" class="">16-远程桌面</a>
+                  
+                    <a href="/posts/388811029.html" class="">17-Hyper-V</a>
+                  
+                    <a href="/posts/987941398.html" class="">18-WSL</a>
+                  
+                    <a href="/posts/2454912129.html" class="">19-BitLocker</a>
+                  
+                    <a href="/posts/2195244691.html" class="">20-任务计划程序与服务管理器</a>
+                  
+                    <a href="/posts/979849589.html" class="">21-组策略与系统还原</a>
+                  
+                    <a href="/posts/4259947464.html" class="">22-命令行工具集</a>
+                  
+                    <a href="/posts/1775093485.html" class="">windows 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/">🤖 操作系统与机器人</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/">🐧 Linux</a> / <span>07-Sanitizer内存泄漏分析</span></div>
+
+<h1>07-Sanitizer内存泄漏分析</h1>
+<div class="subtitle">C/C++ 里那些越界几字节释放后又用的问题，光靠 review 很难一眼看出来，我一般直接让编译器插桩来抓。</div>
+<div class="article-meta">
+  <span>📅 2026-11-14</span><span>· 更新于 2026-11-14</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 5681 字 · 约 15 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/Linux/">#Linux</a><a class="tagchip" href="/tags/%E6%A6%82%E5%BF%B5/">#概念</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/3144201791.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="Sanitizer内存泄漏分析"><a href="#Sanitizer内存泄漏分析" class="headerlink" title="Sanitizer内存泄漏分析"></a>Sanitizer内存泄漏分析</h1><p>C&#x2F;C++ 里那些”越界几字节””释放后又用”的问题，光靠 review 很难一眼看出来，我一般直接让编译器插桩来抓。Sanitizer 是 Google 做的一套动态分析工具，ASan 抓内存错误、LSan 专抓泄漏，速度比 Valgrind 快一大截。我在实际用的时候，最省事的一点是只要加个编译选项就能开跑，不用改源码，也不用装额外运行时。</p>
+<span id="more"></span>
+
+<p>Sanitizer是Google开发的一系列代码动态分析工具，旨在通过编译时插桩和运行时检查来发现各类内存和线程相关问题。这套工具最初是LLVM编译器项目的一部分，后来也被GCC所支持。</p>
+<h2 id="1-Sanitizer工具族：编译时插桩换来的快速检测">1. Sanitizer工具族：编译时插桩换来的快速检测<a class="hlink" data-h="1-Sanitizer工具族：编译时插桩换来的快速检测" href="#1-Sanitizer工具族：编译时插桩换来的快速检测" title="跳到本节">¶</a></h2><h3 id="1-1-Sanitizer工具家族">1.1 Sanitizer工具家族<a class="hlink" data-h="1-1-Sanitizer工具家族" href="#1-1-Sanitizer工具家族" title="跳到本节">¶</a></h3><div class="mermaid">
+graph TD
+    A[Sanitizer工具家族] --&gt; B[AddressSanitizer]
+    A --&gt; C[MemorySanitizer]
+    A --&gt; D[ThreadSanitizer]
+    A --&gt; E[LeakSanitizer]
+    A --&gt; F[UndefinedBehaviorSanitizer]
+    B --&gt;|内存错误检测| G[内存泄漏]
+    B --&gt;|内存错误检测| H[缓冲区溢出]
+    B --&gt;|内存错误检测| I[使用释放后内存]
+    B --&gt;|内存错误检测| J[栈缓冲区溢出]
+    C --&gt;|未初始化内存检测| K[使用未初始化变量]
+    D --&gt;|线程错误检测| L[数据竞争]
+    D --&gt;|线程错误检测| M[死锁]
+    E --&gt;|内存泄漏检测| N[专注内存泄漏]
+    F --&gt;|未定义行为检测| O[整数溢出]
+    F --&gt;|未定义行为检测| P[空指针解引用]
+</div>
+
+<h3 id="1-2-各工具功能与GCC支持">1.2 各工具功能与GCC支持<a class="hlink" data-h="1-2-各工具功能与GCC支持" href="#1-2-各工具功能与GCC支持" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>工具名称</th>
+<th>主要功能</th>
+<th>检测问题类型</th>
+<th>GCC支持版本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>AddressSanitizer (ASan)</td>
+<td>内存错误检测</td>
+<td>内存泄漏、缓冲区溢出、使用已释放内存</td>
+<td>4.8+</td>
+</tr>
+<tr>
+<td>MemorySanitizer (MSan)</td>
+<td>未初始化内存检测</td>
+<td>使用未初始化的内存值</td>
+<td>5.0+</td>
+</tr>
+<tr>
+<td>ThreadSanitizer (TSan)</td>
+<td>线程错误检测</td>
+<td>数据竞争、死锁</td>
+<td>4.8+</td>
+</tr>
+<tr>
+<td>LeakSanitizer (LSan)</td>
+<td>内存泄漏检测</td>
+<td>专注于内存泄漏检测</td>
+<td>4.9+</td>
+</tr>
+<tr>
+<td>UndefinedBehaviorSanitizer (UBSan)</td>
+<td>未定义行为检测</td>
+<td>整数溢出、空指针解引用等</td>
+<td>4.9+</td>
+</tr>
+</tbody></table>
+<p>本文将重点介绍AddressSanitizer (ASan)和LeakSanitizer (LSan)，它们是检测内存泄漏问题最常用的工具。</p>
+<p>我日常最常用的是 ASan，泄漏这一项基本交给它内置的 LSan，其余几个按问题类型再单独开。</p>
+<h2 id="2-ASan原理：影子内存加红区把越界拦下来">2. ASan原理：影子内存加红区把越界拦下来<a class="hlink" data-h="2-ASan原理：影子内存加红区把越界拦下来" href="#2-ASan原理：影子内存加红区把越界拦下来" title="跳到本节">¶</a></h2><p>AddressSanitizer是一个快速的内存错误检测工具，通过编译时插桩和运行时库的配合来实现内存错误的检测。</p>
+<h3 id="2-1-整体架构和工作流程">2.1 整体架构和工作流程<a class="hlink" data-h="2-1-整体架构和工作流程" href="#2-1-整体架构和工作流程" title="跳到本节">¶</a></h3><div class="mermaid">
+flowchart TD
+    A[源代码] --&gt; B[编译器插桩]
+    B --&gt;|添加检查代码| C[插桩后的代码]
+    C --&gt; D[链接ASan运行时库]
+    D --&gt; E[可执行程序]
+    E --&gt; F[程序运行]
+    F --&gt; G[检测内存错误]
+    G --&gt;|发现错误| H[生成错误报告]
+    G --&gt;|无错误| I[正常运行结束]
+    subgraph "编译时"
+    A
+    B
+    C
+    D
+    E
+    end
+    subgraph "运行时"
+    F
+    G
+    H
+    I
+    end
+</div>
+
+<h3 id="2-2-影子内存映射：8字节对1字节">2.2 影子内存映射：8字节对1字节<a class="hlink" data-h="2-2-影子内存映射：8字节对1字节" href="#2-2-影子内存映射：8字节对1字节" title="跳到本节">¶</a></h3><p>AddressSanitizer的核心原理是”影子内存”技术。它为程序的每块内存维护一个”影子”状态，用于标记内存是否可访问。</p>
+<div class="mermaid">
+flowchart LR
+    A[应用内存区] --&gt;|映射关系| B[影子内存区]
+    A --&gt;|访问内存| C[内存读写操作]
+    C --&gt;|检查| B
+    B --&gt;|状态异常| D[报告错误]
+    B --&gt;|状态正常| E[允许访问]
+</div>
+
+<ol>
+<li><strong>影子内存映射</strong>：将应用程序的8字节内存映射到影子内存的1字节</li>
+<li><strong>内存状态标记</strong>：<ul>
+<li><code>0x00</code>：所有8字节都可访问</li>
+<li>负值：所有8字节都不可访问</li>
+<li><code>k</code> (1-7)：前k字节可访问，后面不可访问</li>
+</ul>
+</li>
+</ol>
+<h3 id="2-3-编译器插桩机制">2.3 编译器插桩机制<a class="hlink" data-h="2-3-编译器插桩机制" href="#2-3-编译器插桩机制" title="跳到本节">¶</a></h3><p>编译器会在程序的每个内存访问点前插入额外的检查代码：</p>
+<p>编译前:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">*address = value;  <span class="comment">// 或 value = *address;</span></span><br></pre></td></tr></table></figure>
+
+<p>编译后:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (IsPoisoned(address)) &#123;</span><br><span class="line">  ReportError(address, kAccessSize, kIsWrite);</span><br><span class="line">&#125;</span><br><span class="line">*address = value;  <span class="comment">// 或 value = *address;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-红区保护：内存块前后插不可访问区">2.4 红区保护：内存块前后插不可访问区<a class="hlink" data-h="2-4-红区保护：内存块前后插不可访问区" href="#2-4-红区保护：内存块前后插不可访问区" title="跳到本节">¶</a></h3><div class="mermaid">
+graph LR
+    A[红区] --&gt; B[用户内存块] --&gt; C[红区]
+    style A fill:#f88,stroke:#f66,stroke-width:2px
+    style C fill:#f88,stroke:#f66,stroke-width:2px
+    style B fill:#8f8,stroke:#6f6,stroke-width:2px
+</div>
+
+<p>AddressSanitizer在用户申请的内存块前后添加不可访问的”红区”(redzone)，一旦程序访问到这些区域，立即报告错误。</p>
+<p>抓越界时我主要看红区报告，位置信息很直接，定位比单看崩溃堆栈快不少。</p>
+<h2 id="3-基本使用：一个编译选项就能开跑">3. 基本使用：一个编译选项就能开跑<a class="hlink" data-h="3-基本使用：一个编译选项就能开跑" href="#3-基本使用：一个编译选项就能开跑" title="跳到本节">¶</a></h2><h3 id="3-1-编译器支持">3.1 编译器支持<a class="hlink" data-h="3-1-编译器支持" href="#3-1-编译器支持" title="跳到本节">¶</a></h3><p>AddressSanitizer已集成到现代编译器中：</p>
+<ul>
+<li>GCC 4.8+：基本支持，4.9+完整支持</li>
+<li>Clang 3.1+：完整支持</li>
+<li>MSVC 2019+：部分支持</li>
+</ul>
+<h3 id="3-2-编译选项">3.2 编译选项<a class="hlink" data-h="3-2-编译选项" href="#3-2-编译选项" title="跳到本节">¶</a></h3><p>使用AddressSanitizer只需添加特定编译选项即可：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># GCC/Clang</span></span><br><span class="line">gcc -fsanitize=address -g -O1 -fno-omit-frame-pointer program.c -o program</span><br><span class="line">g++ -fsanitize=address -g -O1 -fno-omit-frame-pointer program.cpp -o program</span><br></pre></td></tr></table></figure>
+
+<p>重要选项说明：</p>
+<ul>
+<li><code>-fsanitize=address</code>: 启用地址sanitizer</li>
+<li><code>-g</code>: 保留调试信息，便于定位问题</li>
+<li><code>-O1</code>: 建议的优化级别，不要用-O0</li>
+<li><code>-fno-omit-frame-pointer</code>: 保留栈帧指针，提供更好的调用栈信息</li>
+</ul>
+<p>我一般固定用 <code>-O1</code>，踩过 <code>-O0</code> 下栈信息不全的坑，排查时反而更费时间。</p>
+<h3 id="3-3-在CMake项目中使用">3.3 在CMake项目中使用<a class="hlink" data-h="3-3-在CMake项目中使用" href="#3-3-在CMake项目中使用" title="跳到本节">¶</a></h3><figure class="highlight cmake"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># CMakeLists.txt</span></span><br><span class="line"><span class="keyword">set</span>(CMAKE_C_FLAGS <span class="string">&quot;$&#123;CMAKE_C_FLAGS&#125; -fsanitize=address -fno-omit-frame-pointer&quot;</span>)</span><br><span class="line"><span class="keyword">set</span>(CMAKE_CXX_FLAGS <span class="string">&quot;$&#123;CMAKE_CXX_FLAGS&#125; -fsanitize=address -fno-omit-frame-pointer&quot;</span>)</span><br><span class="line"><span class="keyword">set</span>(CMAKE_EXE_LINKER_FLAGS <span class="string">&quot;$&#123;CMAKE_EXE_LINKER_FLAGS&#125; -fsanitize=address&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-4-环境变量配置">3.4 环境变量配置<a class="hlink" data-h="3-4-环境变量配置" href="#3-4-环境变量配置" title="跳到本节">¶</a></h3><p>AddressSanitizer的行为可通过环境变量控制：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 设置检测内存泄漏</span></span><br><span class="line"><span class="built_in">export</span> ASAN_OPTIONS=detect_leaks=1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 输出更详细的堆栈信息</span></span><br><span class="line"><span class="built_in">export</span> ASAN_OPTIONS=detect_leaks=1:symbolize=1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成错误报告到文件</span></span><br><span class="line"><span class="built_in">export</span> ASAN_OPTIONS=detect_leaks=1:log_path=./asan_log</span><br></pre></td></tr></table></figure>
+
+<h2 id="4-错误类型：五类常见内存问题长什么样">4. 错误类型：五类常见内存问题长什么样<a class="hlink" data-h="4-错误类型：五类常见内存问题长什么样" href="#4-错误类型：五类常见内存问题长什么样" title="跳到本节">¶</a></h2><p>AddressSanitizer可检测多种内存错误，下面通过具体案例进行分析。</p>
+<h3 id="4-1-内存泄漏-Memory-Leak">4.1 内存泄漏(Memory Leak)<a class="hlink" data-h="4-1-内存泄漏-Memory-Leak" href="#4-1-内存泄漏-Memory-Leak" title="跳到本节">¶</a></h3><p>内存被分配但未释放，导致内存逐渐减少。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 内存泄漏示例</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">memory_leak_example</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> *array = <span class="keyword">new</span> <span class="type">int</span>[<span class="number">10</span>];  <span class="comment">// 分配内存</span></span><br><span class="line">    array[<span class="number">0</span>] = <span class="number">5</span>;              <span class="comment">// 使用内存</span></span><br><span class="line">    <span class="comment">// 缺少 delete[] array;    // 未释放内存</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ASan检测输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">==12345==ERROR: LeakSanitizer: detected memory leaks</span><br><span class="line">Direct leak of 40 bytes in 1 object(s) allocated from:</span><br><span class="line">    #0 0x7f9462896602 in operator new[](unsigned long) asan_new_delete.cc:82</span><br><span class="line">    #1 0x400731 in memory_leak_example leak_example.cpp:3</span><br><span class="line">    #2 0x400954 in main leak_example.cpp:10</span><br><span class="line">    #3 0x7f9461b3282f in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x2082f)</span><br><span class="line">SUMMARY: AddressSanitizer: 40 byte(s) leaked in 1 allocation(s).</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-堆缓冲区溢出-Heap-Buffer-Overflow">4.2 堆缓冲区溢出(Heap Buffer Overflow)<a class="hlink" data-h="4-2-堆缓冲区溢出-Heap-Buffer-Overflow" href="#4-2-堆缓冲区溢出-Heap-Buffer-Overflow" title="跳到本节">¶</a></h3><p>访问超出堆上分配内存范围的位置。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 堆缓冲区溢出示例</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">heap_overflow_example</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> *array = <span class="keyword">new</span> <span class="type">int</span>[<span class="number">5</span>];</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt;= <span class="number">5</span>; i++) &#123;  <span class="comment">// 注意：i&lt;=5 越界</span></span><br><span class="line">        array[i] = i;  <span class="comment">// 当i=5时发生越界写入</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">delete</span>[] array;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ASan检测输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">==12345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x614000000044 at pc 0x000000400731 bp 0x7fff5fbff830 sp 0x7fff5fbff828</span><br><span class="line">WRITE of size 4 at 0x614000000044 thread T0</span><br><span class="line">    #0 0x400730 in heap_overflow_example overflow_example.cpp:5</span><br><span class="line">    #1 0x400954 in main overflow_example.cpp:10</span><br><span class="line">    #2 0x7f9461b3282f in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x2082f)</span><br><span class="line">0x614000000044 is located 4 bytes to the right of 20-byte region [0x614000000030,0x614000000040)</span><br><span class="line">allocated by thread T0 here:</span><br><span class="line">    #0 0x7f9462896602 in operator new[](unsigned long) asan_new_delete.cc:82</span><br><span class="line">    #1 0x400704 in heap_overflow_example overflow_example.cpp:3</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-栈缓冲区溢出-Stack-Buffer-Overflow">4.3 栈缓冲区溢出(Stack Buffer Overflow)<a class="hlink" data-h="4-3-栈缓冲区溢出-Stack-Buffer-Overflow" href="#4-3-栈缓冲区溢出-Stack-Buffer-Overflow" title="跳到本节">¶</a></h3><p>访问超出栈上数组范围的位置。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 栈缓冲区溢出示例</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">stack_overflow_example</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> array[<span class="number">5</span>];</span><br><span class="line">    array[<span class="number">5</span>] = <span class="number">0</span>;  <span class="comment">// 越界访问</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ASan检测输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">==12345==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffeef654754 at pc 0x000000400731 bp 0x7ffeef654730 sp 0x7ffeef654728</span><br><span class="line">WRITE of size 4 at 0x7ffeef654754 thread T0</span><br><span class="line">    #0 0x400730 in stack_overflow_example overflow_example.cpp:4</span><br><span class="line">    #1 0x400954 in main overflow_example.cpp:10</span><br><span class="line">Address 0x7ffeef654754 is located in stack of thread T0 at offset 36 in frame</span><br><span class="line">    #0 0x4006f0 in stack_overflow_example overflow_example.cpp:3</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-释放后使用-Use-After-Free">4.4 释放后使用(Use After Free)<a class="hlink" data-h="4-4-释放后使用-Use-After-Free" href="#4-4-释放后使用-Use-After-Free" title="跳到本节">¶</a></h3><p>使用已经释放的内存。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 释放后使用示例</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">use_after_free_example</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> *array = <span class="keyword">new</span> <span class="type">int</span>[<span class="number">5</span>];</span><br><span class="line">    <span class="keyword">delete</span>[] array;</span><br><span class="line">    array[<span class="number">0</span>] = <span class="number">5</span>;  <span class="comment">// 使用已释放的内存</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ASan检测输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">==12345==ERROR: AddressSanitizer: heap-use-after-free on address 0x614000000040 at pc 0x000000400731 bp 0x7fff5fbff830 sp 0x7fff5fbff828</span><br><span class="line">WRITE of size 4 at 0x614000000040 thread T0</span><br><span class="line">    #0 0x400730 in use_after_free_example uaf_example.cpp:5</span><br><span class="line">    #1 0x400954 in main uaf_example.cpp:10</span><br><span class="line">0x614000000040 is located 0 bytes inside of 20-byte region [0x614000000040,0x614000000054)</span><br><span class="line">freed by thread T0 here:</span><br><span class="line">    #0 0x7f94628b5caa in operator delete[](void*) asan_new_delete.cc:128</span><br><span class="line">    #1 0x40071c in use_after_free_example uaf_example.cpp:4</span><br><span class="line">previously allocated by thread T0 here:</span><br><span class="line">    #0 0x7f9462896602 in operator new[](unsigned long) asan_new_delete.cc:82</span><br><span class="line">    #1 0x400704 in use_after_free_example uaf_example.cpp:3</span><br></pre></td></tr></table></figure>
+
+<p>UAF 这类问题光看崩溃点没用，得回头看 <code>freed by</code> 那段释放栈，才知道是谁提前把内存收走了。</p>
+<h3 id="4-5-全局缓冲区溢出-Global-Buffer-Overflow">4.5 全局缓冲区溢出(Global Buffer Overflow)<a class="hlink" data-h="4-5-全局缓冲区溢出-Global-Buffer-Overflow" href="#4-5-全局缓冲区溢出-Global-Buffer-Overflow" title="跳到本节">¶</a></h3><p>访问超出全局数组范围的位置。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 全局缓冲区溢出示例</span></span><br><span class="line"><span class="type">int</span> global_array[<span class="number">5</span>];</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">global_overflow_example</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    global_array[<span class="number">5</span>] = <span class="number">5</span>;  <span class="comment">// 越界访问</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ASan检测输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">==12345==ERROR: AddressSanitizer: global-buffer-overflow on address 0x000000614150 at pc 0x000000400731 bp 0x7fff5fbff830 sp 0x7fff5fbff828</span><br><span class="line">WRITE of size 4 at 0x000000614150 thread T0</span><br><span class="line">    #0 0x400730 in global_overflow_example global_overflow.cpp:5</span><br><span class="line">    #1 0x400954 in main global_overflow.cpp:10</span><br><span class="line">0x000000614150 is located 0 bytes to the right of global variable &#x27;global_array&#x27; (global_overflow.cpp) of size 20</span><br></pre></td></tr></table></figure>
+
+<h2 id="5-报告解读：从堆栈到影子字节逐段拆">5. 报告解读：从堆栈到影子字节逐段拆<a class="hlink" data-h="5-报告解读：从堆栈到影子字节逐段拆" href="#5-报告解读：从堆栈到影子字节逐段拆" title="跳到本节">¶</a></h2><p>AddressSanitizer的错误报告包含大量信息，正确解读这些信息对于定位和修复问题至关重要。</p>
+<h3 id="5-1-错误报告结构">5.1 错误报告结构<a class="hlink" data-h="5-1-错误报告结构" href="#5-1-错误报告结构" title="跳到本节">¶</a></h3><p>典型的错误报告包括以下部分：</p>
+<ol>
+<li><strong>错误类型标识</strong>：说明是什么类型的错误</li>
+<li><strong>错误位置和操作</strong>：发生错误的内存地址、读&#x2F;写操作、大小</li>
+<li><strong>调用堆栈</strong>：错误发生时的函数调用链</li>
+<li><strong>内存分配信息</strong>：相关内存块的分配和释放历史</li>
+<li><strong>内存块位置描述</strong>：错误地址相对于有效内存块的偏移</li>
+<li><strong>影子内存状态</strong>：错误发生时的内存状态可视化</li>
+</ol>
+<p>读报告我习惯先看最上面那行错误类型，再直接跳到 <code>freed by</code> 和 <code>previously allocated by</code> 两段，把释放和分配的现场对上。</p>
+<h3 id="5-2-错误报告实例解析">5.2 错误报告实例解析<a class="hlink" data-h="5-2-错误报告实例解析" href="#5-2-错误报告实例解析" title="跳到本节">¶</a></h3><p>以下是一个UAF(Use After Free)错误报告的详细解析：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">==12345==ERROR: AddressSanitizer: heap-use-after-free on address 0x614000000040 at pc 0x000000400731 bp 0x7fff5fbff830 sp 0x7fff5fbff828</span><br><span class="line">          |               |                      |             |                |                |</span><br><span class="line">          |               |                      |             |                └─ 栈指针</span><br><span class="line">          |               |                      |             └─ 基址指针</span><br><span class="line">          |               |                      └─ 发生错误的指令地址</span><br><span class="line">          |               └─ 发生错误的内存地址</span><br><span class="line">          └─ 进程ID</span><br><span class="line"></span><br><span class="line">WRITE of size 4 at 0x614000000040 thread T0</span><br><span class="line">      |        |                     └─ 线程ID</span><br><span class="line">      |        └─ 操作大小(4字节)</span><br><span class="line">      └─ 操作类型(写入)</span><br><span class="line"></span><br><span class="line">    #0 0x400730 in use_after_free_example uaf_example.cpp:5  &lt;- 错误发生的函数和行号</span><br><span class="line">    #1 0x400954 in main uaf_example.cpp:10                   &lt;- 调用栈</span><br><span class="line"></span><br><span class="line">0x614000000040 is located 0 bytes inside of 20-byte region [0x614000000040,0x614000000054)</span><br><span class="line">                         |                    |                                         |</span><br><span class="line">                         |                    |                                         └─ 内存区域结束地址</span><br><span class="line">                         |                    └─ 内存块大小(20字节)</span><br><span class="line">                         └─ 相对位置(内部偏移0字节)</span><br><span class="line"></span><br><span class="line">freed by thread T0 here:  &lt;- 释放信息</span><br><span class="line">    #0 0x7f94628b5caa in operator delete[](void*) asan_new_delete.cc:128</span><br><span class="line">    #1 0x40071c in use_after_free_example uaf_example.cpp:4  &lt;- 在哪里释放的</span><br><span class="line"></span><br><span class="line">previously allocated by thread T0 here:  &lt;- 分配信息</span><br><span class="line">    #0 0x7f9462896602 in operator new[](unsigned long) asan_new_delete.cc:82</span><br><span class="line">    #1 0x400704 in use_after_free_example uaf_example.cpp:3  &lt;- 在哪里分配的</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-影子内存状态解读">5.3 影子内存状态解读<a class="hlink" data-h="5-3-影子内存状态解读" href="#5-3-影子内存状态解读" title="跳到本节">¶</a></h3><p>在某些错误报告中，会显示影子内存状态：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">Shadow</span> bytes around the buggy <span class="attr">address</span>:</span><br><span class="line">  <span class="number">0x0c287fff7fb0</span>: <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line">  <span class="number">0x0c287fff7fc0</span>: <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line">  <span class="number">0x0c287fff7fd0</span>: <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line">  <span class="number">0x0c287fff7fe0</span>: <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line">  <span class="number">0x0c287fff7ff0</span>: <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line">=&gt;<span class="number">0x0c287fff8000</span>: fa fa fa fa fa fa fa fa[fd]fd fd fd fd fd fd fd</span><br><span class="line">  <span class="number">0x0c287fff8010</span>: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fa fa</span><br><span class="line">  <span class="number">0x0c287fff8020</span>: fa fa fa fa fa fa fa fa <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line">  <span class="number">0x0c287fff8030</span>: <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line">  <span class="number">0x0c287fff8040</span>: <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line">  <span class="number">0x0c287fff8050</span>: <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span> <span class="number">00</span></span><br><span class="line"><span class="title class_">Shadow</span> byte <span class="title function_">legend</span> (one shadow byte represents <span class="number">8</span> application bytes):</span><br><span class="line">  <span class="title class_">Addressable</span>:           <span class="number">00</span></span><br><span class="line">  <span class="title class_">Partially</span> <span class="attr">addressable</span>: <span class="number">01</span> <span class="number">02</span> <span class="number">03</span> <span class="number">04</span> <span class="number">05</span> <span class="number">06</span> <span class="number">07</span></span><br><span class="line">  <span class="title class_">Heap</span> left <span class="attr">redzone</span>:       fa</span><br><span class="line">  <span class="title class_">Freed</span> heap <span class="attr">region</span>:       fd</span><br><span class="line">  <span class="title class_">Stack</span> left <span class="attr">redzone</span>:      f1</span><br><span class="line">  <span class="title class_">Stack</span> mid <span class="attr">redzone</span>:       f2</span><br><span class="line">  <span class="title class_">Stack</span> right <span class="attr">redzone</span>:     f3</span><br><span class="line">  <span class="title class_">Stack</span> after <span class="attr">return</span>:      f5</span><br><span class="line">  <span class="title class_">Stack</span> use after <span class="attr">scope</span>:   f8</span><br><span class="line">  <span class="title class_">Global</span> <span class="attr">redzone</span>:          f9</span><br><span class="line">  <span class="title class_">Global</span> init <span class="attr">order</span>:       f6</span><br><span class="line">  <span class="title class_">Poisoned</span> by <span class="attr">user</span>:        f7</span><br><span class="line">  <span class="title class_">Container</span> <span class="attr">overflow</span>:      fc</span><br><span class="line">  <span class="title class_">Array</span> <span class="attr">cookie</span>:            ac</span><br><span class="line">  <span class="title class_">Intra</span> object <span class="attr">redzone</span>:    bb</span><br><span class="line">  <span class="title class_">ASan</span> <span class="attr">internal</span>:           fe</span><br><span class="line">  <span class="title class_">Left</span> alloca <span class="attr">redzone</span>:     ca</span><br><span class="line">  <span class="title class_">Right</span> alloca <span class="attr">redzone</span>:    cb</span><br><span class="line">  <span class="title class_">Shadow</span> <span class="attr">gap</span>:              cc</span><br></pre></td></tr></table></figure>
+
+<p>这部分显示了问题周围的内存状态，方括号<code>[fd]</code>标记表示错误发生的精确位置。</p>
+<h2 id="6-LSan：程序退出时才做的可达性检查">6. LSan：程序退出时才做的可达性检查<a class="hlink" data-h="6-LSan：程序退出时才做的可达性检查" href="#6-LSan：程序退出时才做的可达性检查" title="跳到本节">¶</a></h2><p>LeakSanitizer (LSan) 是专注于内存泄漏检测的工具，它可以独立使用，也可以集成到AddressSanitizer中。</p>
+<h3 id="6-1-与AddressSanitizer的关系">6.1 与AddressSanitizer的关系<a class="hlink" data-h="6-1-与AddressSanitizer的关系" href="#6-1-与AddressSanitizer的关系" title="跳到本节">¶</a></h3><ul>
+<li>AddressSanitizer从4.9版本开始集成了LeakSanitizer</li>
+<li>可以单独使用：<code>-fsanitize=leak</code></li>
+<li>与AddressSanitizer结合：<code>-fsanitize=address</code>（自动包含leak检测）</li>
+</ul>
+<h3 id="6-2-工作原理">6.2 工作原理<a class="hlink" data-h="6-2-工作原理" href="#6-2-工作原理" title="跳到本节">¶</a></h3><div class="mermaid">
+flowchart TD
+    A[程序结束] --&gt; B[扫描内存]
+    B --&gt; C[识别所有分配的内存块]
+    C --&gt; D[检查每个内存块是否仍可达]
+    D --&gt; E{可达?}
+    E --&gt;|是| F[标记为无泄漏]
+    E --&gt;|否| G[报告内存泄漏]
+    G --&gt; H[生成详细报告]
+</div>
+
+<p>LeakSanitizer在程序结束时进行内存泄漏检查，而不是在运行时实时检测。</p>
+<p>它只在退出时查一遍，所以别指望运行中实时报泄漏——想中途看就得自己设计触发点。</p>
+<h3 id="6-3-使用方法">6.3 使用方法<a class="hlink" data-h="6-3-使用方法" href="#6-3-使用方法" title="跳到本节">¶</a></h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 单独使用LSan</span></span><br><span class="line">gcc -fsanitize=leak program.c -o program</span><br><span class="line"></span><br><span class="line"><span class="comment"># 结合ASan使用</span></span><br><span class="line">gcc -fsanitize=address program.c -o program</span><br><span class="line"></span><br><span class="line"><span class="comment"># 控制LSan行为</span></span><br><span class="line"><span class="built_in">export</span> LSAN_OPTIONS=report_objects=1:max_leaks=20</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-4-内存泄漏分类">6.4 内存泄漏分类<a class="hlink" data-h="6-4-内存泄漏分类" href="#6-4-内存泄漏分类" title="跳到本节">¶</a></h3><p>LeakSanitizer将内存泄漏分为以下几类：</p>
+<ol>
+<li>**直接泄漏(direct leak)**：没有指针指向分配的内存块</li>
+<li>**间接泄漏(indirect leak)**：只有指向已泄漏内存块的指针指向它</li>
+<li>**可能泄漏(possible leak)**：存在指向内存块中间位置的指针</li>
+<li>**仍可达(still reachable)**：程序结束时仍有指针指向，但未释放</li>
+</ol>
+<h2 id="7-项目集成：在CI里插一道内存检查">7. 项目集成：在CI里插一道内存检查<a class="hlink" data-h="7-项目集成：在CI里插一道内存检查" href="#7-项目集成：在CI里插一道内存检查" title="跳到本节">¶</a></h2><h3 id="7-1-持续集成中的应用">7.1 持续集成中的应用<a class="hlink" data-h="7-1-持续集成中的应用" href="#7-1-持续集成中的应用" title="跳到本节">¶</a></h3><p>将AddressSanitizer集成到CI&#x2F;CD流程中是一种检测内存问题的有效方法。</p>
+<div class="mermaid">
+flowchart TD
+    A[开发者提交代码] --&gt; B[CI系统触发构建]
+    B --&gt; C[使用Sanitizer编译]
+    C --&gt; D[运行测试套件]
+    D --&gt; E{检测到内存问题?}
+    E --&gt;|是| F[CI构建失败]
+    F --&gt; G[开发者修复问题]
+    G --&gt; A
+    E --&gt;|否| H[CI构建成功]
+    H --&gt; I[部署到下一环境]
+</div>
+
+<p>示例CI配置（GitHub Actions）：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">jobs:</span></span><br><span class="line">  <span class="attr">build-and-test:</span></span><br><span class="line">    <span class="attr">runs-on:</span> <span class="string">ubuntu-latest</span></span><br><span class="line">    <span class="attr">steps:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">uses:</span> <span class="string">actions/checkout@v2</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">Build</span> <span class="string">with</span> <span class="string">ASan</span></span><br><span class="line">        <span class="attr">run:</span> <span class="string">|</span></span><br><span class="line"><span class="string">          cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZER=ON .</span></span><br><span class="line"><span class="string">          make -j$(nproc)</span></span><br><span class="line"><span class="string"></span>      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">Run</span> <span class="string">tests</span></span><br><span class="line">        <span class="attr">run:</span> <span class="string">|</span></span><br><span class="line">          <span class="string">ASAN_OPTIONS=detect_leaks=1:symbolize=1:abort_on_error=1</span> <span class="string">./run_tests</span></span><br></pre></td></tr></table></figure>
+
+<p>把 ASan 塞进 CI 之后，内存类的回归基本能在合并前就被拦下，不用等到线上慢慢暴露。</p>
+<h3 id="7-2-大型项目中的策略">7.2 大型项目中的策略<a class="hlink" data-h="7-2-大型项目中的策略" href="#7-2-大型项目中的策略" title="跳到本节">¶</a></h3><p>对于大型项目，全面启用Sanitizer可能带来性能问题，以下是一些实用策略：</p>
+<ol>
+<li><strong>分模块检测</strong>：逐个模块启用Sanitizer而非整个项目</li>
+<li><strong>重点检测核心组件</strong>：优先检测内存密集型组件</li>
+<li><strong>定期全项目检测</strong>：在夜间构建中进行全面检测</li>
+<li><strong>结合其他工具</strong>：与Valgrind等工具结合使用</li>
+<li><strong>自定义运行时选项</strong>：根据项目特点调整Sanitizer行为</li>
+</ol>
+<h3 id="7-3-优化构建配置">7.3 优化构建配置<a class="hlink" data-h="7-3-优化构建配置" href="#7-3-优化构建配置" title="跳到本节">¶</a></h3><p>针对不同需求的构建配置示例：</p>
+<figure class="highlight cmake"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 基础配置</span></span><br><span class="line"><span class="keyword">set</span>(SANITIZE_FLAGS <span class="string">&quot;-fsanitize=address -fno-omit-frame-pointer&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 开发调试配置</span></span><br><span class="line"><span class="keyword">set</span>(CMAKE_C_FLAGS_DEBUG <span class="string">&quot;$&#123;CMAKE_C_FLAGS_DEBUG&#125; $&#123;SANITIZE_FLAGS&#125;&quot;</span>)</span><br><span class="line"><span class="keyword">set</span>(CMAKE_CXX_FLAGS_DEBUG <span class="string">&quot;$&#123;CMAKE_CXX_FLAGS_DEBUG&#125; $&#123;SANITIZE_FLAGS&#125;&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 测试配置</span></span><br><span class="line"><span class="keyword">set</span>(CMAKE_C_FLAGS_TESTING <span class="string">&quot;$&#123;CMAKE_C_FLAGS_TESTING&#125; $&#123;SANITIZE_FLAGS&#125;&quot;</span>)</span><br><span class="line"><span class="keyword">set</span>(CMAKE_CXX_FLAGS_TESTING <span class="string">&quot;$&#123;CMAKE_CXX_FLAGS_TESTING&#125; $&#123;SANITIZE_FLAGS&#125;&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 性能优先配置</span></span><br><span class="line"><span class="keyword">set</span>(CMAKE_C_FLAGS_RELEASE <span class="string">&quot;$&#123;CMAKE_C_FLAGS_RELEASE&#125;&quot;</span>)  <span class="comment"># 不添加Sanitizer</span></span><br><span class="line"><span class="keyword">set</span>(CMAKE_CXX_FLAGS_RELEASE <span class="string">&quot;$&#123;CMAKE_CXX_FLAGS_RELEASE&#125;&quot;</span>)  <span class="comment"># 不添加Sanitizer</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="8-工具对比：按场景在ASan、Valgrind、mtrace间选">8. 工具对比：按场景在ASan、Valgrind、mtrace间选<a class="hlink" data-h="8-工具对比：按场景在ASan、Valgrind、mtrace间选" href="#8-工具对比：按场景在ASan、Valgrind、mtrace间选" title="跳到本节">¶</a></h2><h3 id="8-1-Sanitizer-vs-Valgrind">8.1 Sanitizer vs Valgrind<a class="hlink" data-h="8-1-Sanitizer-vs-Valgrind" href="#8-1-Sanitizer-vs-Valgrind" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>AddressSanitizer</th>
+<th>Valgrind&#x2F;Memcheck</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>速度</td>
+<td>快（2-3倍减速）</td>
+<td>慢（10-30倍减速）</td>
+</tr>
+<tr>
+<td>内存开销</td>
+<td>低（约2-3倍）</td>
+<td>高（约10倍）</td>
+</tr>
+<tr>
+<td>检测范围</td>
+<td>广（多种内存错误）</td>
+<td>更广（更多类型错误）</td>
+</tr>
+<tr>
+<td>使用方式</td>
+<td>需要重新编译</td>
+<td>不需要重新编译</td>
+</tr>
+<tr>
+<td>精确度</td>
+<td>非常高</td>
+<td>高</td>
+</tr>
+<tr>
+<td>平台支持</td>
+<td>主流平台（需编译器支持）</td>
+<td>几乎所有Unix平台</td>
+</tr>
+<tr>
+<td>适合场景</td>
+<td>开发阶段、CI流程</td>
+<td>系统级分析、不可重编译项目</td>
+</tr>
+</tbody></table>
+<h3 id="8-2-Sanitizer-vs-mtrace">8.2 Sanitizer vs mtrace<a class="hlink" data-h="8-2-Sanitizer-vs-mtrace" href="#8-2-Sanitizer-vs-mtrace" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>AddressSanitizer</th>
+<th>mtrace</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>速度</td>
+<td>快（2-3倍减速）</td>
+<td>非常快（几乎无损）</td>
+</tr>
+<tr>
+<td>检测范围</td>
+<td>广（多种内存错误）</td>
+<td>窄（仅内存泄漏）</td>
+</tr>
+<tr>
+<td>使用方式</td>
+<td>需要重新编译</td>
+<td>需要修改代码添加mtrace()调用</td>
+</tr>
+<tr>
+<td>精确度</td>
+<td>非常高</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>适合场景</td>
+<td>全面内存检查</td>
+<td>轻量级内存泄漏检查</td>
+</tr>
+</tbody></table>
+<h3 id="8-3-工具选择建议">8.3 工具选择建议<a class="hlink" data-h="8-3-工具选择建议" href="#8-3-工具选择建议" title="跳到本节">¶</a></h3><ul>
+<li><strong>开发阶段</strong>：使用AddressSanitizer进行日常检测</li>
+<li><strong>大型遗留项目</strong>：使用Valgrind进行无需重编译的检测</li>
+<li><strong>性能关键场景</strong>：使用mtrace或自定义轻量级检测</li>
+<li><strong>CI&#x2F;CD流程</strong>：集成AddressSanitizer自动检测</li>
+<li><strong>系统级分析</strong>：使用Valgrind进行全面分析</li>
+</ul>
+<p>我的取舍很简单：能重编译就上 ASan，老项目动不了才退回去用 Valgrind，性能吃紧又只查泄漏就换 mtrace。</p>
+<h2 id="9-开销与坑：降减速、控内存、消误报">9. 开销与坑：降减速、控内存、消误报<a class="hlink" data-h="9-开销与坑：降减速、控内存、消误报" href="#9-开销与坑：降减速、控内存、消误报" title="跳到本节">¶</a></h2><h3 id="9-1-减少Sanitizer性能开销">9.1 减少Sanitizer性能开销<a class="hlink" data-h="9-1-减少Sanitizer性能开销" href="#9-1-减少Sanitizer性能开销" title="跳到本节">¶</a></h3><p>虽然AddressSanitizer比Valgrind快得多，但仍会带来性能开销。以下是减少开销的一些策略：</p>
+<ol>
+<li><strong>编译选项优化</strong>：使用<code>-O1</code>或更高优化级别</li>
+<li><strong>选择性启用</strong>：只对怀疑有问题的模块启用</li>
+<li><strong>调整运行时参数</strong>：根据需要配置ASAN_OPTIONS</li>
+<li><strong>减少检测项目</strong>：如不需要内存泄漏检测可设置<code>detect_leaks=0</code></li>
+</ol>
+<p>调内存占用时我一般先动 <code>quarantine_size_mb</code>，通常就能把峰值压下来。</p>
+<h3 id="9-2-常见问题及解决方法">9.2 常见问题及解决方法<a class="hlink" data-h="9-2-常见问题及解决方法" href="#9-2-常见问题及解决方法" title="跳到本节">¶</a></h3><h4 id="9-2-1-误报问题"><a href="#9-2-1-误报问题" class="headerlink" title="9.2.1 误报问题"></a>9.2.1 误报问题</h4><p>有时第三方库或特定编码模式会导致误报：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建抑制列表</span></span><br><span class="line"><span class="built_in">cat</span> &gt; suppressions.txt &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">leak:libsomething.so</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用抑制列表</span></span><br><span class="line"><span class="built_in">export</span> LSAN_OPTIONS=suppressions=./suppressions.txt:detect_leaks=1</span><br></pre></td></tr></table></figure>
+
+<h4 id="9-2-2-内存使用过高"><a href="#9-2-2-内存使用过高" class="headerlink" title="9.2.2 内存使用过高"></a>9.2.2 内存使用过高</h4><p>AddressSanitizer会增加内存使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 减少内存使用</span></span><br><span class="line"><span class="built_in">export</span> ASAN_OPTIONS=quarantine_size_mb=10:malloc_context_size=5</span><br></pre></td></tr></table></figure>
+
+<h4 id="9-2-3-兼容性问题"><a href="#9-2-3-兼容性问题" class="headerlink" title="9.2.3 兼容性问题"></a>9.2.3 兼容性问题</h4><p>某些平台或特殊代码可能存在兼容性问题：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 处理不兼容的第三方代码</span></span><br><span class="line"><span class="built_in">export</span> ASAN_OPTIONS=allow_user_poisoning=1</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-3-最佳实践">9.3 最佳实践<a class="hlink" data-h="9-3-最佳实践" href="#9-3-最佳实践" title="跳到本节">¶</a></h3><ol>
+<li><strong>添加正确的编译选项</strong>：<code>-fsanitize=address -fno-omit-frame-pointer -g</code></li>
+<li><strong>保持测试案例简洁</strong>：使生成的报告更清晰</li>
+<li><strong>定期全面检测</strong>：在每次发布前运行完整测试</li>
+<li><strong>优化检测范围</strong>：针对不同需求调整检测范围</li>
+<li><strong>记录已知问题</strong>：维护抑制列表避免重复警报</li>
+</ol>
+<h2 id="10-实战案例：微服务泄漏与嵌入式栈溢出">10. 实战案例：微服务泄漏与嵌入式栈溢出<a class="hlink" data-h="10-实战案例：微服务泄漏与嵌入式栈溢出" href="#10-实战案例：微服务泄漏与嵌入式栈溢出" title="跳到本节">¶</a></h2><h3 id="10-1-案例1：微服务内存泄漏定位">10.1 案例1：微服务内存泄漏定位<a class="hlink" data-h="10-1-案例1：微服务内存泄漏定位" href="#10-1-案例1：微服务内存泄漏定位" title="跳到本节">¶</a></h3><p><strong>问题描述</strong>：一个高并发微服务系统在运行几小时后内存占用不断增长。</p>
+<p><strong>分析步骤</strong>：</p>
+<ol>
+<li><p>使用AddressSanitizer重新编译服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON .</span><br><span class="line">make -j$(<span class="built_in">nproc</span>)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>运行测试负载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ASAN_OPTIONS=detect_leaks=1:symbolize=1:log_path=./asan.log ./microservice --test-mode</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>分析日志，发现连接处理模块存在内存泄漏：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Direct leak of 2048 bytes <span class="keyword">in</span> 128 object(s) allocated from:</span><br><span class="line">    <span class="comment">#0 0x7f123456 in operator new[](unsigned long)</span></span><br><span class="line">    <span class="comment">#1 0x5432abcd in ConnectionPool::getConnection()</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>检查连接池代码，发现连接失败时未正确释放资源。</p>
+</li>
+</ol>
+<p><strong>解决方案</strong>：修改连接池实现，确保所有异常路径都正确释放资源。</p>
+<h3 id="10-2-案例2：嵌入式设备栈溢出">10.2 案例2：嵌入式设备栈溢出<a class="hlink" data-h="10-2-案例2：嵌入式设备栈溢出" href="#10-2-案例2：嵌入式设备栈溢出" title="跳到本节">¶</a></h3><p><strong>问题描述</strong>：嵌入式设备在特定条件下随机重启。</p>
+<p><strong>分析步骤</strong>：</p>
+<ol>
+<li><p>在测试环境中使用AddressSanitizer编译固件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">CC=<span class="string">&quot;gcc -fsanitize=address&quot;</span> ./configure --target=arm-linux</span><br><span class="line">make</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>在仿真环境中运行测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ASAN_OPTIONS=detect_stack_use_after_return=1 ./firmware_sim</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>触发问题条件，获得错误报告：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7fffffffd480</span><br><span class="line">WRITE of size 12 at 0x7fffffffd480 thread T0</span><br><span class="line">    #0 0x45678 in process_message firmware/message.c:256</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>检查代码发现数组边界检查错误：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误代码</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">process_message</span><span class="params">(<span class="type">char</span>* msg, <span class="type">int</span> len)</span> &#123;</span><br><span class="line">  <span class="type">char</span> buffer[<span class="number">10</span>];</span><br><span class="line">  <span class="built_in">strcpy</span>(buffer, msg);  <span class="comment">// 没有检查msg的长度</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li>
+</ol>
+<p><strong>解决方案</strong>：使用<code>strncpy</code>并确保字符串始终正确终止：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">process_message</span><span class="params">(<span class="type">char</span>* msg, <span class="type">int</span> len)</span> &#123;</span><br><span class="line">  <span class="type">char</span> buffer[<span class="number">10</span>];</span><br><span class="line">  <span class="built_in">strncpy</span>(buffer, msg, <span class="keyword">sizeof</span>(buffer) - <span class="number">1</span>);</span><br><span class="line">  buffer[<span class="keyword">sizeof</span>(buffer) - <span class="number">1</span>] = <span class="string">&#x27;\0&#x27;</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>嵌入式那例的关键是打开 <code>detect_stack_use_after_return</code>，不然栈溢出很难稳定复现出来。</p>
+<h2 id="11-落地建议：把ASan固化进开发流程">11. 落地建议：把ASan固化进开发流程<a class="hlink" data-h="11-落地建议：把ASan固化进开发流程" href="#11-落地建议：把ASan固化进开发流程" title="跳到本节">¶</a></h2><p>我的结论是直接把 AddressSanitizer 固化进日常构建和 CI——它比 Valgrind 快一个数量级，编译选项又简单，没必要把内存检查留在”出问题才想起来”的位置。剩下的就是按项目情况挑场景、控开销、维护好抑制列表这三件事。</p>
+<h3 id="11-1-主要优势">11.1 主要优势<a class="hlink" data-h="11-1-主要优势" href="#11-1-主要优势" title="跳到本节">¶</a></h3><ol>
+<li><strong>高效精确</strong>：比Valgrind快10倍以上，同时提供准确的错误定位</li>
+<li><strong>易于集成</strong>：简单的编译选项，易于集成到开发流程</li>
+<li><strong>丰富的检测能力</strong>：覆盖绝大多数常见内存错误类型</li>
+<li><strong>良好的生态</strong>：现代编译器和工具链的广泛支持</li>
+</ol>
+<h3 id="11-2-未来发展趋势">11.2 未来发展趋势<a class="hlink" data-h="11-2-未来发展趋势" href="#11-2-未来发展趋势" title="跳到本节">¶</a></h3><ol>
+<li><strong>更好的嵌入式支持</strong>：针对资源受限环境的优化</li>
+<li><strong>更广泛的编译器支持</strong>：特别是Windows平台</li>
+<li><strong>与其他工具的协同</strong>：与静态分析、模糊测试的结合</li>
+<li><strong>容器和云环境支持</strong>：更好地适应现代部署环境</li>
+</ol>
+<h3 id="11-3-企业应用建议">11.3 企业应用建议<a class="hlink" data-h="11-3-企业应用建议" href="#11-3-企业应用建议" title="跳到本节">¶</a></h3><ol>
+<li><strong>纳入标准开发流程</strong>：在CI&#x2F;CD管道中强制执行内存检查</li>
+<li><strong>建立问题库</strong>：记录和分类发现的内存问题</li>
+<li><strong>定期全系统扫描</strong>：防止问题累积</li>
+<li><strong>开发团队培训</strong>：提高内存安全意识和工具使用能力</li>
+</ol>
+<div class="callout info" data-callout="info"><div class="callout-title"><span class="callout-ico">ℹ️</span><span class="callout-title-inner"><br>Sanitizer工具族为C&#x2F;C++开发带来了革命性的变化，使内存错误检测变得更加简单高效。将这些工具融入开发流程，可以显著提高代码质量和系统稳定性。</span></div><div class="callout-body"></div></div>
+<details class="callout note" data-callout="note"><summary class="callout-title"><span class="callout-ico">📝</span><span class="callout-title-inner">扩展阅读资源</span><span class="callout-fold">▾</span></summary><div class="callout-body"><ol>
+<li><a target="_blank" rel="noopener" href="https://github.com/google/sanitizers/wiki">Google Sanitizers Wiki</a></li>
+<li><a target="_blank" rel="noopener" href="https://clang.llvm.org/docs/AddressSanitizer.html">LLVM AddressSanitizer Documentation</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/google/fuzzer-test-suite">Google’s Fuzzer Test Suite</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.apple.com/documentation/xcode/diagnosing-memory-thread-and-crash-issues-early">Debugging with AddressSanitizer</a></li>
+<li><a target="_blank" rel="noopener" href="https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/43308.pdf">Memory Sanitizer Paper</a></li>
+</ol>
+</div></details>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"07-Sanitizer内存泄漏分析","description":"C/C++ 里那些越界几字节释放后又用的问题，光靠 review 很难一眼看出来，我一般直接让编译器插桩来抓。","datePublished":"2026-11-14T00:00:00+08:00","dateModified":"2026-11-14T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/3144201791.html"},"url":"https://zeek-zhao.github.io/posts/3144201791.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"操作系统与机器人","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/"},{"@type":"ListItem","position":4,"name":"Linux","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/"},{"@type":"ListItem","position":5,"name":"07-Sanitizer内存泄漏分析","item":"https://zeek-zhao.github.io/posts/3144201791.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#1-Sanitizer工具族：编译时插桩换来的快速检测" data-h="1-Sanitizer工具族：编译时插桩换来的快速检测" class="">1. Sanitizer工具族：编译时插桩换来的快速检测</a>
+      
+        <a href="#1-1-Sanitizer工具家族" data-h="1-1-Sanitizer工具家族" class="l2">1.1 Sanitizer工具家族</a>
+      
+        <a href="#1-2-各工具功能与GCC支持" data-h="1-2-各工具功能与GCC支持" class="l2">1.2 各工具功能与GCC支持</a>
+      
+        <a href="#2-ASan原理：影子内存加红区把越界拦下来" data-h="2-ASan原理：影子内存加红区把越界拦下来" class="">2. ASan原理：影子内存加红区把越界拦下来</a>
+      
+        <a href="#2-1-整体架构和工作流程" data-h="2-1-整体架构和工作流程" class="l2">2.1 整体架构和工作流程</a>
+      
+        <a href="#2-2-影子内存映射：8字节对1字节" data-h="2-2-影子内存映射：8字节对1字节" class="l2">2.2 影子内存映射：8字节对1字节</a>
+      
+        <a href="#2-3-编译器插桩机制" data-h="2-3-编译器插桩机制" class="l2">2.3 编译器插桩机制</a>
+      
+        <a href="#2-4-红区保护：内存块前后插不可访问区" data-h="2-4-红区保护：内存块前后插不可访问区" class="l2">2.4 红区保护：内存块前后插不可访问区</a>
+      
+        <a href="#3-基本使用：一个编译选项就能开跑" data-h="3-基本使用：一个编译选项就能开跑" class="">3. 基本使用：一个编译选项就能开跑</a>
+      
+        <a href="#3-1-编译器支持" data-h="3-1-编译器支持" class="l2">3.1 编译器支持</a>
+      
+        <a href="#3-2-编译选项" data-h="3-2-编译选项" class="l2">3.2 编译选项</a>
+      
+        <a href="#3-3-在CMake项目中使用" data-h="3-3-在CMake项目中使用" class="l2">3.3 在CMake项目中使用</a>
+      
+        <a href="#3-4-环境变量配置" data-h="3-4-环境变量配置" class="l2">3.4 环境变量配置</a>
+      
+        <a href="#4-错误类型：五类常见内存问题长什么样" data-h="4-错误类型：五类常见内存问题长什么样" class="">4. 错误类型：五类常见内存问题长什么样</a>
+      
+        <a href="#4-1-内存泄漏-Memory-Leak" data-h="4-1-内存泄漏-Memory-Leak" class="l2">4.1 内存泄漏(Memory Leak)</a>
+      
+        <a href="#4-2-堆缓冲区溢出-Heap-Buffer-Overflow" data-h="4-2-堆缓冲区溢出-Heap-Buffer-Overflow" class="l2">4.2 堆缓冲区溢出(Heap Buffer Overflow)</a>
+      
+        <a href="#4-3-栈缓冲区溢出-Stack-Buffer-Overflow" data-h="4-3-栈缓冲区溢出-Stack-Buffer-Overflow" class="l2">4.3 栈缓冲区溢出(Stack Buffer Overflow)</a>
+      
+        <a href="#4-4-释放后使用-Use-After-Free" data-h="4-4-释放后使用-Use-After-Free" class="l2">4.4 释放后使用(Use After Free)</a>
+      
+        <a href="#4-5-全局缓冲区溢出-Global-Buffer-Overflow" data-h="4-5-全局缓冲区溢出-Global-Buffer-Overflow" class="l2">4.5 全局缓冲区溢出(Global Buffer Overflow)</a>
+      
+        <a href="#5-报告解读：从堆栈到影子字节逐段拆" data-h="5-报告解读：从堆栈到影子字节逐段拆" class="">5. 报告解读：从堆栈到影子字节逐段拆</a>
+      
+        <a href="#5-1-错误报告结构" data-h="5-1-错误报告结构" class="l2">5.1 错误报告结构</a>
+      
+        <a href="#5-2-错误报告实例解析" data-h="5-2-错误报告实例解析" class="l2">5.2 错误报告实例解析</a>
+      
+        <a href="#5-3-影子内存状态解读" data-h="5-3-影子内存状态解读" class="l2">5.3 影子内存状态解读</a>
+      
+        <a href="#6-LSan：程序退出时才做的可达性检查" data-h="6-LSan：程序退出时才做的可达性检查" class="">6. LSan：程序退出时才做的可达性检查</a>
+      
+        <a href="#6-1-与AddressSanitizer的关系" data-h="6-1-与AddressSanitizer的关系" class="l2">6.1 与AddressSanitizer的关系</a>
+      
+        <a href="#6-2-工作原理" data-h="6-2-工作原理" class="l2">6.2 工作原理</a>
+      
+        <a href="#6-3-使用方法" data-h="6-3-使用方法" class="l2">6.3 使用方法</a>
+      
+        <a href="#6-4-内存泄漏分类" data-h="6-4-内存泄漏分类" class="l2">6.4 内存泄漏分类</a>
+      
+        <a href="#7-项目集成：在CI里插一道内存检查" data-h="7-项目集成：在CI里插一道内存检查" class="">7. 项目集成：在CI里插一道内存检查</a>
+      
+        <a href="#7-1-持续集成中的应用" data-h="7-1-持续集成中的应用" class="l2">7.1 持续集成中的应用</a>
+      
+        <a href="#7-2-大型项目中的策略" data-h="7-2-大型项目中的策略" class="l2">7.2 大型项目中的策略</a>
+      
+        <a href="#7-3-优化构建配置" data-h="7-3-优化构建配置" class="l2">7.3 优化构建配置</a>
+      
+        <a href="#8-工具对比：按场景在ASan、Valgrind、mtrace间选" data-h="8-工具对比：按场景在ASan、Valgrind、mtrace间选" class="">8. 工具对比：按场景在ASan、Valgrind、mtrace间选</a>
+      
+        <a href="#8-1-Sanitizer-vs-Valgrind" data-h="8-1-Sanitizer-vs-Valgrind" class="l2">8.1 Sanitizer vs Valgrind</a>
+      
+        <a href="#8-2-Sanitizer-vs-mtrace" data-h="8-2-Sanitizer-vs-mtrace" class="l2">8.2 Sanitizer vs mtrace</a>
+      
+        <a href="#8-3-工具选择建议" data-h="8-3-工具选择建议" class="l2">8.3 工具选择建议</a>
+      
+        <a href="#9-开销与坑：降减速、控内存、消误报" data-h="9-开销与坑：降减速、控内存、消误报" class="">9. 开销与坑：降减速、控内存、消误报</a>
+      
+        <a href="#9-1-减少Sanitizer性能开销" data-h="9-1-减少Sanitizer性能开销" class="l2">9.1 减少Sanitizer性能开销</a>
+      
+        <a href="#9-2-常见问题及解决方法" data-h="9-2-常见问题及解决方法" class="l2">9.2 常见问题及解决方法</a>
+      
+        <a href="#9-3-最佳实践" data-h="9-3-最佳实践" class="l2">9.3 最佳实践</a>
+      
+        <a href="#10-实战案例：微服务泄漏与嵌入式栈溢出" data-h="10-实战案例：微服务泄漏与嵌入式栈溢出" class="">10. 实战案例：微服务泄漏与嵌入式栈溢出</a>
+      
+        <a href="#10-1-案例1：微服务内存泄漏定位" data-h="10-1-案例1：微服务内存泄漏定位" class="l2">10.1 案例1：微服务内存泄漏定位</a>
+      
+        <a href="#10-2-案例2：嵌入式设备栈溢出" data-h="10-2-案例2：嵌入式设备栈溢出" class="l2">10.2 案例2：嵌入式设备栈溢出</a>
+      
+        <a href="#11-落地建议：把ASan固化进开发流程" data-h="11-落地建议：把ASan固化进开发流程" class="">11. 落地建议：把ASan固化进开发流程</a>
+      
+        <a href="#11-1-主要优势" data-h="11-1-主要优势" class="l2">11.1 主要优势</a>
+      
+        <a href="#11-2-未来发展趋势" data-h="11-2-未来发展趋势" class="l2">11.2 未来发展趋势</a>
+      
+        <a href="#11-3-企业应用建议" data-h="11-3-企业应用建议" class="l2">11.3 企业应用建议</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

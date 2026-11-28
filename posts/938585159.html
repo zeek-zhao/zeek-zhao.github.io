@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MinIO分布式对象存储系统部署方案 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="采用6块磁盘构建一个分布式MinIO集群，利用纠删码Erasure Coding技术提供数据冗余保护。配置为4+2模式，可以容忍任意2块磁盘故障而不丢失数据。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/938585159.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="MinIO分布式对象存储系统部署方案">
+<meta property="og:description" content="采用6块磁盘构建一个分布式MinIO集群，利用纠删码Erasure Coding技术提供数据冗余保护。配置为4+2模式，可以容忍任意2块磁盘故障而不丢失数据。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/938585159.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="MinIO分布式对象存储系统部署方案">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-06T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="DevOps 与 CI">
+          <div class="sg-head">
+            <span>🛠️</span><span>DevOps 与 CI</span><span class="cnt">137 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Devops">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/Devops/" class=""><span>⚙️</span><span>Devops</span><span class="cnt">24</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Devops 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3648774256.html" class="">Readme 项目管理工具开发指南</a>
+                  
+                    <a href="/posts/80353994.html" class="">云原生详解：概念、架构与最佳实践</a>
+                  
+                    <a href="/posts/864860118.html" class="">云计算基础概念</a>
+                  
+                    <a href="/posts/3419865976.html" class="">云计算概述：从IaaS到云原生</a>
+                  
+                    <a href="/posts/3895211782.html" class="">云详解：从基础架构到云原生应用</a>
+                  
+                    <a href="/posts/161360898.html" class="">DevOps 开发指南：从环境到落地的完整路径</a>
+                  
+                    <a href="/posts/625290732.html" class="">DevOps 概述：打破开发与运维的墙</a>
+                  
+                    <a href="/posts/1892394070.html" class="">DevOps 详解：从理念到落地体系</a>
+                  
+                    <a href="/posts/1327983660.html" class="">DevOps 资源与工具链接大全</a>
+                  
+                    <a href="/posts/1303542826.html" class="">CI/CD 全面指南：从基础到实践</a>
+                  
+                    <a href="/posts/2079715886.html" class="">CI/CD 基础设施：现代交付体系的基石</a>
+                  
+                    <a href="/posts/1609493186.html" class="">CICD安全：构建安全可靠的交付管道</a>
+                  
+                    <a href="/posts/3727254957.html" class="">CICD监控系统全指南：构建可见与可控的交付链路</a>
+                  
+                    <a href="/posts/2127181799.html" class="">Jupyter 开发指南</a>
+                  
+                    <a href="/posts/938585159.html" class="active">MinIO分布式对象存储系统部署方案</a>
+                  
+                    <a href="/posts/2744267937.html" class="">MinIO开发指南：从入门到精通</a>
+                  
+                    <a href="/posts/3493101813.html" class="">服务器基础环境搭建：从入门到精通</a>
+                  
+                    <a href="/posts/2247745902.html" class="">Artifactory开发指南：企业级二进制仓库</a>
+                  
+                    <a href="/posts/1702114218.html" class="">cgit 与 gitweb 开发指南</a>
+                  
+                    <a href="/posts/2352368518.html" class="">Dependency-Track 实战：把组件风险管到流水线里</a>
+                  
+                    <a href="/posts/1015617798.html" class="">Doxygen 实战：让代码注释自动长成文档</a>
+                  
+                    <a href="/posts/467740246.html" class="">FOSSology 实战：把许可证合规做成自动扫描</a>
+                  
+                    <a href="/posts/1788589949.html" class="">SonarQube 实战：把代码质量变成可量化的门禁</a>
+                  
+                    <a href="/posts/2585977730.html" class="">DevOps 技能索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="k8s">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/k8s/" class=""><span>☸️</span><span>k8s</span><span class="cnt">19</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 k8s 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1134926849.html" class="">02-安装部署-minikube</a>
+                  
+                    <a href="/posts/2183422431.html" class="">03-安装部署-kubeadm</a>
+                  
+                    <a href="/posts/3633678241.html" class="">04-Pod基础</a>
+                  
+                    <a href="/posts/2387220081.html" class="">05-Deployment</a>
+                  
+                    <a href="/posts/2622802409.html" class="">06-Service服务发现</a>
+                  
+                    <a href="/posts/689024608.html" class="">07-Ingress</a>
+                  
+                    <a href="/posts/3220507863.html" class="">08-ConfigMap与Secret</a>
+                  
+                    <a href="/posts/3456073536.html" class="">09-存储卷Volume</a>
+                  
+                    <a href="/posts/1645162883.html" class="">10-调度与亲和性</a>
+                  
+                    <a href="/posts/3603673172.html" class="">11-健康检查与探针</a>
+                  
+                    <a href="/posts/3919659565.html" class="">12-HPA自动伸缩</a>
+                  
+                    <a href="/posts/4255836140.html" class="">13-RBAC权限控制</a>
+                  
+                    <a href="/posts/3767209492.html" class="">14-Helm包管理</a>
+                  
+                    <a href="/posts/1983604537.html" class="">15-网络原理</a>
+                  
+                    <a href="/posts/775443758.html" class="">16-故障排查</a>
+                  
+                    <a href="/posts/142920649.html" class="">17-监控体系</a>
+                  
+                    <a href="/posts/1789822815.html" class="">18-生产实践</a>
+                  
+                    <a href="/posts/3073924864.html" class="">k8s 00-索引</a>
+                  
+                    <a href="/posts/1898566884.html" class="">k8s 01-核心概念与架构</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="jenkins">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/jenkins/" class=""><span>🤵</span><span>jenkins</span><span class="cnt">18</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 jenkins 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/420401477.html" class="">02-安装部署-war与Docker</a>
+                  
+                    <a href="/posts/1400208228.html" class="">03-Freestyle Job</a>
+                  
+                    <a href="/posts/94912300.html" class="">04-Pipeline基础语法</a>
+                  
+                    <a href="/posts/478830218.html" class="">05-参数化构建与触发器</a>
+                  
+                    <a href="/posts/273190372.html" class="">06-凭据管理</a>
+                  
+                    <a href="/posts/2897964088.html" class="">07-共享库</a>
+                  
+                    <a href="/posts/2752803394.html" class="">08-多分支流水线</a>
+                  
+                    <a href="/posts/1414905208.html" class="">09-代理节点</a>
+                  
+                    <a href="/posts/313562399.html" class="">10-插件生态</a>
+                  
+                    <a href="/posts/487822753.html" class="">11-安全权限管理</a>
+                  
+                    <a href="/posts/3600282992.html" class="">12-与Git集成</a>
+                  
+                    <a href="/posts/662902205.html" class="">13-与Gerrit集成</a>
+                  
+                    <a href="/posts/3001512961.html" class="">14-容器化与Docker集成</a>
+                  
+                    <a href="/posts/4002175065.html" class="">15-备份与升级</a>
+                  
+                    <a href="/posts/2191119989.html" class="">16-性能优化</a>
+                  
+                    <a href="/posts/1010447273.html" class="">17-生产实践</a>
+                  
+                    <a href="/posts/2898301708.html" class="">jenkins 00-索引</a>
+                  
+                    <a href="/posts/3790878514.html" class="">jenkins 01-核心概念与架构</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="gerrit">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/gerrit/" class=""><span>🧾</span><span>gerrit</span><span class="cnt">17</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 gerrit 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2232575673.html" class="">01-核心概念与架构</a>
+                  
+                    <a href="/posts/3976549850.html" class="">03-SSH配置与账号</a>
+                  
+                    <a href="/posts/3593076756.html" class="">04-项目创建与manifest</a>
+                  
+                    <a href="/posts/3497379917.html" class="">05-权限与组</a>
+                  
+                    <a href="/posts/2862613567.html" class="">06-Code Review 全流程</a>
+                  
+                    <a href="/posts/2865369120.html" class="">07-Change 生命周期与 refs 规范</a>
+                  
+                    <a href="/posts/4021463634.html" class="">08-Hook与事件</a>
+                  
+                    <a href="/posts/1343788477.html" class="">09-与Jenkins集成-Trigger与验证任务</a>
+                  
+                    <a href="/posts/816024681.html" class="">10-复制与二级服务器</a>
+                  
+                    <a href="/posts/2642706326.html" class="">11-备份与升级</a>
+                  
+                    <a href="/posts/1936305604.html" class="">12-常见问题排错</a>
+                  
+                    <a href="/posts/1258388025.html" class="">13-最佳实践</a>
+                  
+                    <a href="/posts/4182984180.html" class="">14-命令行与git-review</a>
+                  
+                    <a href="/posts/793704867.html" class="">15-集成与生态</a>
+                  
+                    <a href="/posts/2044427915.html" class="">16-生产运维与监控</a>
+                  
+                    <a href="/posts/1468007543.html" class="">gerrit 00-索引</a>
+                  
+                    <a href="/posts/2215618498.html" class="">gerrit 02-安装部署</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="gitlab">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/gitlab/" class=""><span>🦊</span><span>gitlab</span><span class="cnt">17</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 gitlab 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1426464393.html" class="">GitLab 简介与架构</a>
+                  
+                    <a href="/posts/1936232740.html" class="">安装部署 - Omnibus</a>
+                  
+                    <a href="/posts/2334227366.html" class="">安装部署 - Docker</a>
+                  
+                    <a href="/posts/1982805452.html" class="">项目与组管理</a>
+                  
+                    <a href="/posts/2251597155.html" class="">CI/CD Pipeline 配置</a>
+                  
+                    <a href="/posts/3078661545.html" class="">Runner 部署</a>
+                  
+                    <a href="/posts/1626166884.html" class="">代码评审与 MR</a>
+                  
+                    <a href="/posts/1368947108.html" class="">gitlab 权限管理</a>
+                  
+                    <a href="/posts/182520488.html" class="">SSO/LDAP 集成</a>
+                  
+                    <a href="/posts/516454747.html" class="">备份恢复</a>
+                  
+                    <a href="/posts/2753512097.html" class="">升级迁移</a>
+                  
+                    <a href="/posts/3488983566.html" class="">gitlab 性能优化</a>
+                  
+                    <a href="/posts/2922775048.html" class="">gitlab 常见问题排查</a>
+                  
+                    <a href="/posts/2047574691.html" class="">生产实践与进阶技巧</a>
+                  
+                    <a href="/posts/1640138851.html" class="">GitLab 从入门到精通</a>
+                  
+                    <a href="/posts/3626636365.html" class="">gitlab 安全加固</a>
+                  
+                    <a href="/posts/2171875478.html" class="">gitlab 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="nexus3">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/nexus3/" class=""><span>📦</span><span>nexus3</span><span class="cnt">17</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 nexus3 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/794670279.html" class="">03-仓库类型详解</a>
+                  
+                    <a href="/posts/3899959073.html" class="">04-Maven仓库配置</a>
+                  
+                    <a href="/posts/2767065624.html" class="">05-npm仓库配置</a>
+                  
+                    <a href="/posts/3347927184.html" class="">06-Docker仓库配置</a>
+                  
+                    <a href="/posts/2846423677.html" class="">07-Raw与其它仓库</a>
+                  
+                    <a href="/posts/86364368.html" class="">08-Blob Store与存储</a>
+                  
+                    <a href="/posts/3737743371.html" class="">09-权限与匿名访问</a>
+                  
+                    <a href="/posts/1548438067.html" class="">10-Cleanup与任务调度</a>
+                  
+                    <a href="/posts/3425741267.html" class="">11-REST API与脚本</a>
+                  
+                    <a href="/posts/2037935480.html" class="">12-备份恢复</a>
+                  
+                    <a href="/posts/2004643250.html" class="">13-高可用与SSL</a>
+                  
+                    <a href="/posts/1877057279.html" class="">14-性能调优</a>
+                  
+                    <a href="/posts/2452425559.html" class="">15-常见问题排错</a>
+                  
+                    <a href="/posts/3483505748.html" class="">16-最佳实践</a>
+                  
+                    <a href="/posts/1021566875.html" class="">nexus3 00-索引</a>
+                  
+                    <a href="/posts/2033685543.html" class="">nexus3 01-核心概念与架构</a>
+                  
+                    <a href="/posts/1992117855.html" class="">nexus3 02-安装部署</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="opengrok">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/opengrok/" class=""><span>🔍</span><span>opengrok</span><span class="cnt">17</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 opengrok 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3401457710.html" class="">OpenGrok 概述</a>
+                  
+                    <a href="/posts/1985842816.html" class="">代码索引基础</a>
+                  
+                    <a href="/posts/1470196158.html" class="">搜索语法</a>
+                  
+                    <a href="/posts/2324947679.html" class="">浏览与导航</a>
+                  
+                    <a href="/posts/1461878170.html" class="">配置管理</a>
+                  
+                    <a href="/posts/3882920345.html" class="">增量索引与监控</a>
+                  
+                    <a href="/posts/1509875352.html" class="">权限与认证</a>
+                  
+                    <a href="/posts/2378202025.html" class="">多仓库管理</a>
+                  
+                    <a href="/posts/4036215146.html" class="">性能调优</a>
+                  
+                    <a href="/posts/360899488.html" class="">与IDE集成</a>
+                  
+                    <a href="/posts/1221139652.html" class="">与CI集成</a>
+                  
+                    <a href="/posts/2558986216.html" class="">高可用部署</a>
+                  
+                    <a href="/posts/4144580090.html" class="">opengrok 安全加固</a>
+                  
+                    <a href="/posts/982527857.html" class="">备份恢复与排错</a>
+                  
+                    <a href="/posts/1606013855.html" class="">OpenGrok 安装部署</a>
+                  
+                    <a href="/posts/1683344117.html" class="">OpenGrok 从入门到精通</a>
+                  
+                    <a href="/posts/3159535135.html" class="">OpenGrok 资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="docker">
+                <div class="sg-subhead">
+                  <a href="/categories/DevOps-%E4%B8%8E-CI/docker/" class=""><span>🐳</span><span>docker</span><span class="cnt">8</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 docker 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3788885463.html" class="">01-什么是Docker与核心概念</a>
+                  
+                    <a href="/posts/4252111228.html" class="">02-安装与初体验</a>
+                  
+                    <a href="/posts/2204284953.html" class="">03-镜像与容器管理</a>
+                  
+                    <a href="/posts/2873424140.html" class="">04-Dockerfile与镜像构建</a>
+                  
+                    <a href="/posts/318978211.html" class="">05-数据卷与网络</a>
+                  
+                    <a href="/posts/2541770351.html" class="">06-Docker Compose</a>
+                  
+                    <a href="/posts/3471145924.html" class="">07-进阶实践与排错</a>
+                  
+                    <a href="/posts/1020738425.html" class="">docker 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/DevOps-%E4%B8%8E-CI/">🛠️ DevOps 与 CI</a> / <a href="/categories/DevOps-%E4%B8%8E-CI/Devops/">⚙️ Devops</a> / <span>MinIO分布式对象存储系统部署方案</span></div>
+
+<h1>MinIO分布式对象存储系统部署方案</h1>
+<div class="subtitle">采用6块磁盘构建一个分布式MinIO集群，利用纠删码Erasure Coding技术提供数据冗余保护。配置为4+2模式，可以容忍任意2块磁盘故障而不丢失数据。</div>
+<div class="article-meta">
+  <span>📅 2026-11-06</span><span>· 更新于 2026-11-06</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 6662 字 · 约 17 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/DevOps/">#DevOps</a><a class="tagchip" href="/tags/MinIO/">#MinIO</a><a class="tagchip" href="/tags/%E5%AF%B9%E8%B1%A1%E5%AD%98%E5%82%A8/">#对象存储</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/938585159.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="MinIO分布式对象存储系统部署方案"><a href="#MinIO分布式对象存储系统部署方案" class="headerlink" title="MinIO分布式对象存储系统部署方案"></a>MinIO分布式对象存储系统部署方案</h1><h2 id="先确认硬件和网络达标">先确认硬件和网络达标<a class="hlink" data-h="先确认硬件和网络达标" href="#先确认硬件和网络达标" title="跳到本节">¶</a></h2><table>
+<thead>
+<tr>
+<th>服务器IP</th>
+<th>CPU</th>
+<th>内存</th>
+<th>磔盘配置</th>
+<th>网络</th>
+<th>操作系统</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>62</td>
+<td>8核</td>
+<td>16GB</td>
+<td>2块4T硬盘</td>
+<td>千兆网卡</td>
+<td>CentOS 7.9</td>
+</tr>
+<tr>
+<td>64</td>
+<td>8核</td>
+<td>16GB</td>
+<td>1块4T硬盘</td>
+<td>千兆网卡</td>
+<td>CentOS 7.9</td>
+</tr>
+<tr>
+<td>67</td>
+<td>8核</td>
+<td>16GB</td>
+<td>1块4T硬盘</td>
+<td>千兆网卡</td>
+<td>CentOS 7.9</td>
+</tr>
+<tr>
+<td>68</td>
+<td>8核</td>
+<td>16GB</td>
+<td>1块4T硬盘</td>
+<td>千兆网卡</td>
+<td>CentOS 7.9</td>
+</tr>
+<tr>
+<td>69</td>
+<td>8核</td>
+<td>16GB</td>
+<td>1块4T硬盘</td>
+<td>千兆网卡</td>
+<td>CentOS 7.9</td>
+</tr>
+</tbody></table>
+<h2 id="按可用容量设计集群架构">按可用容量设计集群架构<a class="hlink" data-h="按可用容量设计集群架构" href="#按可用容量设计集群架构" title="跳到本节">¶</a></h2><h3 id="方案选择：分布式模式部署">方案选择：分布式模式部署<a class="hlink" data-h="方案选择：分布式模式部署" href="#方案选择：分布式模式部署" title="跳到本节">¶</a></h3><p>采用6块磁盘构建一个分布式MinIO集群，利用纠删码(Erasure Coding)技术提供数据冗余保护。配置为4+2模式，可以容忍任意2块磁盘故障而不丢失数据。</p>
+<div class="mermaid">
+graph TD
+    Client[客户端] --&gt; LB[负载均衡器]
+    LB --&gt; S1[服务器62]
+    LB --&gt; S2[服务器64]
+    LB --&gt; S3[服务器67]
+    LB --&gt; S4[服务器68]
+    LB --&gt; S5[服务器69]
+    S1 --- D1[磁盘1]
+    S1 --- D2[磁盘2]
+    S2 --- D3[磁盘3]
+    S3 --- D4[磁盘4]
+    S4 --- D5[磁盘5]
+    S5 --- D6[磁盘6]
+    subgraph "MinIO集群(4+2纠删码)"
+        D1
+        D2
+        D3
+        D4
+        D5
+        D6
+    end
+</div>
+
+<p><strong>纠删码(4+2)工作原理</strong>:</p>
+<div class="mermaid">
+graph LR
+    OrigData[原始数据] --&gt; |分片| D1[数据片1]
+    OrigData --&gt; |分片| D2[数据片2]
+    OrigData --&gt; |分片| D3[数据片3]
+    OrigData --&gt; |分片| D4[数据片4]
+    D1 &amp; D2 &amp; D3 &amp; D4 --&gt; |计算| P1[校验片1]
+    D1 &amp; D2 &amp; D3 &amp; D4 --&gt; |计算| P2[校验片2]
+    subgraph "数据分布"
+        D1 --&gt; |存储| Disk1[磁盘1]
+        D2 --&gt; |存储| Disk2[磁盘2]
+        D3 --&gt; |存储| Disk3[磁盘3]
+        D4 --&gt; |存储| Disk4[磁盘4]
+        P1 --&gt; |存储| Disk5[磁盘5]
+        P2 --&gt; |存储| Disk6[磁盘6]
+    end
+    style D1 fill:#bbf,stroke:#333
+    style D2 fill:#bbf,stroke:#333
+    style D3 fill:#bbf,stroke:#333
+    style D4 fill:#bbf,stroke:#333
+    style P1 fill:#fbf,stroke:#333
+    style P2 fill:#fbf,stroke:#333
+</div>
+
+<p><strong>实际可用存储容量计算</strong>:</p>
+<ul>
+<li>总原始容量：6 × 4TB &#x3D; 24TB</li>
+<li>4+2纠删码配置（实际可用容量）：24TB × (4&#x2F;6) &#x3D; 16TB</li>
+<li>考虑文件系统开销(约5%)后的实际可用容量：≈ 15.2TB</li>
+</ul>
+<h3 id="磁盘分配与挂载规划">磁盘分配与挂载规划<a class="hlink" data-h="磁盘分配与挂载规划" href="#磁盘分配与挂载规划" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>服务器</th>
+<th>挂载点</th>
+<th>文件系统</th>
+<th>磁盘设备</th>
+<th>挂载选项</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>62</td>
+<td>&#x2F;data1</td>
+<td>XFS</td>
+<td>&#x2F;dev&#x2F;sdb1</td>
+<td>defaults,noatime</td>
+</tr>
+<tr>
+<td>62</td>
+<td>&#x2F;data2</td>
+<td>XFS</td>
+<td>&#x2F;dev&#x2F;sdc1</td>
+<td>defaults,noatime</td>
+</tr>
+<tr>
+<td>64</td>
+<td>&#x2F;data3</td>
+<td>XFS</td>
+<td>&#x2F;dev&#x2F;sdb1</td>
+<td>defaults,noatime</td>
+</tr>
+<tr>
+<td>67</td>
+<td>&#x2F;data4</td>
+<td>XFS</td>
+<td>&#x2F;dev&#x2F;sdb1</td>
+<td>defaults,noatime</td>
+</tr>
+<tr>
+<td>68</td>
+<td>&#x2F;data5</td>
+<td>XFS</td>
+<td>&#x2F;dev&#x2F;sdb1</td>
+<td>defaults,noatime</td>
+</tr>
+<tr>
+<td>69</td>
+<td>&#x2F;data6</td>
+<td>XFS</td>
+<td>&#x2F;dev&#x2F;sdb1</td>
+<td>defaults,noatime</td>
+</tr>
+</tbody></table>
+<h2 id="选一种方式把集群装起来">选一种方式把集群装起来<a class="hlink" data-h="选一种方式把集群装起来" href="#选一种方式把集群装起来" title="跳到本节">¶</a></h2><h3 id="方式一：直接部署">方式一：直接部署<a class="hlink" data-h="方式一：直接部署" href="#方式一：直接部署" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>准备服务器环境</strong></p>
+<p><strong>系统要求检查清单</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>最低要求</th>
+<th>推荐配置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>操作系统</td>
+<td>Linux&#x2F;UNIX</td>
+<td>CentOS 7+&#x2F;Ubuntu 18.04+</td>
+</tr>
+<tr>
+<td>内核版本</td>
+<td>3.10+</td>
+<td>5.4+</td>
+</tr>
+<tr>
+<td>文件系统</td>
+<td>XFS&#x2F;Ext4</td>
+<td>XFS（推荐）</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>8GB</td>
+<td>16GB+</td>
+</tr>
+<tr>
+<td>CPU</td>
+<td>4核</td>
+<td>8核+</td>
+</tr>
+<tr>
+<td>网络带宽</td>
+<td>1Gbps</td>
+<td>10Gbps</td>
+</tr>
+</tbody></table>
+<p>在所有服务器上执行:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装依赖包</span></span><br><span class="line">yum install -y wget curl xfsprogs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建MinIO数据目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /data&#123;1..6&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看磁盘</span></span><br><span class="line">lsblk -f</span><br><span class="line"></span><br><span class="line"><span class="comment"># 格式化磁盘(示例，请根据实际设备名称调整)</span></span><br><span class="line">mkfs.xfs -f /dev/sd[b-c]1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 编辑/etc/fstab添加自动挂载</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;/dev/sdb1 /data1 xfs defaults,noatime 0 0&quot;</span> &gt;&gt; /etc/fstab</span><br><span class="line"><span class="comment"># 对应服务器上添加其他磁盘</span></span><br><span class="line"><span class="comment"># 62服务器还需添加: /dev/sdc1 /data2 xfs defaults,noatime 0 0</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 挂载所有文件系统</span></span><br><span class="line">mount -a</span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证挂载</span></span><br><span class="line"><span class="built_in">df</span> -h</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>安装MinIO</strong></p>
+<p>在所有服务器上:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 下载最新版MinIO</span></span><br><span class="line">wget https://dl.min.io/server/minio/release/linux-amd64/minio</span><br><span class="line"><span class="built_in">chmod</span> +x minio</span><br><span class="line"><span class="built_in">mv</span> minio /usr/local/bin/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证安装</span></span><br><span class="line">minio --version</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建MinIO配置目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /etc/minio</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>配置网络</strong></p>
+<p><strong>端口规划</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>端口</th>
+<th>用途</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>9000</td>
+<td>API端口</td>
+<td>S3 API访问</td>
+</tr>
+<tr>
+<td>9001</td>
+<td>控制台端口</td>
+<td>Web管理界面</td>
+</tr>
+<tr>
+<td>9091</td>
+<td>健康检查端口</td>
+<td>监控使用</td>
+</tr>
+</tbody></table>
+<p>在所有服务器上配置防火墙:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 对于firewalld</span></span><br><span class="line">firewall-cmd --permanent --add-port=9000/tcp</span><br><span class="line">firewall-cmd --permanent --add-port=9001/tcp</span><br><span class="line">firewall-cmd --permanent --add-port=9091/tcp</span><br><span class="line">firewall-cmd --reload</span><br><span class="line"></span><br><span class="line"><span class="comment"># 对于iptables</span></span><br><span class="line">iptables -A INPUT -p tcp --dport 9000 -j ACCEPT</span><br><span class="line">iptables -A INPUT -p tcp --dport 9001 -j ACCEPT</span><br><span class="line">iptables -A INPUT -p tcp --dport 9091 -j ACCEPT</span><br><span class="line">service iptables save</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查端口是否开放</span></span><br><span class="line">ss -tunlp | grep -E <span class="string">&#x27;9000|9001|9091&#x27;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>创建MinIO服务用户</strong></p>
+<p>在所有服务器上:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建minio-user用户</span></span><br><span class="line">useradd -r minio-user -s /sbin/nologin -M</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置目录权限</span></span><br><span class="line"><span class="built_in">chown</span> -R minio-user:minio-user /data&#123;1..6&#125;</span><br><span class="line"><span class="built_in">chown</span> -R minio-user:minio-user /etc/minio</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>配置MinIO环境变量</strong></p>
+<p>在所有服务器上创建环境变量配置文件:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt; /etc/minio/minio.conf &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string"># MinIO服务访问凭证</span></span><br><span class="line"><span class="string">MINIO_ROOT_USER=minioadmin</span></span><br><span class="line"><span class="string">MINIO_ROOT_PASSWORD=minioadmin123</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 区域配置</span></span><br><span class="line"><span class="string">MINIO_REGION=cn-north-1</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 控制台地址</span></span><br><span class="line"><span class="string">MINIO_CONSOLE_ADDRESS=:9001</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 日志配置</span></span><br><span class="line"><span class="string">MINIO_LOGGER=on</span></span><br><span class="line"><span class="string">MINIO_LOGGER_TYPE=console</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 浏览器直接访问配置</span></span><br><span class="line"><span class="string">MINIO_BROWSER=on</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 性能调优</span></span><br><span class="line"><span class="string">MINIO_DISK_USAGE_CRAWL_INTERVAL=3h</span></span><br><span class="line"><span class="string">MINIO_MAX_CONN=100</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>配置MinIO服务</strong></p>
+<p>在所有服务器上创建Systemd服务文件:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt; /etc/systemd/system/minio.service &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">[Unit]</span></span><br><span class="line"><span class="string">Description=MinIO Object Storage</span></span><br><span class="line"><span class="string">Documentation=https://docs.min.io</span></span><br><span class="line"><span class="string">Wants=network-online.target</span></span><br><span class="line"><span class="string">After=network-online.target</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">[Service]</span></span><br><span class="line"><span class="string">User=minio-user</span></span><br><span class="line"><span class="string">Group=minio-user</span></span><br><span class="line"><span class="string">EnvironmentFile=/etc/minio/minio.conf</span></span><br><span class="line"><span class="string">ExecStartPre=/bin/bash -c &quot;ulimit -n 65536&quot;</span></span><br><span class="line"><span class="string">ExecStart=/usr/local/bin/minio server \\</span></span><br><span class="line"><span class="string">  --address :9000 \\</span></span><br><span class="line"><span class="string">  --console-address :9001 \\</span></span><br><span class="line"><span class="string">  http://62.example.com/data1 http://62.example.com/data2 \\</span></span><br><span class="line"><span class="string">  http://64.example.com/data3 \\</span></span><br><span class="line"><span class="string">  http://67.example.com/data4 \\</span></span><br><span class="line"><span class="string">  http://68.example.com/data5 \\</span></span><br><span class="line"><span class="string">  http://69.example.com/data6</span></span><br><span class="line"><span class="string">Restart=always</span></span><br><span class="line"><span class="string">LimitNOFILE=65536</span></span><br><span class="line"><span class="string">TasksMax=infinity</span></span><br><span class="line"><span class="string">TimeoutStartSec=180</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">[Install]</span></span><br><span class="line"><span class="string">WantedBy=multi-user.target</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>注意</strong>: 请将上述”62.example.com”等替换为实际服务器IP地址或主机名</p>
+</blockquote>
+</li>
+<li><p><strong>启动MinIO服务</strong></p>
+<p>在所有服务器上:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 重新加载systemd配置</span></span><br><span class="line">systemctl daemon-reload</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用服务</span></span><br><span class="line">systemctl <span class="built_in">enable</span> minio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动服务</span></span><br><span class="line">systemctl start minio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查状态</span></span><br><span class="line">systemctl status minio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看日志</span></span><br><span class="line">journalctl -u minio -f</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>验证部署</strong></p>
+<p>访问任意服务器的Web控制台：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">http://服务器IP:9001</span><br></pre></td></tr></table></figure>
+
+<p>使用配置的 MINIO_ROOT_USER 和 MINIO_ROOT_PASSWORD 登录</p>
+<p><img src="https://min.io/resources/img/screenshots/SUBNET-login.png" alt="MinIO控制台登录界面"></p>
+<p><strong>验证集群状态</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装mc客户端</span></span><br><span class="line">wget https://dl.min.io/client/mc/release/linux-amd64/mc</span><br><span class="line"><span class="built_in">chmod</span> +x mc</span><br><span class="line"><span class="built_in">mv</span> mc /usr/local/bin/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置mc</span></span><br><span class="line">mc <span class="built_in">alias</span> <span class="built_in">set</span> myminio http://62.example.com:9000 minioadmin minioadmin123</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查集群信息</span></span><br><span class="line">mc admin info myminio</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="方式二：Docker容器化部署">方式二：Docker容器化部署<a class="hlink" data-h="方式二：Docker容器化部署" href="#方式二：Docker容器化部署" title="跳到本节">¶</a></h3><p>使用Docker部署MinIO有以下优势：标准化环境、简化部署流程、方便升级和迁移、资源隔离。</p>
+<ol>
+<li><p><strong>Docker环境准备</strong></p>
+<p>在所有服务器上安装Docker和Docker Compose:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装Docker</span></span><br><span class="line">yum install -y yum-utils</span><br><span class="line">yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo</span><br><span class="line">yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动Docker服务</span></span><br><span class="line">systemctl <span class="built_in">enable</span> docker</span><br><span class="line">systemctl start docker</span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证Docker安装</span></span><br><span class="line">docker --version</span><br><span class="line">docker compose version</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建Docker网络(用于容器间通信)</span></span><br><span class="line">docker network create --driver=bridge minio-network</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>准备数据目录</strong></p>
+<p>在每台服务器上创建数据目录:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 62服务器</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /data&#123;1..2&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 64服务器</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /data3</span><br><span class="line"></span><br><span class="line"><span class="comment"># 67服务器</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /data4</span><br><span class="line"></span><br><span class="line"><span class="comment"># 68服务器</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /data5</span><br><span class="line"></span><br><span class="line"><span class="comment"># 69服务器</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /data6</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置目录权限(使用Docker用户ID 1000)</span></span><br><span class="line"><span class="built_in">chown</span> -R 1000:1000 /data*</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>创建Docker Compose配置文件</strong></p>
+<p>在每台服务器上创建<code>docker-compose.yml</code>文件:</p>
+<p><strong>62服务器</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt; /opt/minio/docker-compose.yml &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">version: &#x27;3.7&#x27;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">services:</span></span><br><span class="line"><span class="string">  minio:</span></span><br><span class="line"><span class="string">    image: minio/minio:latest</span></span><br><span class="line"><span class="string">    container_name: minio-server</span></span><br><span class="line"><span class="string">    ports:</span></span><br><span class="line"><span class="string">      - &quot;9000:9000&quot;</span></span><br><span class="line"><span class="string">      - &quot;9001:9001&quot;</span></span><br><span class="line"><span class="string">    environment:</span></span><br><span class="line"><span class="string">      - MINIO_ROOT_USER=minioadmin</span></span><br><span class="line"><span class="string">      - MINIO_ROOT_PASSWORD=minioadmin123</span></span><br><span class="line"><span class="string">      - MINIO_REGION=cn-north-1</span></span><br><span class="line"><span class="string">      - MINIO_BROWSER=on</span></span><br><span class="line"><span class="string">      - MINIO_PROMETHEUS_AUTH_TYPE=public</span></span><br><span class="line"><span class="string">    volumes:</span></span><br><span class="line"><span class="string">      - /data1:/data1</span></span><br><span class="line"><span class="string">      - /data2:/data2</span></span><br><span class="line"><span class="string">    command: server --console-address &quot;:9001&quot; http://62.example.com/data1 http://62.example.com/data2 http://64.example.com/data3 http://67.example.com/data4 http://68.example.com/data5 http://69.example.com/data6</span></span><br><span class="line"><span class="string">    restart: always</span></span><br><span class="line"><span class="string">    healthcheck:</span></span><br><span class="line"><span class="string">      test: [&quot;CMD&quot;, &quot;curl&quot;, &quot;-f&quot;, &quot;http://localhost:9000/minio/health/live&quot;]</span></span><br><span class="line"><span class="string">      interval: 30s</span></span><br><span class="line"><span class="string">      timeout: 20s</span></span><br><span class="line"><span class="string">      retries: 3</span></span><br><span class="line"><span class="string">    networks:</span></span><br><span class="line"><span class="string">      - minio-network</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">networks:</span></span><br><span class="line"><span class="string">  minio-network:</span></span><br><span class="line"><span class="string">    external: true</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>64服务器</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt; /opt/minio/docker-compose.yml &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">version: &#x27;3.7&#x27;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">services:</span></span><br><span class="line"><span class="string">  minio:</span></span><br><span class="line"><span class="string">    image: minio/minio:latest</span></span><br><span class="line"><span class="string">    container_name: minio-server</span></span><br><span class="line"><span class="string">    ports:</span></span><br><span class="line"><span class="string">      - &quot;9000:9000&quot;</span></span><br><span class="line"><span class="string">      - &quot;9001:9001&quot;</span></span><br><span class="line"><span class="string">    environment:</span></span><br><span class="line"><span class="string">      - MINIO_ROOT_USER=minioadmin</span></span><br><span class="line"><span class="string">      - MINIO_ROOT_PASSWORD=minioadmin123</span></span><br><span class="line"><span class="string">      - MINIO_REGION=cn-north-1</span></span><br><span class="line"><span class="string">      - MINIO_BROWSER=on</span></span><br><span class="line"><span class="string">      - MINIO_PROMETHEUS_AUTH_TYPE=public</span></span><br><span class="line"><span class="string">    volumes:</span></span><br><span class="line"><span class="string">      - /data3:/data3</span></span><br><span class="line"><span class="string">    command: server --console-address &quot;:9001&quot; http://62.example.com/data1 http://62.example.com/data2 http://64.example.com/data3 http://67.example.com/data4 http://68.example.com/data5 http://69.example.com/data6</span></span><br><span class="line"><span class="string">    restart: always</span></span><br><span class="line"><span class="string">    healthcheck:</span></span><br><span class="line"><span class="string">      test: [&quot;CMD&quot;, &quot;curl&quot;, &quot;-f&quot;, &quot;http://localhost:9000/minio/health/live&quot;]</span></span><br><span class="line"><span class="string">      interval: 30s</span></span><br><span class="line"><span class="string">      timeout: 20s</span></span><br><span class="line"><span class="string">      retries: 3</span></span><br><span class="line"><span class="string">    networks:</span></span><br><span class="line"><span class="string">      - minio-network</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">networks:</span></span><br><span class="line"><span class="string">  minio-network:</span></span><br><span class="line"><span class="string">    external: true</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>67、68、69服务器</strong>配置类似，只需修改相应的卷挂载。</p>
+</li>
+<li><p><strong>启动MinIO容器集群</strong></p>
+<p>在每台服务器上执行:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /opt/minio</span><br><span class="line">docker compose up -d</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查容器状态</span></span><br><span class="line">docker ps -a</span><br><span class="line">docker logs minio-server</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>配置Docker容器自启动</strong></p>
+<p>在所有服务器上:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建systemd服务来管理docker compose</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /etc/systemd/system/minio-docker.service &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">[Unit]</span></span><br><span class="line"><span class="string">Description=MinIO Docker Compose Service</span></span><br><span class="line"><span class="string">Requires=docker.service</span></span><br><span class="line"><span class="string">After=docker.service</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">[Service]</span></span><br><span class="line"><span class="string">Type=oneshot</span></span><br><span class="line"><span class="string">RemainAfterExit=yes</span></span><br><span class="line"><span class="string">WorkingDirectory=/opt/minio</span></span><br><span class="line"><span class="string">ExecStart=/usr/bin/docker compose up -d</span></span><br><span class="line"><span class="string">ExecStop=/usr/bin/docker compose down</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">[Install]</span></span><br><span class="line"><span class="string">WantedBy=multi-user.target</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 启用并启动服务</span></span><br><span class="line">systemctl daemon-reload</span><br><span class="line">systemctl <span class="built_in">enable</span> minio-docker</span><br><span class="line">systemctl start minio-docker</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>验证部署</strong></p>
+<p>访问任意服务器的Web控制台：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">http://服务器IP:9001</span><br></pre></td></tr></table></figure>
+
+<p>使用配置的 MINIO_ROOT_USER 和 MINIO_ROOT_PASSWORD 登录</p>
+<p><strong>验证集群状态</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 使用容器内的mc客户端</span></span><br><span class="line">docker run --<span class="built_in">rm</span> --network minio-network minio/mc <span class="built_in">alias</span> <span class="built_in">set</span> myminio http://minio-server:9000 minioadmin minioadmin123</span><br><span class="line">docker run --<span class="built_in">rm</span> --network minio-network minio/mc admin info myminio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 或在主机安装mc客户端</span></span><br><span class="line">curl https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc</span><br><span class="line"><span class="built_in">chmod</span> +x /usr/local/bin/mc</span><br><span class="line">mc <span class="built_in">alias</span> <span class="built_in">set</span> myminio http://127.0.0.1:9000 minioadmin minioadmin123</span><br><span class="line">mc admin info myminio</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="Docker-Swarm模式部署-可选">Docker Swarm模式部署(可选)<a class="hlink" data-h="Docker-Swarm模式部署-可选" href="#Docker-Swarm模式部署-可选" title="跳到本节">¶</a></h3><p>如果已经有Docker Swarm集群，可以使用以下方法进行部署:</p>
+<ol>
+<li><p><strong>初始化Docker Swarm集群</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在管理节点(如62服务器)上初始化Swarm</span></span><br><span class="line">docker swarm init --advertise-addr &lt;62服务器IP&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 在其他服务器上加入集群(根据init命令输出的指令)</span></span><br><span class="line">docker swarm <span class="built_in">join</span> --token &lt;TOKEN&gt; &lt;62服务器IP&gt;:2377</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>创建Docker Stack配置文件</strong></p>
+<p>在管理节点上创建<code>minio-stack.yml</code>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt; /opt/minio/minio-stack.yml &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">version: &#x27;3.7&#x27;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">services:</span></span><br><span class="line"><span class="string">  minio1:</span></span><br><span class="line"><span class="string">    image: minio/minio:latest</span></span><br><span class="line"><span class="string">    ports:</span></span><br><span class="line"><span class="string">      - &quot;9001:9001&quot;</span></span><br><span class="line"><span class="string">    volumes:</span></span><br><span class="line"><span class="string">      - /data1:/data1</span></span><br><span class="line"><span class="string">      - /data2:/data2</span></span><br><span class="line"><span class="string">    deploy:</span></span><br><span class="line"><span class="string">      placement:</span></span><br><span class="line"><span class="string">        constraints:</span></span><br><span class="line"><span class="string">          - node.hostname == 62.example.com</span></span><br><span class="line"><span class="string">    command: server --console-address &quot;:9001&quot; http://62.example.com/data1 http://62.example.com/data2 http://64.example.com/data3 http://67.example.com/data4 http://68.example.com/data5 http://69.example.com/data6</span></span><br><span class="line"><span class="string">    environment:</span></span><br><span class="line"><span class="string">      - MINIO_ROOT_USER=minioadmin</span></span><br><span class="line"><span class="string">      - MINIO_ROOT_PASSWORD=minioadmin123</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">  minio2:</span></span><br><span class="line"><span class="string">    image: minio/minio:latest</span></span><br><span class="line"><span class="string">    ports:</span></span><br><span class="line"><span class="string">      - &quot;9001:9001&quot;</span></span><br><span class="line"><span class="string">    volumes:</span></span><br><span class="line"><span class="string">      - /data3:/data3</span></span><br><span class="line"><span class="string">    deploy:</span></span><br><span class="line"><span class="string">      placement:</span></span><br><span class="line"><span class="string">        constraints:</span></span><br><span class="line"><span class="string">          - node.hostname == 64.example.com</span></span><br><span class="line"><span class="string">    command: server --console-address &quot;:9001&quot; http://62.example.com/data1 http://62.example.com/data2 http://64.example.com/data3 http://67.example.com/data4 http://68.example.com/data5 http://69.example.com/data6</span></span><br><span class="line"><span class="string">    environment:</span></span><br><span class="line"><span class="string">      - MINIO_ROOT_USER=minioadmin</span></span><br><span class="line"><span class="string">      - MINIO_ROOT_PASSWORD=minioadmin123</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">  # 类似地配置其他节点(minio3, minio4, minio5)</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>部署Stack</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">docker stack deploy -c /opt/minio/minio-stack.yml minio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 验证部署</span></span><br><span class="line">docker stack ps minio</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h3 id="Docker部署的备份与恢复">Docker部署的备份与恢复<a class="hlink" data-h="Docker部署的备份与恢复" href="#Docker部署的备份与恢复" title="跳到本节">¶</a></h3><ol>
+<li><p><strong>使用Docker容器进行备份</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 使用mc客户端容器执行备份</span></span><br><span class="line">docker run --<span class="built_in">rm</span> \</span><br><span class="line">  --network minio-network \</span><br><span class="line">  -v /backup:/backup \</span><br><span class="line">  minio/mc mirror \</span><br><span class="line">  minio/minioserver/mybucket /backup/mybucket-$(<span class="built_in">date</span> +%Y%m%d)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>容器数据恢复</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 从备份恢复</span></span><br><span class="line">docker run --<span class="built_in">rm</span> \</span><br><span class="line">  --network minio-network \</span><br><span class="line">  -v /backup:/backup \</span><br><span class="line">  minio/mc mirror \</span><br><span class="line">  /backup/mybucket-20230101 minio/minioserver/mybucket</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="部署完先做配置与调优">部署完先做配置与调优<a class="hlink" data-h="部署完先做配置与调优" href="#部署完先做配置与调优" title="跳到本节">¶</a></h2><ol>
+<li><p><strong>配置负载均衡</strong></p>
+<p><strong>Nginx负载均衡配置</strong>:</p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># /etc/nginx/conf.d/minio-lb.conf</span></span><br><span class="line"></span><br><span class="line"><span class="section">upstream</span> minio_api &#123;</span><br><span class="line">    least_conn;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">62</span>.example.com:<span class="number">9000</span>;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">64</span>.example.com:<span class="number">9000</span>;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">67</span>.example.com:<span class="number">9000</span>;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">68</span>.example.com:<span class="number">9000</span>;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">69</span>.example.com:<span class="number">9000</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="section">upstream</span> minio_console &#123;</span><br><span class="line">    least_conn;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">62</span>.example.com:<span class="number">9001</span>;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">64</span>.example.com:<span class="number">9001</span>;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">67</span>.example.com:<span class="number">9001</span>;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">68</span>.example.com:<span class="number">9001</span>;</span><br><span class="line">    <span class="attribute">server</span> <span class="number">69</span>.example.com:<span class="number">9001</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="section">server</span> &#123;</span><br><span class="line">    <span class="attribute">listen</span> <span class="number">80</span>;</span><br><span class="line">    <span class="attribute">server_name</span> minio.example.com;</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 重定向到HTTPS</span></span><br><span class="line">    <span class="attribute">return</span> <span class="number">301</span> https://<span class="variable">$host</span><span class="variable">$request_uri</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="section">server</span> &#123;</span><br><span class="line">    <span class="attribute">listen</span> <span class="number">443</span> ssl;</span><br><span class="line">    <span class="attribute">server_name</span> minio.example.com;</span><br><span class="line"></span><br><span class="line">    <span class="comment"># SSL证书配置</span></span><br><span class="line">    <span class="attribute">ssl_certificate</span> /etc/nginx/ssl/minio.crt;</span><br><span class="line">    <span class="attribute">ssl_certificate_key</span> /etc/nginx/ssl/minio.key;</span><br><span class="line">    <span class="attribute">ssl_session_timeout</span> <span class="number">5m</span>;</span><br><span class="line">    <span class="attribute">ssl_protocols</span> TLSv1.<span class="number">2</span> TLSv1.<span class="number">3</span>;</span><br><span class="line">    <span class="attribute">ssl_ciphers</span> HIGH:!aNULL:!MD5;</span><br><span class="line">    <span class="attribute">ssl_prefer_server_ciphers</span> <span class="literal">on</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment"># API路由</span></span><br><span class="line">    <span class="section">location</span> / &#123;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> Host <span class="variable">$http_host</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-Real-IP <span class="variable">$remote_addr</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-Forwarded-For <span class="variable">$proxy_add_x_forwarded_for</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-Forwarded-Proto <span class="variable">$scheme</span>;</span><br><span class="line"></span><br><span class="line">        <span class="attribute">proxy_connect_timeout</span> <span class="number">300</span>;</span><br><span class="line">        <span class="attribute">proxy_http_version</span> <span class="number">1</span>.<span class="number">1</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> Upgrade <span class="variable">$http_upgrade</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> Connection <span class="string">&quot;upgrade&quot;</span>;</span><br><span class="line"></span><br><span class="line">        <span class="attribute">chunked_transfer_encoding</span> <span class="literal">off</span>;</span><br><span class="line"></span><br><span class="line">        <span class="attribute">proxy_pass</span> http://minio_api;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 控制台路由</span></span><br><span class="line">    <span class="section">location</span> /minio/ &#123;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> Host <span class="variable">$http_host</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-Real-IP <span class="variable">$remote_addr</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-Forwarded-For <span class="variable">$proxy_add_x_forwarded_for</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-Forwarded-Proto <span class="variable">$scheme</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-NginX-Proxy <span class="literal">true</span>;</span><br><span class="line"></span><br><span class="line">        <span class="attribute">proxy_connect_timeout</span> <span class="number">300</span>;</span><br><span class="line">        <span class="attribute">proxy_http_version</span> <span class="number">1</span>.<span class="number">1</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> Upgrade <span class="variable">$http_upgrade</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> Connection <span class="string">&quot;upgrade&quot;</span>;</span><br><span class="line"></span><br><span class="line">        <span class="attribute">chunked_transfer_encoding</span> <span class="literal">off</span>;</span><br><span class="line"></span><br><span class="line">        <span class="attribute">proxy_pass</span> http://minio_console;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>HAProxy配置示例</strong>:</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"># /etc/haproxy/haproxy.cfg</span><br><span class="line"></span><br><span class="line">global</span><br><span class="line">    log /dev/log local0</span><br><span class="line">    log /dev/log local1 notice</span><br><span class="line">    daemon</span><br><span class="line">    maxconn 50000</span><br><span class="line">    nbproc 4</span><br><span class="line"></span><br><span class="line">defaults</span><br><span class="line">    log global</span><br><span class="line">    mode http</span><br><span class="line">    option httplog</span><br><span class="line">    option dontlognull</span><br><span class="line">    timeout connect 5000ms</span><br><span class="line">    timeout client 50000ms</span><br><span class="line">    timeout server 50000ms</span><br><span class="line"></span><br><span class="line">frontend minio_frontend</span><br><span class="line">    bind *:80</span><br><span class="line">    bind *:443 ssl crt /etc/ssl/minio.pem</span><br><span class="line">    http-request redirect scheme https unless &#123; ssl_fc &#125;</span><br><span class="line">    default_backend minio_backend_api</span><br><span class="line"></span><br><span class="line">    # 根据路径路由到API或控制台</span><br><span class="line">    acl is_console path_beg /minio/</span><br><span class="line">    use_backend minio_backend_console if is_console</span><br><span class="line"></span><br><span class="line">backend minio_backend_api</span><br><span class="line">    balance roundrobin</span><br><span class="line">    option httpchk GET /minio/health/ready</span><br><span class="line">    http-check expect status 200</span><br><span class="line">    server srv1 62.example.com:9000 check</span><br><span class="line">    server srv2 64.example.com:9000 check</span><br><span class="line">    server srv3 67.example.com:9000 check</span><br><span class="line">    server srv4 68.example.com:9000 check</span><br><span class="line">    server srv5 69.example.com:9000 check</span><br><span class="line"></span><br><span class="line">backend minio_backend_console</span><br><span class="line">    balance roundrobin</span><br><span class="line">    server srv1 62.example.com:9001 check</span><br><span class="line">    server srv2 64.example.com:9001 check</span><br><span class="line">    server srv3 67.example.com:9001 check</span><br><span class="line">    server srv4 68.example.com:9001 check</span><br><span class="line">    server srv5 69.example.com:9001 check</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>配置备份策略</strong></p>
+<p><strong>备份流程图</strong>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">    participant A as 源MinIO集群</span><br><span class="line">    participant B as 备份MinIO集群</span><br><span class="line">    participant C as 脚本调度器</span><br><span class="line"></span><br><span class="line">    C-&gt;&gt;A: 触发备份任务</span><br><span class="line">    A-&gt;&gt;B: mc mirror同步数据</span><br><span class="line">    B-&gt;&gt;B: 创建快照(可选)</span><br><span class="line">    B-&gt;&gt;C: 返回备份状态</span><br><span class="line">    C-&gt;&gt;C: 发送通知</span><br></pre></td></tr></table></figure>
+
+<p>使用MinIO Client (mc) 设置定期备份:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建备份脚本</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /usr/local/bin/minio-backup.sh &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">#!/bin/bash</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 日志设置</span></span><br><span class="line"><span class="string">LOGFILE=&quot;/var/log/minio-backup.log&quot;</span></span><br><span class="line"><span class="string">exec &gt; &gt;(tee -a \$&#123;LOGFILE&#125;) 2&gt;&amp;1</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">echo &quot;=== 开始备份 - \$(date) ===&quot;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 配置源和目标</span></span><br><span class="line"><span class="string">SRC_ALIAS=&quot;myminio&quot;</span></span><br><span class="line"><span class="string">DEST_ALIAS=&quot;backup-minio&quot;</span></span><br><span class="line"><span class="string">BUCKET_LIST=&quot;bucket1 bucket2 bucket3&quot;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 执行备份</span></span><br><span class="line"><span class="string">for BUCKET in \$BUCKET_LIST; do</span></span><br><span class="line"><span class="string">    echo &quot;正在备份 \$BUCKET...&quot;</span></span><br><span class="line"><span class="string">    mc mirror --overwrite --remove --preserve --newer-than 7d \$&#123;SRC_ALIAS&#125;/\$&#123;BUCKET&#125; \$&#123;DEST_ALIAS&#125;/\$&#123;BUCKET&#125;-backup</span></span><br><span class="line"><span class="string">    if [ \$? -eq 0 ]; then</span></span><br><span class="line"><span class="string">        echo &quot;\$BUCKET 备份成功&quot;</span></span><br><span class="line"><span class="string">    else</span></span><br><span class="line"><span class="string">        echo &quot;\$BUCKET 备份失败&quot; &gt;&amp;2</span></span><br><span class="line"><span class="string">        # 发送告警通知</span></span><br><span class="line"><span class="string">        curl -X POST -H &quot;Content-type: application/json&quot; -d &#x27;&#123;&quot;text&quot;:&quot;MinIO备份失败: \$BUCKET&quot;&#125;&#x27; https://alerts.example.com/webhook</span></span><br><span class="line"><span class="string">    fi</span></span><br><span class="line"><span class="string">done</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">echo &quot;=== 备份完成 - \$(date) ===&quot;</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置执行权限</span></span><br><span class="line"><span class="built_in">chmod</span> +x /usr/local/bin/minio-backup.sh</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建定时任务</span></span><br><span class="line">crontab -e</span><br><span class="line"><span class="comment"># 添加以下行</span></span><br><span class="line"><span class="comment"># 0 1 * * * /usr/local/bin/minio-backup.sh</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>性能调优</strong></p>
+<p><strong>文件系统优化</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># XFS优化(在所有服务器上执行)</span></span><br><span class="line">mkfs.xfs -f -d su=64k,sw=1 -l size=128m /dev/sdX</span><br></pre></td></tr></table></figure>
+
+<p><strong>系统参数优化</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建优化配置文件</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /etc/sysctl.d/99-minio-tuning.conf &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string"># 虚拟内存管理</span></span><br><span class="line"><span class="string">vm.swappiness = 10</span></span><br><span class="line"><span class="string">vm.dirty_ratio = 80</span></span><br><span class="line"><span class="string">vm.dirty_background_ratio = 5</span></span><br><span class="line"><span class="string">vm.dirty_expire_centisecs = 12000</span></span><br><span class="line"><span class="string">vm.max_map_count = 262144</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 网络优化</span></span><br><span class="line"><span class="string">net.core.somaxconn = 65535</span></span><br><span class="line"><span class="string">net.core.netdev_max_backlog = 250000</span></span><br><span class="line"><span class="string">net.ipv4.tcp_max_syn_backlog = 65536</span></span><br><span class="line"><span class="string">net.ipv4.tcp_keepalive_time = 600</span></span><br><span class="line"><span class="string">net.ipv4.tcp_keepalive_intvl = 10</span></span><br><span class="line"><span class="string">net.ipv4.tcp_keepalive_probes = 9</span></span><br><span class="line"><span class="string">net.ipv4.tcp_fin_timeout = 30</span></span><br><span class="line"><span class="string">net.ipv4.tcp_tw_reuse = 1</span></span><br><span class="line"><span class="string">net.ipv4.tcp_max_tw_buckets = 1440000</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 文件句柄限制</span></span><br><span class="line"><span class="string">fs.file-max = 2097152</span></span><br><span class="line"><span class="string">fs.nr_open = 2097152</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 应用配置</span></span><br><span class="line">sysctl -p /etc/sysctl.d/99-minio-tuning.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># 修改系统资源限制</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /etc/security/limits.d/99-minio.conf &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">* soft nofile 65535</span></span><br><span class="line"><span class="string">* hard nofile 65535</span></span><br><span class="line"><span class="string">* soft nproc 131072</span></span><br><span class="line"><span class="string">* hard nproc 131072</span></span><br><span class="line"><span class="string">minio-user soft nofile 1048576</span></span><br><span class="line"><span class="string">minio-user hard nofile 1048576</span></span><br><span class="line"><span class="string">minio-user soft nproc 131072</span></span><br><span class="line"><span class="string">minio-user hard nproc 131072</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>性能测试基准</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装性能测试工具</span></span><br><span class="line">wget https://github.com/wg/wrk/releases/download/4.2.0/wrk-4.2.0.tar.gz</span><br><span class="line">tar xzf wrk-4.2.0.tar.gz</span><br><span class="line"><span class="built_in">cd</span> wrk-4.2.0</span><br><span class="line">make</span><br><span class="line"><span class="built_in">cp</span> wrk /usr/local/bin/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 使用wrk测试性能</span></span><br><span class="line">wrk -t12 -c400 -d30s http://minio.example.com/minio/health/ready</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="日常靠监控和维护兜底">日常靠监控和维护兜底<a class="hlink" data-h="日常靠监控和维护兜底" href="#日常靠监控和维护兜底" title="跳到本节">¶</a></h2><ol>
+<li><p><strong>设置监控</strong></p>
+<p><strong>MinIO Prometheus监控架构</strong>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">    A[MinIO集群] --&gt;|指标| B[Prometheus]</span><br><span class="line">    B --&gt; C[Grafana]</span><br><span class="line">    B --&gt; D[AlertManager]</span><br><span class="line">    D --&gt; E[告警通知]</span><br></pre></td></tr></table></figure>
+
+<p><strong>部署Prometheus和Grafana</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装Docker和Docker Compose</span></span><br><span class="line">yum install -y docker docker-compose</span><br><span class="line">systemctl <span class="built_in">enable</span> docker</span><br><span class="line">systemctl start docker</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建监控目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /opt/monitoring/&#123;prometheus,grafana&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建Prometheus配置</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /opt/monitoring/prometheus/prometheus.yml &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">global:</span></span><br><span class="line"><span class="string">  scrape_interval: 15s</span></span><br><span class="line"><span class="string">  evaluation_interval: 15s</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">alerting:</span></span><br><span class="line"><span class="string">  alertmanagers:</span></span><br><span class="line"><span class="string">  - static_configs:</span></span><br><span class="line"><span class="string">    - targets: [&#x27;localhost:9093&#x27;]</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">rule_files:</span></span><br><span class="line"><span class="string">  - &quot;alerts.yml&quot;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">scrape_configs:</span></span><br><span class="line"><span class="string">  - job_name: &#x27;minio&#x27;</span></span><br><span class="line"><span class="string">    metrics_path: /minio/v2/metrics/cluster</span></span><br><span class="line"><span class="string">    scheme: http</span></span><br><span class="line"><span class="string">    static_configs:</span></span><br><span class="line"><span class="string">    - targets: [&#x27;62.example.com:9000&#x27;, &#x27;64.example.com:9000&#x27;, &#x27;67.example.com:9000&#x27;, &#x27;68.example.com:9000&#x27;, &#x27;69.example.com:9000&#x27;]</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建Docker Compose配置</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /opt/monitoring/docker-compose.yml &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">version: &#x27;3&#x27;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">services:</span></span><br><span class="line"><span class="string">  prometheus:</span></span><br><span class="line"><span class="string">    image: prom/prometheus:latest</span></span><br><span class="line"><span class="string">    container_name: prometheus</span></span><br><span class="line"><span class="string">    ports:</span></span><br><span class="line"><span class="string">      - &quot;9090:9090&quot;</span></span><br><span class="line"><span class="string">    volumes:</span></span><br><span class="line"><span class="string">      - ./prometheus:/etc/prometheus</span></span><br><span class="line"><span class="string">      - prometheus_data:/prometheus</span></span><br><span class="line"><span class="string">    command:</span></span><br><span class="line"><span class="string">      - &#x27;--config.file=/etc/prometheus/prometheus.yml&#x27;</span></span><br><span class="line"><span class="string">    restart: unless-stopped</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">  grafana:</span></span><br><span class="line"><span class="string">    image: grafana/grafana:latest</span></span><br><span class="line"><span class="string">    container_name: grafana</span></span><br><span class="line"><span class="string">    ports:</span></span><br><span class="line"><span class="string">      - &quot;3000:3000&quot;</span></span><br><span class="line"><span class="string">    volumes:</span></span><br><span class="line"><span class="string">      - grafana_data:/var/lib/grafana</span></span><br><span class="line"><span class="string">    environment:</span></span><br><span class="line"><span class="string">      - GF_SECURITY_ADMIN_PASSWORD=secure_password</span></span><br><span class="line"><span class="string">    restart: unless-stopped</span></span><br><span class="line"><span class="string">    depends_on:</span></span><br><span class="line"><span class="string">      - prometheus</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">  alertmanager:</span></span><br><span class="line"><span class="string">    image: prom/alertmanager:latest</span></span><br><span class="line"><span class="string">    container_name: alertmanager</span></span><br><span class="line"><span class="string">    ports:</span></span><br><span class="line"><span class="string">      - &quot;9093:9093&quot;</span></span><br><span class="line"><span class="string">    volumes:</span></span><br><span class="line"><span class="string">      - ./alertmanager:/etc/alertmanager</span></span><br><span class="line"><span class="string">    restart: unless-stopped</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">volumes:</span></span><br><span class="line"><span class="string">  prometheus_data:</span></span><br><span class="line"><span class="string">  grafana_data:</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动监控系统</span></span><br><span class="line"><span class="built_in">cd</span> /opt/monitoring</span><br><span class="line">docker-compose up -d</span><br></pre></td></tr></table></figure>
+
+<p><strong>Grafana仪表板示例</strong>:</p>
+<p><img src="https://min.io/resources/img/screenshots/monitoring.png" alt="MinIO Grafana仪表板"></p>
+<blockquote>
+<p>可以导入MinIO官方Grafana仪表板（ID：11332）</p>
+</blockquote>
+</li>
+<li><p><strong>容量扩展</strong></p>
+<p><strong>扩展方式图解</strong>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">graph TD</span><br><span class="line">    A[现有集群] --&gt; B&#123;扩展方式选择&#125;</span><br><span class="line">    B --&gt; C[横向扩展&lt;br&gt;增加更多服务器]</span><br><span class="line">    B --&gt; D[纵向扩展&lt;br&gt;替换为更大容量磁盘]</span><br><span class="line"></span><br><span class="line">    C --&gt; E[创建新集群池]</span><br><span class="line">    C --&gt; F[使用Federation功能&lt;br&gt;联合多个集群]</span><br><span class="line"></span><br><span class="line">    D --&gt; G[备份数据]</span><br><span class="line">    G --&gt; H[更换磁盘]</span><br><span class="line">    H --&gt; I[恢复数据]</span><br></pre></td></tr></table></figure>
+
+<p><strong>横向扩展</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 示例: 添加新服务器及磁盘到集群</span></span><br><span class="line"><span class="comment"># 在新服务器上完成MinIO安装后执行</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 停止所有现有MinIO服务</span></span><br><span class="line">systemctl stop minio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 修改所有服务器上的MinIO服务文件,添加新服务器</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /etc/systemd/system/minio.service &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">[Unit]</span></span><br><span class="line"><span class="string">Description=MinIO Object Storage</span></span><br><span class="line"><span class="string">Documentation=https://docs.min.io</span></span><br><span class="line"><span class="string">Wants=network-online.target</span></span><br><span class="line"><span class="string">After=network-online.target</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">[Service]</span></span><br><span class="line"><span class="string">User=minio-user</span></span><br><span class="line"><span class="string">Group=minio-user</span></span><br><span class="line"><span class="string">EnvironmentFile=/etc/minio/minio.conf</span></span><br><span class="line"><span class="string">ExecStartPre=/bin/bash -c &quot;ulimit -n 65536&quot;</span></span><br><span class="line"><span class="string">ExecStart=/usr/local/bin/minio server \\</span></span><br><span class="line"><span class="string">  --address :9000 \\</span></span><br><span class="line"><span class="string">  --console-address :9001 \\</span></span><br><span class="line"><span class="string">  http://62.example.com/data1 http://62.example.com/data2 \\</span></span><br><span class="line"><span class="string">  http://64.example.com/data3 \\</span></span><br><span class="line"><span class="string">  http://67.example.com/data4 \\</span></span><br><span class="line"><span class="string">  http://68.example.com/data5 \\</span></span><br><span class="line"><span class="string">  http://69.example.com/data6 \\</span></span><br><span class="line"><span class="string">  http://70.example.com/data7 \\</span></span><br><span class="line"><span class="string">  http://71.example.com/data8</span></span><br><span class="line"><span class="string">Restart=always</span></span><br><span class="line"><span class="string">LimitNOFILE=65536</span></span><br><span class="line"><span class="string">TasksMax=infinity</span></span><br><span class="line"><span class="string">TimeoutStartSec=180</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">[Install]</span></span><br><span class="line"><span class="string">WantedBy=multi-user.target</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 重新加载并启动MinIO服务</span></span><br><span class="line">systemctl daemon-reload</span><br><span class="line">systemctl start minio</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>日常维护</strong></p>
+<p><strong>维护检查清单</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>维护任务</th>
+<th>频率</th>
+<th>命令&#x2F;操作</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>系统日志检查</td>
+<td>每日</td>
+<td><code>journalctl -u minio --since=&quot;24 hours ago&quot;</code></td>
+</tr>
+<tr>
+<td>磁盘使用率监控</td>
+<td>每日</td>
+<td><code>df -h /data*</code></td>
+</tr>
+<tr>
+<td>硬件健康检查</td>
+<td>每周</td>
+<td><code>smartctl -a /dev/sd*</code></td>
+</tr>
+<tr>
+<td>MinIO版本升级</td>
+<td>每季度</td>
+<td>按升级流程执行</td>
+</tr>
+<tr>
+<td>数据完整性验证</td>
+<td>每月</td>
+<td><code>mc admin heal myminio</code></td>
+</tr>
+<tr>
+<td>安全策略审查</td>
+<td>每季度</td>
+<td>审查IAM策略和用户权限</td>
+</tr>
+</tbody></table>
+<p><strong>创建健康检查脚本</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> &gt; /usr/local/bin/minio-healthcheck.sh &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">#!/bin/bash</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">LOGFILE=&quot;/var/log/minio-health.log&quot;</span></span><br><span class="line"><span class="string">exec &gt; &gt;(tee -a \$&#123;LOGFILE&#125;) 2&gt;&amp;1</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">echo &quot;=== MinIO健康检查 $(date) ===&quot;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 检查服务状态</span></span><br><span class="line"><span class="string">systemctl status minio --no-pager</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 检查磁盘空间</span></span><br><span class="line"><span class="string">echo -e &quot;\n磁盘空间使用情况:&quot;</span></span><br><span class="line"><span class="string">df -h /data*</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 检查MinIO集群状态</span></span><br><span class="line"><span class="string">echo -e &quot;\nMinIO集群健康状态:&quot;</span></span><br><span class="line"><span class="string">mc admin info myminio</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string"># 检查硬件状态</span></span><br><span class="line"><span class="string">echo -e &quot;\n磁盘SMART状态:&quot;</span></span><br><span class="line"><span class="string">for disk in /dev/sd[b-z]; do</span></span><br><span class="line"><span class="string">  if [ -b \$disk ]; then</span></span><br><span class="line"><span class="string">    echo -e &quot;\n检查 \$disk:&quot;</span></span><br><span class="line"><span class="string">    smartctl -H \$disk || echo &quot;无法获取SMART信息&quot;</span></span><br><span class="line"><span class="string">  fi</span></span><br><span class="line"><span class="string">done</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">echo -e &quot;\n=== 健康检查完成 ===&quot;</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">chmod</span> +x /usr/local/bin/minio-healthcheck.sh</span><br><span class="line"></span><br><span class="line"><span class="comment"># 添加到crontab</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;0 7 * * * /usr/local/bin/minio-healthcheck.sh&quot;</span> &gt;&gt; /var/spool/cron/root</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="把访问和加密管起来">把访问和加密管起来<a class="hlink" data-h="把访问和加密管起来" href="#把访问和加密管起来" title="跳到本节">¶</a></h2><ol>
+<li><p><strong>启用TLS加密</strong></p>
+<p><strong>SSL&#x2F;TLS配置流程</strong>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">graph TD</span><br><span class="line">    A[获取SSL证书] --&gt; B[配置MinIO使用SSL]</span><br><span class="line">    A --&gt; B1[商业CA证书]</span><br><span class="line">    A --&gt; B2[自签名证书]</span><br><span class="line">    A --&gt; B3[Let&#x27;s Encrypt]</span><br><span class="line">    B --&gt; C[重启MinIO服务]</span><br><span class="line">    C --&gt; D[验证HTTPS访问]</span><br></pre></td></tr></table></figure>
+
+<p><strong>配置步骤</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建证书目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /etc/minio/certs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 方法1: 使用已有的证书</span></span><br><span class="line"><span class="built_in">cp</span> server.crt /etc/minio/certs/public.crt</span><br><span class="line"><span class="built_in">cp</span> server.key /etc/minio/certs/private.key</span><br><span class="line"></span><br><span class="line"><span class="comment"># 方法2: 生成自签名证书</span></span><br><span class="line">openssl req -x509 -nodes -days 365 -newkey rsa:2048 \</span><br><span class="line">  -keyout /etc/minio/certs/private.key \</span><br><span class="line">  -out /etc/minio/certs/public.crt \</span><br><span class="line">  -subj <span class="string">&quot;/C=CN/ST=State/L=City/O=Organization/CN=minio.example.com&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置权限</span></span><br><span class="line"><span class="built_in">chown</span> -R minio-user:minio-user /etc/minio/certs</span><br><span class="line"><span class="built_in">chmod</span> 600 /etc/minio/certs/private.key</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置环境变量</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;MINIO_CERT_PASSWD=密码&quot;</span> &gt;&gt; /etc/minio/minio.conf  <span class="comment"># 如果证书有密码</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 修改MinIO服务配置</span></span><br><span class="line">sed -i <span class="string">&#x27;/ExecStart/s/--console-address :9001/--console-address :9001 --certs-dir \/etc\/minio\/certs/&#x27;</span> /etc/systemd/system/minio.service</span><br><span class="line"></span><br><span class="line"><span class="comment"># 重启服务</span></span><br><span class="line">systemctl daemon-reload</span><br><span class="line">systemctl restart minio</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>身份验证与访问控制</strong></p>
+<p><strong>IAM配置最佳实践</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>用户类型</th>
+<th>权限策略</th>
+<th>使用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>管理员</td>
+<td>完全控制</td>
+<td>系统管理和配置</td>
+</tr>
+<tr>
+<td>开发者</td>
+<td>读写特定桶</td>
+<td>应用开发和测试</td>
+</tr>
+<tr>
+<td>运维人员</td>
+<td>监控和审计权限</td>
+<td>系统监控和问题排查</td>
+</tr>
+<tr>
+<td>应用程序</td>
+<td>最小必要权限</td>
+<td>API集成和应用访问</td>
+</tr>
+<tr>
+<td>只读用户</td>
+<td>只读权限</td>
+<td>数据查看和分析</td>
+</tr>
+</tbody></table>
+<p><strong>配置访问策略</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建用户</span></span><br><span class="line">mc admin user add myminio developer developerPassword</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建策略JSON文件</span></span><br><span class="line"><span class="built_in">cat</span> &gt; developer-policy.json &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">  &quot;Version&quot;: &quot;2012-10-17&quot;,</span></span><br><span class="line"><span class="string">  &quot;Statement&quot;: [</span></span><br><span class="line"><span class="string">    &#123;</span></span><br><span class="line"><span class="string">      &quot;Effect&quot;: &quot;Allow&quot;,</span></span><br><span class="line"><span class="string">      &quot;Action&quot;: [</span></span><br><span class="line"><span class="string">        &quot;s3:ListBucket&quot;,</span></span><br><span class="line"><span class="string">        &quot;s3:GetObject&quot;,</span></span><br><span class="line"><span class="string">        &quot;s3:PutObject&quot;</span></span><br><span class="line"><span class="string">      ],</span></span><br><span class="line"><span class="string">      &quot;Resource&quot;: [</span></span><br><span class="line"><span class="string">        &quot;arn:aws:s3:::dev-bucket&quot;,</span></span><br><span class="line"><span class="string">        &quot;arn:aws:s3:::dev-bucket/*&quot;</span></span><br><span class="line"><span class="string">      ]</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">  ]</span></span><br><span class="line"><span class="string">&#125;</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建策略</span></span><br><span class="line">mc admin policy add myminio developer-policy developer-policy.json</span><br><span class="line"></span><br><span class="line"><span class="comment"># 应用策略到用户</span></span><br><span class="line">mc admin policy <span class="built_in">set</span> myminio developer-policy user=developer</span><br></pre></td></tr></table></figure>
+
+<p><strong>集成LDAP认证</strong> (企业版功能):</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 设置LDAP配置</span></span><br><span class="line"><span class="built_in">export</span> MINIO_IDENTITY_LDAP_SERVER_ADDR=<span class="string">&quot;ldap.example.com:389&quot;</span></span><br><span class="line"><span class="built_in">export</span> MINIO_IDENTITY_LDAP_USERNAME_FORMAT=<span class="string">&quot;cn=<span class="variable">$&#123;username&#125;</span>,ou=users,dc=example,dc=com&quot;</span></span><br><span class="line"><span class="built_in">export</span> MINIO_IDENTITY_LDAP_GROUP_SEARCH_BASE_DN=<span class="string">&quot;ou=groups,dc=example,dc=com&quot;</span></span><br><span class="line"><span class="built_in">export</span> MINIO_IDENTITY_LDAP_GROUP_SEARCH_FILTER=<span class="string">&quot;(&amp;(objectclass=groupOfNames)(member=<span class="variable">$&#123;usernamedn&#125;</span>))&quot;</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>数据加密</strong></p>
+<p><strong>加密架构图</strong>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">graph LR</span><br><span class="line">    A[客户端] --&gt;|加密数据| B[MinIO服务器]</span><br><span class="line">    B --&gt;|存储加密数据| C[磁盘]</span><br><span class="line">    D[密钥管理系统] --&gt;|提供密钥| B</span><br></pre></td></tr></table></figure>
+
+<p><strong>服务器端加密配置</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装KES (Key Encryption Service)</span></span><br><span class="line">wget https://github.com/minio/kes/releases/latest/download/kes-linux-amd64</span><br><span class="line"><span class="built_in">chmod</span> +x kes-linux-amd64</span><br><span class="line"><span class="built_in">mv</span> kes-linux-amd64 /usr/local/bin/kes</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建KES配置目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p /etc/kes</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成KES服务证书</span></span><br><span class="line">kes identity new --key=/etc/kes/kes.key --cert=/etc/kes/kes.cert localhost</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成MinIO身份</span></span><br><span class="line">kes identity new --key=/etc/kes/minio.key --cert=/etc/kes/minio.cert minio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置KES</span></span><br><span class="line"><span class="built_in">cat</span> &gt; /etc/kes/config.yml &lt;&lt; <span class="string">EOF</span></span><br><span class="line"><span class="string">address: 0.0.0.0:7373</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">admin:</span></span><br><span class="line"><span class="string">  identity: $&#123;KES_ADMIN_IDENTITY&#125;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">tls:</span></span><br><span class="line"><span class="string">  key: /etc/kes/kes.key</span></span><br><span class="line"><span class="string">  cert: /etc/kes/kes.cert</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">policy:</span></span><br><span class="line"><span class="string">  minio:</span></span><br><span class="line"><span class="string">    allow:</span></span><br><span class="line"><span class="string">    - /v1/key/create/minio-*</span></span><br><span class="line"><span class="string">    - /v1/key/generate/minio-*</span></span><br><span class="line"><span class="string">    - /v1/key/decrypt/minio-*</span></span><br><span class="line"><span class="string">    identities:</span></span><br><span class="line"><span class="string">    - $&#123;MINIO_IDENTITY&#125;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">keystore:</span></span><br><span class="line"><span class="string">  fs:</span></span><br><span class="line"><span class="string">    path: /etc/kes/keys</span></span><br><span class="line"><span class="string">EOF</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动KES服务</span></span><br><span class="line">kes server --config=/etc/kes/config.yml &amp;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置MinIO使用KES</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;MINIO_KMS_KES_ENDPOINT=https://127.0.0.1:7373&quot;</span> &gt;&gt; /etc/minio/minio.conf</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;MINIO_KMS_KES_KEY_FILE=/etc/kes/minio.key&quot;</span> &gt;&gt; /etc/minio/minio.conf</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;MINIO_KMS_KES_CERT_FILE=/etc/kes/minio.cert&quot;</span> &gt;&gt; /etc/minio/minio.conf</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;MINIO_KMS_KES_CA_PATH=/etc/kes/kes.cert&quot;</span> &gt;&gt; /etc/minio/minio.conf</span><br><span class="line"></span><br><span class="line"><span class="comment"># 重启MinIO服务</span></span><br><span class="line">systemctl restart minio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建加密桶</span></span><br><span class="line">mc mb --with-lock myminio/encrypted-bucket</span><br></pre></td></tr></table></figure></li>
+</ol>
+<h2 id="出问题时按清单逐项排查">出问题时按清单逐项排查<a class="hlink" data-h="出问题时按清单逐项排查" href="#出问题时按清单逐项排查" title="跳到本节">¶</a></h2><p><strong>常见问题与解决方案</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>可能原因</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>服务启动失败</td>
+<td>权限问题</td>
+<td>检查目录权限: <code>chown -R minio-user:minio-user /data*</code></td>
+</tr>
+<tr>
+<td></td>
+<td>配置错误</td>
+<td>检查服务配置文件和环境变量</td>
+</tr>
+<tr>
+<td></td>
+<td>磁盘问题</td>
+<td>检查磁盘健康状态: <code>smartctl -a /dev/sdX</code></td>
+</tr>
+<tr>
+<td>访问延迟高</td>
+<td>网络问题</td>
+<td>检查网络连接和带宽: <code>iperf3 -c server_ip</code></td>
+</tr>
+<tr>
+<td></td>
+<td>磁盘I&#x2F;O瓶颈</td>
+<td>监控I&#x2F;O性能: <code>iostat -xm 1</code></td>
+</tr>
+<tr>
+<td></td>
+<td>资源不足</td>
+<td>检查CPU和内存使用情况: <code>top</code></td>
+</tr>
+<tr>
+<td>数据不一致</td>
+<td>磁盘错误</td>
+<td>运行修复命令: <code>mc admin heal myminio</code></td>
+</tr>
+<tr>
+<td></td>
+<td>纠删码问题</td>
+<td>检查集群状态: <code>mc admin info myminio</code></td>
+</tr>
+<tr>
+<td>控制台无法访问</td>
+<td>防火墙阻止</td>
+<td>检查防火墙规则: <code>firewall-cmd --list-all</code></td>
+</tr>
+<tr>
+<td></td>
+<td>网络配置</td>
+<td>检查网络监听: <code>netstat -tlnp | grep 9001</code></td>
+</tr>
+</tbody></table>
+<p><strong>故障排除命令</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看MinIO日志</span></span><br><span class="line">journalctl -u minio --no-pager -n 100</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查网络连接</span></span><br><span class="line">ss -tunlp | grep 9000</span><br><span class="line"></span><br><span class="line"><span class="comment"># 测试磁盘性能</span></span><br><span class="line">fio --name=<span class="built_in">test</span> --filename=/data1/test_file --size=1G --direct=1 --rw=randwrite --bs=4k --ioengine=libaio --iodepth=32 --numjobs=4</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查MinIO进程状态</span></span><br><span class="line">pgrep -a minio</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查集群健康状态</span></span><br><span class="line">mc admin info myminio</span><br></pre></td></tr></table></figure>
+
+<h2 id="上线前再核对这四件事">上线前再核对这四件事<a class="hlink" data-h="上线前再核对这四件事" href="#上线前再核对这四件事" title="跳到本节">¶</a></h2><p>该方案利用现有6块4T硬盘构建了一个分布式MinIO系统，提供大约16TB的可用存储空间，并具有容错能力。根据实际使用场景，建议:</p>
+<ol>
+<li><p><strong>性能优化</strong>:</p>
+<ul>
+<li>针对小文件访问频繁的场景，增加前端缓存层</li>
+<li>对于大文件传输，调整网络参数提高吞吐量</li>
+</ul>
+</li>
+<li><p><strong>安全加固</strong>:</p>
+<ul>
+<li>定期更新系统和MinIO版本</li>
+<li>实施网络隔离，仅允许必要的访问</li>
+<li>配置数据加密和访问审计</li>
+</ul>
+</li>
+<li><p><strong>可用性提升</strong>:</p>
+<ul>
+<li>实施全面的监控和告警系统</li>
+<li>制定详细的灾难恢复计划</li>
+<li>考虑异地备份关键数据</li>
+</ul>
+</li>
+<li><p><strong>扩展建议</strong>:</p>
+<ul>
+<li>预留30%容量作为增长缓冲</li>
+<li>建立容量规划和预警机制</li>
+<li>评估未来6-12个月的存储需求增长</li>
+</ul>
+</li>
+</ol>
+<p>把容量留够、监控接上、备份练过、安全收紧，这四件事做完再上线。照这个顺序推进，集群才不会在第一次故障上手忙脚乱。</p>
+<p><img src="https://min.io/resources/img/diagrams/erasure-coding.png" alt="MinIO架构概览"></p>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"MinIO分布式对象存储系统部署方案","description":"采用6块磁盘构建一个分布式MinIO集群，利用纠删码Erasure Coding技术提供数据冗余保护。配置为4+2模式，可以容忍任意2块磁盘故障而不丢失数据。","datePublished":"2026-11-06T00:00:00+08:00","dateModified":"2026-11-06T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/938585159.html"},"url":"https://zeek-zhao.github.io/posts/938585159.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"DevOps 与 CI","item":"https://zeek-zhao.github.io/categories/DevOps-%E4%B8%8E-CI/"},{"@type":"ListItem","position":4,"name":"Devops","item":"https://zeek-zhao.github.io/categories/DevOps-%E4%B8%8E-CI/Devops/"},{"@type":"ListItem","position":5,"name":"MinIO分布式对象存储系统部署方案","item":"https://zeek-zhao.github.io/posts/938585159.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#先确认硬件和网络达标" data-h="先确认硬件和网络达标" class="">先确认硬件和网络达标</a>
+      
+        <a href="#按可用容量设计集群架构" data-h="按可用容量设计集群架构" class="">按可用容量设计集群架构</a>
+      
+        <a href="#方案选择：分布式模式部署" data-h="方案选择：分布式模式部署" class="l2">方案选择：分布式模式部署</a>
+      
+        <a href="#磁盘分配与挂载规划" data-h="磁盘分配与挂载规划" class="l2">磁盘分配与挂载规划</a>
+      
+        <a href="#选一种方式把集群装起来" data-h="选一种方式把集群装起来" class="">选一种方式把集群装起来</a>
+      
+        <a href="#方式一：直接部署" data-h="方式一：直接部署" class="l2">方式一：直接部署</a>
+      
+        <a href="#方式二：Docker容器化部署" data-h="方式二：Docker容器化部署" class="l2">方式二：Docker容器化部署</a>
+      
+        <a href="#Docker-Swarm模式部署-可选" data-h="Docker-Swarm模式部署-可选" class="l2">Docker Swarm模式部署(可选)</a>
+      
+        <a href="#Docker部署的备份与恢复" data-h="Docker部署的备份与恢复" class="l2">Docker部署的备份与恢复</a>
+      
+        <a href="#部署完先做配置与调优" data-h="部署完先做配置与调优" class="">部署完先做配置与调优</a>
+      
+        <a href="#日常靠监控和维护兜底" data-h="日常靠监控和维护兜底" class="">日常靠监控和维护兜底</a>
+      
+        <a href="#把访问和加密管起来" data-h="把访问和加密管起来" class="">把访问和加密管起来</a>
+      
+        <a href="#出问题时按清单逐项排查" data-h="出问题时按清单逐项排查" class="">出问题时按清单逐项排查</a>
+      
+        <a href="#上线前再核对这四件事" data-h="上线前再核对这四件事" class="">上线前再核对这四件事</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

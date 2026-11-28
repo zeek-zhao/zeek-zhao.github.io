@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>解决Docker容器内无法访问外网问题 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="容器访问不了外网时按层次排查的十种方法：重建 docker0、开启转发、host 网络、SELinux、DNS、防火墙抓包与重装。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/1839237922.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="解决Docker容器内无法访问外网问题">
+<meta property="og:description" content="容器访问不了外网时按层次排查的十种方法：重建 docker0、开启转发、host 网络、SELinux、DNS、防火墙抓包与重装。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/1839237922.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="解决Docker容器内无法访问外网问题">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-01T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="知识工具">
+          <div class="sg-head">
+            <span>📚</span><span>知识工具</span><span class="cnt">104 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Tools">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/Tools/" class=""><span>🧰</span><span>Tools</span><span class="cnt">54</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Tools 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/15845467.html" class="">工具集总览</a>
+                  
+                    <a href="/posts/999821108.html" class="">Docker 是什么</a>
+                  
+                    <a href="/posts/1633604084.html" class="">Docker 安装与卸载</a>
+                  
+                    <a href="/posts/2855893417.html" class="">Docker 运行 Nginx</a>
+                  
+                    <a href="/posts/914084312.html" class="">Docker 运行 Java 项目</a>
+                  
+                    <a href="/posts/4059019427.html" class="">Docker 常用命令</a>
+                  
+                    <a href="/posts/497525747.html" class="">Docker 认证私有仓库的密码安全问题</a>
+                  
+                    <a href="/posts/3922591498.html" class="">Docker 基于容器创建一个新的镜像</a>
+                  
+                    <a href="/posts/3114215801.html" class="">Docker 导入导出镜像</a>
+                  
+                    <a href="/posts/3510959746.html" class="">Docker 镜像推送</a>
+                  
+                    <a href="/posts/1790479743.html" class="">Docker 配置远程连接 2375 端口</a>
+                  
+                    <a href="/posts/2659167884.html" class="">Docker 容器和宿主机文件互传</a>
+                  
+                    <a href="/posts/3259379516.html" class="">Docker 容器中执行宿主机 Docker 命令</a>
+                  
+                    <a href="/posts/2537658426.html" class="">Docker镜像与容器自动更新之Watchtower</a>
+                  
+                    <a href="/posts/1839237922.html" class="active">解决Docker容器内无法访问外网问题</a>
+                  
+                    <a href="/posts/1273189425.html" class="">Dockerfile构建应用镜像之Java</a>
+                  
+                    <a href="/posts/1472645885.html" class="">Dockerfile构建应用镜像之Vue</a>
+                  
+                    <a href="/posts/774806936.html" class="">Harbor私服部署</a>
+                  
+                    <a href="/posts/2707978365.html" class="">docker-compose快速编排多容器应用</a>
+                  
+                    <a href="/posts/316667080.html" class="">Docker Swarm集群部署与实战</a>
+                  
+                    <a href="/posts/3511226946.html" class="">Docker Compose 入门学习</a>
+                  
+                    <a href="/posts/1431083159.html" class="">Harbor Docker 仓库安装使用说明</a>
+                  
+                    <a href="/posts/3932776294.html" class="">x86 运行与编译 arm 架构镜像</a>
+                  
+                    <a href="/posts/2642241751.html" class="">分析工具概述</a>
+                  
+                    <a href="/posts/3007374237.html" class="">开发工具概述</a>
+                  
+                    <a href="/posts/816999167.html" class="">FreeFileSync 用户指南</a>
+                  
+                    <a href="/posts/529503140.html" class="">访问 GitHub 用户指南</a>
+                  
+                    <a href="/posts/2910438856.html" class="">Docker 用户指南</a>
+                  
+                    <a href="/posts/925157604.html" class="">Docker Compose 参数指南</a>
+                  
+                    <a href="/posts/3244083793.html" class="">Git 常用命令手册</a>
+                  
+                    <a href="/posts/2720520273.html" class="">GitHub Copilot 使用指南</a>
+                  
+                    <a href="/posts/582917546.html" class="">Repo 多仓库管理工具</a>
+                  
+                    <a href="/posts/2816664305.html" class="">SQLite3 使用笔记</a>
+                  
+                    <a href="/posts/3622734612.html" class="">Tmux 用户指南</a>
+                  
+                    <a href="/posts/1683588338.html" class="">Ubuntu 必备软件指南</a>
+                  
+                    <a href="/posts/3055583744.html" class="">Ubuntu 安装 Samba 用户指南</a>
+                  
+                    <a href="/posts/1629799805.html" class="">Vim 使用指南</a>
+                  
+                    <a href="/posts/1654748739.html" class="">Windows 必备软件指南</a>
+                  
+                    <a href="/posts/1204693542.html" class="">WindTerm 用户指南</a>
+                  
+                    <a href="/posts/1640536705.html" class="">Zsh 使用指南</a>
+                  
+                    <a href="/posts/3046003441.html" class="">科学上网用户指南</a>
+                  
+                    <a href="/posts/889281703.html" class="">内网穿透用户指南</a>
+                  
+                    <a href="/posts/2615811346.html" class="">Ethtool 用户指南</a>
+                  
+                    <a href="/posts/1449135917.html" class="">RSS用户指南</a>
+                  
+                    <a href="/posts/1510948437.html" class="">Telegram值得关注的频道、群组和机器人指南</a>
+                  
+                    <a href="/posts/3728981604.html" class="">浏览器必备插件指南</a>
+                  
+                    <a href="/posts/3194512871.html" class="">生产力工具概述</a>
+                  
+                    <a href="/posts/753707022.html" class="">GPT常用提示词指南</a>
+                  
+                    <a href="/posts/2146350315.html" class="">Resilio Sync 用户指南</a>
+                  
+                    <a href="/posts/435044916.html" class="">虚拟机清除缓存与空间优化指南</a>
+                  
+                    <a href="/posts/1060502842.html" class="">虚拟机硬盘扩容指南</a>
+                  
+                    <a href="/posts/3047978551.html" class="">虚拟机网络设置指南</a>
+                  
+                    <a href="/posts/1135299603.html" class="">Ubuntu 22.04 常用软件安装指南</a>
+                  
+                    <a href="/posts/2510758593.html" class="">Ubuntu忘记密码修复指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="obsidian">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/obsidian/" class=""><span>💎</span><span>obsidian</span><span class="cnt">27</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 obsidian 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1862910963.html" class="">01-Obsidian简介与安装</a>
+                  
+                    <a href="/posts/24957100.html" class="">02-核心概念-笔记与链接</a>
+                  
+                    <a href="/posts/3424778452.html" class="">03-笔记组织与文件夹</a>
+                  
+                    <a href="/posts/3578305145.html" class="">04-双向链接与图谱</a>
+                  
+                    <a href="/posts/418772866.html" class="">05-属性元数据与标签</a>
+                  
+                    <a href="/posts/1078640850.html" class="">06-Bases数据库视图</a>
+                  
+                    <a href="/posts/1557756930.html" class="">07-模板与快捷键</a>
+                  
+                    <a href="/posts/1143600279.html" class="">08-插件生态总览</a>
+                  
+                    <a href="/posts/256372853.html" class="">09-Dataview数据查询</a>
+                  
+                    <a href="/posts/1769681572.html" class="">10-Templater自动化</a>
+                  
+                    <a href="/posts/2435891588.html" class="">11-任务与看板管理</a>
+                  
+                    <a href="/posts/1275438752.html" class="">12-Excalidraw与图表可视化</a>
+                  
+                    <a href="/posts/484559417.html" class="">13-Canvas白板与关系可视化</a>
+                  
+                    <a href="/posts/2674584049.html" class="">Obsidian 语法模板与转换体检</a>
+                  
+                    <a href="/posts/4272258672.html" class="">14-日记与周期笔记</a>
+                  
+                    <a href="/posts/1965898256.html" class="">15-表格与数据管理</a>
+                  
+                    <a href="/posts/4048444062.html" class="">16-阅读与知识内化</a>
+                  
+                    <a href="/posts/784641569.html" class="">17-同步发布与分享</a>
+                  
+                    <a href="/posts/2899142556.html" class="">18-界面美化与主题</a>
+                  
+                    <a href="/posts/3659188267.html" class="">19-搜索与效率工具</a>
+                  
+                    <a href="/posts/1787633817.html" class="">20-维护与清理</a>
+                  
+                    <a href="/posts/2516645563.html" class="">21-移动端与多设备</a>
+                  
+                    <a href="/posts/1560989563.html" class="">22-工作流与笔记方法</a>
+                  
+                    <a href="/posts/2315711624.html" class="">23-性能优化与版本管理</a>
+                  
+                    <a href="/posts/2293052005.html" class="">24-AI与自动化前沿</a>
+                  
+                    <a href="/posts/2588243057.html" class="">obsidian 00-索引</a>
+                  
+                    <a href="/posts/254939683.html" class="">obsidian 90-资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="hexo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/hexo/" class=""><span>✍️</span><span>hexo</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 hexo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1955208098.html" class="">01-Hexo简介与核心概念</a>
+                  
+                    <a href="/posts/1843097718.html" class="">02-环境搭建与站点初始化</a>
+                  
+                    <a href="/posts/2648076327.html" class="">03-写作与内容管理</a>
+                  
+                    <a href="/posts/659282165.html" class="">04-配置文件详解</a>
+                  
+                    <a href="/posts/3015114669.html" class="">05-主题推荐与对比</a>
+                  
+                    <a href="/posts/2435984331.html" class="">06-Butterfly主题全面指南</a>
+                  
+                    <a href="/posts/1534335169.html" class="">07-Butterfly自定义侧边栏</a>
+                  
+                    <a href="/posts/2437194236.html" class="">08-Butterfly分类与标签系统</a>
+                  
+                    <a href="/posts/558813137.html" class="">09-插件生态总览</a>
+                  
+                    <a href="/posts/248363474.html" class="">10-博客加密与内容保护</a>
+                  
+                    <a href="/posts/1457481153.html" class="">11-部署方式总览</a>
+                  
+                    <a href="/posts/3268776159.html" class="">12-GitHub Actions自动部署</a>
+                  
+                    <a href="/posts/3821111926.html" class="">13-性能优化与构建加速</a>
+                  
+                    <a href="/posts/2200908506.html" class="">14-SEO与站点分析</a>
+                  
+                    <a href="/posts/2792968302.html" class="">15-评论系统与互动</a>
+                  
+                    <a href="/posts/4207768079.html" class="">16-图片与资源管理</a>
+                  
+                    <a href="/posts/128124392.html" class="">17-数学公式与图表渲染</a>
+                  
+                    <a href="/posts/87229897.html" class="">18-PWA与进阶功能</a>
+                  
+                    <a href="/posts/3667851364.html" class="">19-Obsidian与Hexo发布工作流</a>
+                  
+                    <a href="/posts/51139743.html" class="">20-实战：从零到上线完整流程</a>
+                  
+                    <a href="/posts/1612284060.html" class="">21-常见问题排查</a>
+                  
+                    <a href="/posts/3088718870.html" class="">hexo 00-索引</a>
+                  
+                    <a href="/posts/1576507193.html" class="">hexo 90-资料索引指南</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/">📚 知识工具</a> / <a href="/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/Tools/">🧰 Tools</a> / <span>解决Docker容器内无法访问外网问题</span></div>
+
+<h1>解决Docker容器内无法访问外网问题</h1>
+<div class="subtitle">容器访问不了外网时按层次排查的十种方法：重建 docker0、开启转发、host 网络、SELinux、DNS、防火墙抓包与重装。</div>
+<div class="article-meta">
+  <span>📅 2026-07-01</span><span>· 更新于 2026-07-01</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 1832 字 · 约 5 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/docker/">#docker</a><a class="tagchip" href="/tags/container/">#container</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/1839237922.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="解决Docker容器内无法访问外网问题"><a href="#解决Docker容器内无法访问外网问题" class="headerlink" title="解决Docker容器内无法访问外网问题"></a>解决Docker容器内无法访问外网问题</h1><p>环境不同，成因也不同，所以这类问题没有一条命令能通吃。我的排查习惯是从最轻的入手：先确认宿主机能不能上网，再看转发、DNS、防火墙，最后才动重装。下面十种方法按我实际遇到时的优先级列出来，命令原样保留，照着顺序试基本能定位到问题层。</p>
+<h2 id="先重建-docker0-网络，排除网桥本身的问题">先重建 docker0 网络，排除网桥本身的问题<a class="hlink" data-h="先重建-docker0-网络，排除网桥本身的问题" href="#先重建-docker0-网络，排除网桥本身的问题" title="跳到本节">¶</a></h2><p>最直接的办法是把 Docker 的网桥拆掉重建。执行前要清楚这会中断现有容器网络，生产环境要挑窗口。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">sudo service docker stop</span><br><span class="line">sudo pkill docker</span><br><span class="line">sudo iptables -t nat -F</span><br><span class="line">sudo ifconfig docker0 down</span><br><span class="line">sudo brctl delbr docker0</span><br><span class="line">sudo service docker start</span><br></pre></td></tr></table></figure>
+
+<h2 id="开启宿主机-IPv4-转发，解决最经典的-WARNING">开启宿主机 IPv4 转发，解决最经典的 WARNING<a class="hlink" data-h="开启宿主机-IPv4-转发，解决最经典的-WARNING" href="#开启宿主机-IPv4-转发，解决最经典的-WARNING" title="跳到本节">¶</a></h2><p>如果启动时看到 <code>WARNING: IPv4 forwarding is disabled. Networking will not work.</code>，基本就是转发没开。改完配置记得重启 network 和 docker，并用 <code>sysctl</code> 确认值从 0 变成 1。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">修改配置</span></span><br><span class="line">echo &quot;net.ipv4.ip_forward=1&quot; &gt;&gt; /etc/sysctl.conf</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">重启network</span></span><br><span class="line">systemctl restart network</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看 (0-&gt;标识未开启 1-&gt;标识开启)</span></span><br><span class="line">sysctl net.ipv4.ip_forward</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">net.ipv4.ip_forward = 1</span></span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">重启docker</span></span><br><span class="line">systemctl restart docker</span><br></pre></td></tr></table></figure>
+
+<h2 id="直接用-host-网络启动容器做快速验证">直接用 host 网络启动容器做快速验证<a class="hlink" data-h="直接用-host-网络启动容器做快速验证" href="#直接用-host-网络启动容器做快速验证" title="跳到本节">¶</a></h2><p><code>--net=host</code> 让容器共享宿主机网络栈，适合先验证「是不是 Docker 网络层的问题」。我用它做临时验证，不会长期放在生产里，因为端口和隔离性都变了。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">示例</span></span><br><span class="line">docker run --net=host --name ubuntu_bash -i -t ubuntu:latest /bin/bash</span><br><span class="line"></span><br><span class="line">docker run --net=host --rm alpine ping -c 5 baidu.com</span><br></pre></td></tr></table></figure>
+
+<h2 id="关掉-SELinux，排除强制访问控制拦截">关掉 SELinux，排除强制访问控制拦截<a class="hlink" data-h="关掉-SELinux，排除强制访问控制拦截" href="#关掉-SELinux，排除强制访问控制拦截" title="跳到本节">¶</a></h2><p>SELinux 在 enforcing 状态下可能拦住容器的网络访问。先 <code>getenforce</code> 看状态，临时关闭用 <code>setenforce 0</code>，永久生效要改配置文件再重启。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看SELinux状态</span></span><br><span class="line">getenforce</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">临时关闭SELinux</span></span><br><span class="line">setenforce 0</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">永久关闭SELinux</span></span><br><span class="line">vim /etc/selinux/config</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">将 `SELINUX=enforcing` 改成 `SELINUX=disabled`</span></span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">重启linux</span></span><br><span class="line">reboot</span><br></pre></td></tr></table></figure>
+
+<h2 id="补齐网桥-iptables-相关内核参数">补齐网桥 iptables 相关内核参数<a class="hlink" data-h="补齐网桥-iptables-相关内核参数" href="#补齐网桥-iptables-相关内核参数" title="跳到本节">¶</a></h2><p>有些环境需要在 sysctl 里显式打开 bridge 转发相关项，尤其是走网桥的容器网络。下面这组参数来自相关 issue 的讨论，改完重启 Docker 生效。</p>
+<blockquote>
+<p>参考 <a target="_blank" rel="noopener" href="https://github.com/coolsnowwolf/lede/issues/1760">https://github.com/coolsnowwolf/lede/issues/1760</a></p>
+</blockquote>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">修改配置</span></span><br><span class="line">echo &quot;net.bridge.bridge-nf-call-ip6tables = 1&quot; &gt;&gt; /etc/sysctl.conf</span><br><span class="line">echo &quot;net.bridge.bridge-nf-call-iptables = 1&quot; &gt;&gt; /etc/sysctl.conf</span><br><span class="line">echo &quot;net.bridge.bridge-nf-call-arptables = 1&quot; &gt;&gt; /etc/sysctl.conf</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">Luci &gt; 网络 &gt; 防火墙 &gt; 转发：接受</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">Luci &gt; 状态 &gt; 防火墙 &gt; 重启防火墙</span></span><br><span class="line"></span><br><span class="line">service docker restart</span><br></pre></td></tr></table></figure>
+
+<h2 id="删掉-Docker-网络状态缓存再重启">删掉 Docker 网络状态缓存再重启<a class="hlink" data-h="删掉-Docker-网络状态缓存再重启" href="#删掉-Docker-网络状态缓存再重启" title="跳到本节">¶</a></h2><p>如果网络配置改乱了，直接清掉 <code>/var/lib/docker/network/*</code> 让 Docker 重建网络状态，也是一种省事的办法。它会丢弃已有自定义网络信息，操作前要评估影响。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">rm -rf /var/lib/docker/network/*</span><br><span class="line"></span><br><span class="line">systemctl restart docker</span><br></pre></td></tr></table></figure>
+
+<h2 id="换-DNS：宿主机层面与容器层面要分开看">换 DNS：宿主机层面与容器层面要分开看<a class="hlink" data-h="换-DNS：宿主机层面与容器层面要分开看" href="#换-DNS：宿主机层面与容器层面要分开看" title="跳到本节">¶</a></h2><p>先确认宿主机 DNS 是否正常。把 <code>resolv.conf</code> 指向国内通用 DNS 或 Google DNS，再用一个临时 alpine 容器 ping 域名验证。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">写入Linux的DNS客户端解析文件resolv.conf里</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">                114.114.114.114 =&gt; 国内移动、电信和联通通用的DNS</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">                8.8.8.8 =&gt; google提供，更适合国外以及访问国外网站的用户使用</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash"><span class="built_in">echo</span> nameserver 8.8.8.8 &gt; /etc/resolv.conf</span></span><br><span class="line">echo nameserver 114.114.114.114 &gt; /etc/resolv.conf</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看配置</span></span><br><span class="line">cat /etc/resolv.conf</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">测试</span></span><br><span class="line">docker run --rm alpine ping -c 5 baidu.com</span><br></pre></td></tr></table></figure>
+
+<p>如果宿主机正常、容器不正常，那就是容器内部 DNS 与宿主机不一致的问题，一般不多见，但确实存在。进容器后先看 <code>/etc/resolv.conf</code> 的内容，把多余的 <code>options</code> 行注释掉即可。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">1、进入容器</span></span><br><span class="line">docker exex -it 容器ID/容器名 /bin/bash</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">2、先查看DNS配置</span></span><br><span class="line">cat /etc/resolv.conf</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">配置文件如下</span></span><br><span class="line">nameserver 127.0.0.11</span><br><span class="line">options timeout:2 attempts:3 rotate single-request-reopen ndots:0</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">3、修改配置 =&gt; 注释`options <span class="built_in">timeout</span>:2 attempts:3 rotate single-request-reopen ndots:0`即可</span></span><br><span class="line">nameserver 127.0.0.11</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">options <span class="built_in">timeout</span>:2 attempts:3 rotate single-request-reopen ndots:0</span></span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">如果没有vi命令可尝试使用<span class="built_in">echo</span></span></span><br><span class="line">echo &quot;nameserver 127.0.0.11&quot; &gt; /etc/resolv.conf</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">4、测试</span></span><br><span class="line">ping baidu.com</span><br></pre></td></tr></table></figure>
+
+<p>网上有说法是程序重启后还得手动改一遍，根因在 <code>/etc/resolvconf/resolv.conf.d/tail</code> 会默认覆盖 <code>/etc/resolv.conf</code> 的最后一行。这一步我没有实测过，先记在这里供参考：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">注释其中的内容 `options <span class="built_in">timeout</span>:2 attempts:3 rotate single-request-reopen ndots:0`</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">原因为：`/etc/resolvconf/resolv.conf.d/tail`文件会默认覆盖 `/etc/resolv.conf` 中的最后一行配置。</span></span><br><span class="line">vim /etc/resolvconf/resolv.conf.d/tail</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">使修改生效</span></span><br><span class="line">sudo resolvconf -u</span><br></pre></td></tr></table></figure>
+
+<h2 id="用-tcpdump-抓包确认是不是被网络侧拦了">用 tcpdump 抓包确认是不是被网络侧拦了<a class="hlink" data-h="用-tcpdump-抓包确认是不是被网络侧拦了" href="#用-tcpdump-抓包确认是不是被网络侧拦了" title="跳到本节">¶</a></h2><p>前面都排除不掉时，我会抓包看有没有回包。只有 request、没有响应，说明包出去但没回来，可能是对方没响应（可能性不大），也可能是公司防火墙拦了——这时该找网络工程师确认策略了。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">先运行一个访问外网的程序</span></span><br><span class="line">docker run --rm alpine ping -c 50 baidu.com</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">安装tcpdump</span></span><br><span class="line">yum install tcpdump</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">利用tcpdump进行抓包分析</span></span><br><span class="line">tcpdump -i docker0 icmp</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">发现有request包，表明本机到baidu的包，baidu是接收到的，可能是百度没响应（可能性不大）或者被公司防火墙阻断了</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>[图片占位] tcpdump抓包docker0.png（原图 tcpdump抓包docker0.png 未随迁移复制）</p>
+</blockquote>
+<h2 id="尝试开启防火墙的-IP-伪装">尝试开启防火墙的 IP 伪装<a class="hlink" data-h="尝试开启防火墙的-IP-伪装" href="#尝试开启防火墙的-IP-伪装" title="跳到本节">¶</a></h2><p>firewalld 环境下可以检查并开启 masquerade，同时把 <code>docker0</code> 加进 trusted zone 来解决 DNS 问题。不过我实际测试时直接关防火墙也没解决，所以这条权当备选。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看防火墙状态</span></span><br><span class="line">firewall-cmd --state</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看防火墙是否开启ip地址转发（ip地址伪装）</span></span><br><span class="line">firewall-cmd --query-masquerade</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">开启ip地址转发</span></span><br><span class="line">firewall-cmd --add-masquerade --permanent</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">将网络接口 docker0 加入 trusted zone，解决 DNS 问题</span></span><br><span class="line">firewall-cmd --permanent --zone=trusted --add-interface=docker0</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">更新防火墙规则</span></span><br><span class="line">firewall-cmd --reload</span><br></pre></td></tr></table></figure>
+
+<h2 id="重装-Docker：最后的无奈之举">重装 Docker：最后的无奈之举<a class="hlink" data-h="重装-Docker：最后的无奈之举" href="#重装-Docker：最后的无奈之举" title="跳到本节">¶</a></h2><p>上面全部无效，才考虑重装 Docker。我的判断是：走到这一步之前，一定要把前面的抓包结果和网络侧限制确认清楚，否则重装完大概率还是同样的问题。</p>
+<h2 id="一个临时的连通性自检">一个临时的连通性自检<a class="hlink" data-h="一个临时的连通性自检" href="#一个临时的连通性自检" title="跳到本节">¶</a></h2><p>无论用哪种方法，最后都可以跑这一条确认容器能不能出网：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker run --rm alpine ping -c 5 baidu.com</span><br></pre></td></tr></table></figure>
+
+<h2 id="我自己的问题记录（未解决）">我自己的问题记录（未解决）<a class="hlink" data-h="我自己的问题记录（未解决）" href="#我自己的问题记录（未解决）" title="跳到本节">¶</a></h2><p>我的环境是基于电信网，在局域网 Windows 上装了 CentOS 7.6 虚拟机。宿主机能正常访问外网，容器不行，而且容器里 DNS 解析有问题；直接访问 IP 时，<code>tcpdump</code> 抓 <code>docker0</code> 只看到请求、没有任何响应。</p>
+<p>目前临时用 <code>--net=host</code> 顶着解决外网访问问题，根因还在继续查。我把这个现象记下来，是因为它很可能是宿主机虚拟网络或上游策略的问题，而不是 Docker 本身的配置错误。</p>
+
+
+
+
+<a class="index-backlink" href="/posts/3177473977.html">
+  <span class="ibl-label">📚 本系列由权威索引收录</span>
+  <span class="ibl-title">Tools 开发与效率工具 技能索引</span>
+  <span class="ibl-go">查看完整导航 →</span>
+</a>
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"解决Docker容器内无法访问外网问题","description":"容器访问不了外网时按层次排查的十种方法：重建 docker0、开启转发、host 网络、SELinux、DNS、防火墙抓包与重装。","datePublished":"2026-07-01T00:00:00+08:00","dateModified":"2026-07-01T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/1839237922.html"},"url":"https://zeek-zhao.github.io/posts/1839237922.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"知识工具","item":"https://zeek-zhao.github.io/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/"},{"@type":"ListItem","position":4,"name":"Tools","item":"https://zeek-zhao.github.io/categories/%E7%9F%A5%E8%AF%86%E5%B7%A5%E5%85%B7/Tools/"},{"@type":"ListItem","position":5,"name":"解决Docker容器内无法访问外网问题","item":"https://zeek-zhao.github.io/posts/1839237922.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#先重建-docker0-网络，排除网桥本身的问题" data-h="先重建-docker0-网络，排除网桥本身的问题" class="">先重建 docker0 网络，排除网桥本身的问题</a>
+      
+        <a href="#开启宿主机-IPv4-转发，解决最经典的-WARNING" data-h="开启宿主机-IPv4-转发，解决最经典的-WARNING" class="">开启宿主机 IPv4 转发，解决最经典的 WARNING</a>
+      
+        <a href="#直接用-host-网络启动容器做快速验证" data-h="直接用-host-网络启动容器做快速验证" class="">直接用 host 网络启动容器做快速验证</a>
+      
+        <a href="#关掉-SELinux，排除强制访问控制拦截" data-h="关掉-SELinux，排除强制访问控制拦截" class="">关掉 SELinux，排除强制访问控制拦截</a>
+      
+        <a href="#补齐网桥-iptables-相关内核参数" data-h="补齐网桥-iptables-相关内核参数" class="">补齐网桥 iptables 相关内核参数</a>
+      
+        <a href="#删掉-Docker-网络状态缓存再重启" data-h="删掉-Docker-网络状态缓存再重启" class="">删掉 Docker 网络状态缓存再重启</a>
+      
+        <a href="#换-DNS：宿主机层面与容器层面要分开看" data-h="换-DNS：宿主机层面与容器层面要分开看" class="">换 DNS：宿主机层面与容器层面要分开看</a>
+      
+        <a href="#用-tcpdump-抓包确认是不是被网络侧拦了" data-h="用-tcpdump-抓包确认是不是被网络侧拦了" class="">用 tcpdump 抓包确认是不是被网络侧拦了</a>
+      
+        <a href="#尝试开启防火墙的-IP-伪装" data-h="尝试开启防火墙的-IP-伪装" class="">尝试开启防火墙的 IP 伪装</a>
+      
+        <a href="#重装-Docker：最后的无奈之举" data-h="重装-Docker：最后的无奈之举" class="">重装 Docker：最后的无奈之举</a>
+      
+        <a href="#一个临时的连通性自检" data-h="一个临时的连通性自检" class="">一个临时的连通性自检</a>
+      
+        <a href="#我自己的问题记录（未解决）" data-h="我自己的问题记录（未解决）" class="">我自己的问题记录（未解决）</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>33-Flash存储器原理与编程实例 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="做嵌入式存储选型，绕不开 NOR 和 NAND 这两条路线。我一般先把这两类分清：一类能直接跑代码、容量小但可靠，另一类容量大、成本低但必须靠控制器管理；分清楚之后，擦写方式和文件系统怎么选就顺理成章了。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/3281658937.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="33-Flash存储器原理与编程实例">
+<meta property="og:description" content="做嵌入式存储选型，绕不开 NOR 和 NAND 这两条路线。我一般先把这两类分清：一类能直接跑代码、容量小但可靠，另一类容量大、成本低但必须靠控制器管理；分清楚之后，擦写方式和文件系统怎么选就顺理成章了。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/3281658937.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="33-Flash存储器原理与编程实例">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-19T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="操作系统与机器人">
+          <div class="sg-head">
+            <span>🤖</span><span>操作系统与机器人</span><span class="cnt">447 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Linux">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/" class=""><span>🐧</span><span>Linux</span><span class="cnt">129</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Linux 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1681936644.html" class="">01-EC20模块4G拨号与GPS定位开发</a>
+                  
+                    <a href="/posts/4083254943.html" class="">01-Linux安全子系统访问控制与隔离</a>
+                  
+                    <a href="/posts/2415137652.html" class="">01-Linux常用命令速查</a>
+                  
+                    <a href="/posts/533232104.html" class="">01-U-Boot基础与启动流程</a>
+                  
+                    <a href="/posts/3075951192.html" class="">01-Systemd核心组件架构与功能</a>
+                  
+                    <a href="/posts/228001063.html" class="">01-基础工具排查内存泄漏</a>
+                  
+                    <a href="/posts/2735785623.html" class="">01-工业控制器软硬件测试方案</a>
+                  
+                    <a href="/posts/419018602.html" class="">01-裸机开发流程与硬件操控</a>
+                  
+                    <a href="/posts/1072254920.html" class="">02-Linux系统网络配置方法与排障</a>
+                  
+                    <a href="/posts/299621239.html" class="">02-Linux电源管理子系统架构与调优</a>
+                  
+                    <a href="/posts/1221451.html" class="">02-U-Boot新板移植适配流程</a>
+                  
+                    <a href="/posts/4128798125.html" class="">02-systemd-analyze启动性能分析</a>
+                  
+                    <a href="/posts/3888100408.html" class="">02-内核功能与模块管理命令</a>
+                  
+                    <a href="/posts/1471709349.html" class="">02-外设接口测试指南</a>
+                  
+                    <a href="/posts/609416877.html" class="">02-嵌入式开发板硬件接口速查</a>
+                  
+                    <a href="/posts/711801502.html" class="">02-磁盘与文件系统管理</a>
+                  
+                    <a href="/posts/2990991122.html" class="">03-Linux进程管理调度与IPC机制</a>
+                  
+                    <a href="/posts/2680037132.html" class="">03-U-Boot源码结构与启动流程</a>
+                  
+                    <a href="/posts/101579121.html" class="">03-mmap内存映射原理与驱动实现</a>
+                  
+                    <a href="/posts/4216171518.html" class="">03-systemd服务配置与管理</a>
+                  
+                    <a href="/posts/2319334978.html" class="">03-内核基础编译与模块开发</a>
+                  
+                    <a href="/posts/3923580784.html" class="">03-各类工具代理配置</a>
+                  
+                    <a href="/posts/3161741332.html" class="">03-开发板SSH默认端口修改与安全连接</a>
+                  
+                    <a href="/posts/3641886687.html" class="">03-网络测试指南</a>
+                  
+                    <a href="/posts/3785836924.html" class="">04-systemd核心概念与基础</a>
+                  
+                    <a href="/posts/3734120973.html" class="">04-内存管理子系统的层次与机制</a>
+                  
+                    <a href="/posts/972888713.html" class="">04-内核编译与模块功能定制</a>
+                  
+                    <a href="/posts/3751178843.html" class="">04-开发板Linux下修改MAC地址</a>
+                  
+                    <a href="/posts/1112658189.html" class="">04-根文件系统开发实践</a>
+                  
+                    <a href="/posts/1854171497.html" class="">04-芯片四大组件性能测试与选型</a>
+                  
+                    <a href="/posts/262344998.html" class="">04-驱动开发概念分类与架构流程</a>
+                  
+                    <a href="/posts/1094537113.html" class="">05-IMA完整性测量架构与配置</a>
+                  
+                    <a href="/posts/2881050404.html" class="">05-kmemleak内核内存泄漏检测</a>
+                  
+                    <a href="/posts/1992174196.html" class="">05-systemd启动流程与机制</a>
+                  
+                    <a href="/posts/3908546189.html" class="">05-内核架构与子系统协作</a>
+                  
+                    <a href="/posts/3140138007.html" class="">05-根文件系统类型与构建方法</a>
+                  
+                    <a href="/posts/2172472796.html" class="">05-音频设备测试与故障排查</a>
+                  
+                    <a href="/posts/2557508733.html" class="">05-驱动开发框架与通用子系统</a>
+                  
+                    <a href="/posts/862017958.html" class="">06-ICM20608六轴传感器驱动移植</a>
+                  
+                    <a href="/posts/4115811846.html" class="">06-Linux基础术语与核心概念</a>
+                  
+                    <a href="/posts/2015394678.html" class="">06-S3C2440时钟体系与寄存器配置</a>
+                  
+                    <a href="/posts/1758255262.html" class="">06-journald日志查询与管理</a>
+                  
+                    <a href="/posts/45575455.html" class="">06-mtrace内存泄漏分析技巧</a>
+                  
+                    <a href="/posts/3755082214.html" class="">06-内核同步机制与并发控制</a>
+                  
+                    <a href="/posts/3813382677.html" class="">07-Linux计划任务配置与选型</a>
+                  
+                    <a href="/posts/1886591968.html" class="">07-Linux设备驱动模型核心机制</a>
+                  
+                    <a href="/posts/3144201791.html" class="">07-Sanitizer内存泄漏分析</a>
+                  
+                    <a href="/posts/1893451115.html" class="">07-systemd架构与服务管理</a>
+                  
+                    <a href="/posts/992563292.html" class="">07-内核子系统总览</a>
+                  
+                    <a href="/posts/2252012541.html" class="">07-裸机点亮LED与GPIO寄存器操作</a>
+                  
+                    <a href="/posts/2494136140.html" class="">08-Linux图像设备V4L2开发</a>
+                  
+                    <a href="/posts/2551125294.html" class="">08-TCMalloc内存分配器与内存泄漏分析</a>
+                  
+                    <a href="/posts/286299626.html" class="">08-网络协议与通信原理</a>
+                  
+                    <a href="/posts/2856475980.html" class="">08-裸机交叉编译工具链与链接脚本</a>
+                  
+                    <a href="/posts/423458188.html" class="">08-设备驱动模型与开发实践</a>
+                  
+                    <a href="/posts/4014961628.html" class="">09-Linux网卡流量统计工具选型与用法</a>
+                  
+                    <a href="/posts/4142321600.html" class="">09-Ubuntu2004禁止自动休眠的几种方式</a>
+                  
+                    <a href="/posts/1114536982.html" class="">09-内存管理基础</a>
+                  
+                    <a href="/posts/1702870561.html" class="">09-时间子系统原理与实现</a>
+                  
+                    <a href="/posts/729158944.html" class="">09-设备树DTS语法与内核解析</a>
+                  
+                    <a href="/posts/1720365042.html" class="">10-GPIO三种操作方式与设备树配置</a>
+                  
+                    <a href="/posts/1524901879.html" class="">10-Valgrind内存泄漏分析实战</a>
+                  
+                    <a href="/posts/683186726.html" class="">10-内存泄漏分析与定位流程</a>
+                  
+                    <a href="/posts/1370598446.html" class="">10-图形子系统架构与渲染栈</a>
+                  
+                    <a href="/posts/1626889410.html" class="">10-设备树架构与内核处理流程</a>
+                  
+                    <a href="/posts/1631881322.html" class="">11-CAN总线SocketCAN与CANopen开发</a>
+                  
+                    <a href="/posts/3507320406.html" class="">11-内存泄漏概念检测与修复</a>
+                  
+                    <a href="/posts/2395844944.html" class="">11-网络子系统架构与数据包流程</a>
+                  
+                    <a href="/posts/3827344601.html" class="">11-设备树开发流程与驱动实践</a>
+                  
+                    <a href="/posts/2542203250.html" class="">12-Flash驱动开发与MTD测试体系</a>
+                  
+                    <a href="/posts/3601506011.html" class="">12-嵌入式设备烧录与自动烧录SD卡</a>
+                  
+                    <a href="/posts/1249611102.html" class="">12-文件系统VFS架构与调优</a>
+                  
+                    <a href="/posts/3302243246.html" class="">12-设备树语法规则与节点属性</a>
+                  
+                    <a href="/posts/4232086438.html" class="">13-I2C协议与驱动开发调试</a>
+                  
+                    <a href="/posts/1745770341.html" class="">13-系统调用接口与陷入机制</a>
+                  
+                    <a href="/posts/3541193669.html" class="">13-设备树源码与内核实现</a>
+                  
+                    <a href="/posts/1932562151.html" class="">13-软件包管理工具与依赖排障</a>
+                  
+                    <a href="/posts/3679683762.html" class="">14-kmod工具集与内核模块管理</a>
+                  
+                    <a href="/posts/204754706.html" class="">14-内核调试工具与方法</a>
+                  
+                    <a href="/posts/337401038.html" class="">14-虚拟化子系统架构与实现</a>
+                  
+                    <a href="/posts/3619291073.html" class="">14-网络编程基础与高性能实践</a>
+                  
+                    <a href="/posts/30952159.html" class="">15-PWM子系统与三种开发方式</a>
+                  
+                    <a href="/posts/3428022739.html" class="">15-内核体系结构与学习路径</a>
+                  
+                    <a href="/posts/1156349833.html" class="">15-网络调试工具与防火墙配置</a>
+                  
+                    <a href="/posts/2084393826.html" class="">15-虚拟文件系统VFS架构与缓存</a>
+                  
+                    <a href="/posts/1492466562.html" class="">16-Linux网络基础与协议栈</a>
+                  
+                    <a href="/posts/1443612112.html" class="">16-RPMSG核间通信与开发流程</a>
+                  
+                    <a href="/posts/64163175.html" class="">16-中断处理子系统与上下半部</a>
+                  
+                    <a href="/posts/1662370678.html" class="">17-Linux网络配置与故障排查</a>
+                  
+                    <a href="/posts/3499888327.html" class="">17-RTC驱动与应用开发</a>
+                  
+                    <a href="/posts/1472071864.html" class="">17-内核子系统间交互与IPC机制</a>
+                  
+                    <a href="/posts/3375308729.html" class="">18-GPIO子系统与引脚控制架构</a>
+                  
+                    <a href="/posts/413524861.html" class="">18-Linux网络驱动与收发流程</a>
+                  
+                    <a href="/posts/1787716189.html" class="">18-Socket网络编程与粘包处理</a>
+                  
+                    <a href="/posts/2536056501.html" class="">19-SPI总线驱动与设备树配置</a>
+                  
+                    <a href="/posts/1043009254.html" class="">19-TTY子系统架构与驱动</a>
+                  
+                    <a href="/posts/2820206790.html" class="">19-以太网MAC与PHY接口</a>
+                  
+                    <a href="/posts/1783654330.html" class="">20-Linux文本处理命令与实战</a>
+                  
+                    <a href="/posts/4179949671.html" class="">20-UART串口驱动与RS485应用</a>
+                  
+                    <a href="/posts/865986603.html" class="">21-USB总线驱动框架与设备枚举</a>
+                  
+                    <a href="/posts/3847399252.html" class="">21-无线网络基础与部署排查</a>
+                  
+                    <a href="/posts/4143405040.html" class="">22-看门狗机制与软硬死锁检测</a>
+                  
+                    <a href="/posts/2990894265.html" class="">22-系统掉电保护与日志文件系统</a>
+                  
+                    <a href="/posts/3047565199.html" class="">23-Linux用户与组权限管理</a>
+                  
+                    <a href="/posts/4251339438.html" class="">23-WiFi模块PEB-WLBT-01配置与排障</a>
+                  
+                    <a href="/posts/3144456274.html" class="">24-环境变量修改与生效方法</a>
+                  
+                    <a href="/posts/2406993733.html" class="">25-ADC基础知识与工程实现</a>
+                  
+                    <a href="/posts/901317427.html" class="">26-ADB设备调试命令指南</a>
+                  
+                    <a href="/posts/970239254.html" class="">27-ARM-DSP-FPGA技术对比</a>
+                  
+                    <a href="/posts/1599150771.html" class="">28-awk文本处理与实战</a>
+                  
+                    <a href="/posts/1554852273.html" class="">29-can总线协议与编程基础</a>
+                  
+                    <a href="/posts/3987772023.html" class="">30-diff与patch补丁实战</a>
+                  
+                    <a href="/posts/663676011.html" class="">Linux 技能总览与索引</a>
+                  
+                    <a href="/posts/212295555.html" class="">31-DMA工作原理与内核API</a>
+                  
+                    <a href="/posts/2335117280.html" class="">32-eMMC嵌入式存储原理与优化</a>
+                  
+                    <a href="/posts/3281658937.html" class="active">33-Flash存储器原理与编程实例</a>
+                  
+                    <a href="/posts/449212517.html" class="">34-GPIO工作模式与寄存器控制</a>
+                  
+                    <a href="/posts/2802968252.html" class="">35-I2C总线协议与驱动编程</a>
+                  
+                    <a href="/posts/646183460.html" class="">36-I2S音频总线与时钟配置</a>
+                  
+                    <a href="/posts/3921515715.html" class="">37-iMX8处理器系列与型号对比</a>
+                  
+                    <a href="/posts/3676773691.html" class="">38-KVM架构与CPU内存中断虚拟化</a>
+                  
+                    <a href="/posts/2296163704.html" class="">39-xPico240网卡配置与固件升级</a>
+                  
+                    <a href="/posts/4048648752.html" class="">40-MMU地址转换与页表管理</a>
+                  
+                    <a href="/posts/3573195005.html" class="">41-RK平台开发流程与组件</a>
+                  
+                    <a href="/posts/1368966976.html" class="">42-Shell脚本编程与实用案例</a>
+                  
+                    <a href="/posts/3800580745.html" class="">43-SPI总线原理与驱动实战</a>
+                  
+                    <a href="/posts/4029932750.html" class="">44-UART串口原理与通信实战</a>
+                  
+                    <a href="/posts/3428875847.html" class="">45-USB固件开发全流程</a>
+                  
+                    <a href="/posts/1079176846.html" class="">46-USB总线协议与驱动开发基础</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="apollo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/apollo/" class=""><span>🚗</span><span>apollo</span><span class="cnt">62</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 apollo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2818472804.html" class="">01-百度Apollo概述与生态</a>
+                  
+                    <a href="/posts/452198409.html" class="">02-版本发展与架构演进</a>
+                  
+                    <a href="/posts/1132755144.html" class="">03-自动驾驶技术基础</a>
+                  
+                    <a href="/posts/260457831.html" class="">04-开发环境搭建（Docker）</a>
+                  
+                    <a href="/posts/3892420017.html" class="">05-源码编译与部署</a>
+                  
+                    <a href="/posts/4189053877.html" class="">06-核心模块总览</a>
+                  
+                    <a href="/posts/2291656538.html" class="">07-高精地图HD Map</a>
+                  
+                    <a href="/posts/1640301657.html" class="">08-定位模块</a>
+                  
+                    <a href="/posts/2974331331.html" class="">09-传感器接入（相机激光雷达毫米波）</a>
+                  
+                    <a href="/posts/1455150168.html" class="">10-CAN总线与车辆控制接口</a>
+                  
+                    <a href="/posts/2682517011.html" class="">11-Apollo Cyber RT框架</a>
+                  
+                    <a href="/posts/1297150334.html" class="">12-Cyber消息通信与组件开发</a>
+                  
+                    <a href="/posts/3060441397.html" class="">13-Apollo配置文件与参数</a>
+                  
+                    <a href="/posts/1643555401.html" class="">14-调试与可视化工具（DreamView）</a>
+                  
+                    <a href="/posts/1298984781.html" class="">15-感知模块总览与点云感知</a>
+                  
+                    <a href="/posts/2907166516.html" class="">16-感知模块-视觉感知</a>
+                  
+                    <a href="/posts/4078895387.html" class="">17-感知模块-雷达感知</a>
+                  
+                    <a href="/posts/2013834045.html" class="">18-传感器标定与坐标转换</a>
+                  
+                    <a href="/posts/3984938707.html" class="">19-预测模块</a>
+                  
+                    <a href="/posts/1834975411.html" class="">20-规划模块</a>
+                  
+                    <a href="/posts/4019786798.html" class="">21-决策模块与场景决策</a>
+                  
+                    <a href="/posts/122258190.html" class="">22-控制模块</a>
+                  
+                    <a href="/posts/3133762148.html" class="">23-车辆动力学基础</a>
+                  
+                    <a href="/posts/1453710074.html" class="">24-仿真平台与场景数据</a>
+                  
+                    <a href="/posts/2673778811.html" class="">25-Cyber启动系统详解</a>
+                  
+                    <a href="/posts/2526415752.html" class="">26-Cyber调度系统详解</a>
+                  
+                    <a href="/posts/2588802797.html" class="">27-Cyber时间系统与定时器</a>
+                  
+                    <a href="/posts/3670574823.html" class="">28-Cyber异步调用机制</a>
+                  
+                    <a href="/posts/3931639321.html" class="">29-Cyber数据系统详解</a>
+                  
+                    <a href="/posts/2442147404.html" class="">30-Cyber网络IO详解</a>
+                  
+                    <a href="/posts/789481480.html" class="">apollo 90-资料索引指南</a>
+                  
+                    <a href="/posts/4180254357.html" class="">apollo 00-索引</a>
+                  
+                    <a href="/posts/4241092442.html" class="">31-Cyber Transform与坐标变换</a>
+                  
+                    <a href="/posts/1946355615.html" class="">32-历史版本模块演进（2.0-5.0）</a>
+                  
+                    <a href="/posts/460001587.html" class="">33-车道级导航与决策</a>
+                  
+                    <a href="/posts/2878817428.html" class="">34-红绿灯感知与通行</a>
+                  
+                    <a href="/posts/3264947560.html" class="">35-泊车场景</a>
+                  
+                    <a href="/posts/3477625335.html" class="">36-高速场景</a>
+                  
+                    <a href="/posts/2091754220.html" class="">37-城市道路场景</a>
+                  
+                    <a href="/posts/3677233744.html" class="">38-端到端自动驾驶与大模型</a>
+                  
+                    <a href="/posts/3012449597.html" class="">39-车路协同与V2X</a>
+                  
+                    <a href="/posts/2752057546.html" class="">40-安全机制与冗余设计</a>
+                  
+                    <a href="/posts/143389874.html" class="">41-性能优化与车规级部署</a>
+                  
+                    <a href="/posts/2080454184.html" class="">42-实战：搭建Demo自动驾驶演示</a>
+                  
+                    <a href="/posts/1558901718.html" class="">43-常见问题排查</a>
+                  
+                    <a href="/posts/711159921.html" class="">45-SLAM概述与开发指南</a>
+                  
+                    <a href="/posts/519418161.html" class="">44-Apollo与ROS对比及生态互通</a>
+                  
+                    <a href="/posts/1474075229.html" class="">46-激光雷达技术原理与发展</a>
+                  
+                    <a href="/posts/1848584950.html" class="">47-激光雷达算法与Lidar模块详解</a>
+                  
+                    <a href="/posts/2562893149.html" class="">48-自动驾驶数据集总览</a>
+                  
+                    <a href="/posts/1294651885.html" class="">49-KITTI与Waymo数据集实战</a>
+                  
+                    <a href="/posts/2011272759.html" class="">50-仿真平台对比与Gazebo-LGSVL实战</a>
+                  
+                    <a href="/posts/1352878638.html" class="">51-深度学习基础与CNN</a>
+                  
+                    <a href="/posts/48707843.html" class="">52-PyTorch与自动驾驶实践</a>
+                  
+                    <a href="/posts/2665165307.html" class="">53-TensorFlow与Caffe2在自动驾驶中的应用</a>
+                  
+                    <a href="/posts/2511406057.html" class="">54-自动驾驶测试方法</a>
+                  
+                    <a href="/posts/1279187638.html" class="">55-标注工具与数据闭环</a>
+                  
+                    <a href="/posts/370472885.html" class="">56-自动驾驶云服务与基础设施</a>
+                  
+                    <a href="/posts/140110120.html" class="">57-自动驾驶操作系统</a>
+                  
+                    <a href="/posts/664493653.html" class="">58-自动驾驶运行时框架对比</a>
+                  
+                    <a href="/posts/1203635596.html" class="">59-自动驾驶学习资源与链接</a>
+                  
+                    <a href="/posts/2049739451.html" class="">60-Audio模块与扩展开发</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FreeRTOS">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/FreeRTOS/" class=""><span>⏱️</span><span>FreeRTOS</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FreeRTOS 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1571422233.html" class="">01-FreeRTOS简介与内核特性</a>
+                  
+                    <a href="/posts/1616849365.html" class="">02-任务管理与调度</a>
+                  
+                    <a href="/posts/2794860845.html" class="">03-任务创建与删除</a>
+                  
+                    <a href="/posts/1110013041.html" class="">04-任务状态机</a>
+                  
+                    <a href="/posts/45138943.html" class="">05-优先级与时间片</a>
+                  
+                    <a href="/posts/586549084.html" class="">06-队列</a>
+                  
+                    <a href="/posts/129125089.html" class="">07-信号量</a>
+                  
+                    <a href="/posts/2081041408.html" class="">08-互斥量与优先级反转</a>
+                  
+                    <a href="/posts/3205967530.html" class="">09-事件组</a>
+                  
+                    <a href="/posts/1094377116.html" class="">10-任务通知</a>
+                  
+                    <a href="/posts/1628705678.html" class="">11-流缓冲与消息缓冲</a>
+                  
+                    <a href="/posts/479641272.html" class="">12-软件定时器</a>
+                  
+                    <a href="/posts/3143395966.html" class="">13-内存管理</a>
+                  
+                    <a href="/posts/359640070.html" class="">14-中断管理与临界区</a>
+                  
+                    <a href="/posts/339821033.html" class="">15-Tick与时间管理</a>
+                  
+                    <a href="/posts/224362852.html" class="">16-内核裁剪配置</a>
+                  
+                    <a href="/posts/1572534698.html" class="">17-任务栈溢出检测</a>
+                  
+                    <a href="/posts/670312188.html" class="">18-低功耗与tickless</a>
+                  
+                    <a href="/posts/544846964.html" class="">19-多核SMP</a>
+                  
+                    <a href="/posts/1505843641.html" class="">20-FreeRTOS+TCP</a>
+                  
+                    <a href="/posts/2850073665.html" class="">21-CMSIS-RTOS适配</a>
+                  
+                    <a href="/posts/2762677009.html" class="">22-常见移植实践</a>
+                  
+                    <a href="/posts/574731705.html" class="">23-调试与跟踪</a>
+                  
+                    <a href="/posts/1113963761.html" class="">24-内存保护MPU</a>
+                  
+                    <a href="/posts/1361167341.html" class="">25-FreeRTOS与C++</a>
+                  
+                    <a href="/posts/3732453393.html" class="">26-队列集与流操作</a>
+                  
+                    <a href="/posts/3895620481.html" class="">27-实战项目入门</a>
+                  
+                    <a href="/posts/2560978280.html" class="">28-常见问题排查</a>
+                  
+                    <a href="/posts/3215440781.html" class="">29-任务通知进阶</a>
+                  
+                    <a href="/posts/2405586932.html" class="">30-中断安全编程</a>
+                  
+                    <a href="/posts/3652009953.html" class="">FreeRTOS 00-索引</a>
+                  
+                    <a href="/posts/1437498579.html" class="">FreeRTOS 90-资料索引指南</a>
+                  
+                    <a href="/posts/182118895.html" class="">31-内存管理进阶</a>
+                  
+                    <a href="/posts/517617803.html" class="">32-看门狗与可靠性</a>
+                  
+                    <a href="/posts/4097610364.html" class="">33-电源管理实战</a>
+                  
+                    <a href="/posts/918463786.html" class="">34-多核任务设计</a>
+                  
+                    <a href="/posts/316568827.html" class="">35-TCP网络实战</a>
+                  
+                    <a href="/posts/944546225.html" class="">36-外设驱动集成</a>
+                  
+                    <a href="/posts/276185314.html" class="">37-系统测试与验证</a>
+                  
+                    <a href="/posts/2845406665.html" class="">38-任务间通信模式</a>
+                  
+                    <a href="/posts/271812983.html" class="">39-安全与认证</a>
+                  
+                    <a href="/posts/2988932715.html" class="">40-高级主题展望</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros1">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros1/" class=""><span>🐢</span><span>ros1</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros1 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1845556343.html" class="">01-ROS1概述与生态</a>
+                  
+                    <a href="/posts/76272331.html" class="">02-ROS1安装与环境配置</a>
+                  
+                    <a href="/posts/985253049.html" class="">03-核心概念</a>
+                  
+                    <a href="/posts/4040033312.html" class="">04-工作空间与catkin构建</a>
+                  
+                    <a href="/posts/2100167891.html" class="">05-命令行工具</a>
+                  
+                    <a href="/posts/949416713.html" class="">06-话题通信</a>
+                  
+                    <a href="/posts/735184866.html" class="">07-服务通信</a>
+                  
+                    <a href="/posts/1658567558.html" class="">08-动作通信actionlib</a>
+                  
+                    <a href="/posts/3193113578.html" class="">09-参数服务器</a>
+                  
+                    <a href="/posts/951743246.html" class="">10-roscpp编程</a>
+                  
+                    <a href="/posts/3615205173.html" class="">11-rospy编程</a>
+                  
+                    <a href="/posts/2474828684.html" class="">12-tf坐标变换</a>
+                  
+                    <a href="/posts/510479535.html" class="">13-URDF机器人建模</a>
+                  
+                    <a href="/posts/3467326343.html" class="">14-rviz可视化</a>
+                  
+                    <a href="/posts/178034368.html" class="">15-Gazebo仿真</a>
+                  
+                    <a href="/posts/1047193066.html" class="">16-launch启动文件</a>
+                  
+                    <a href="/posts/1386748878.html" class="">17-自定义消息与srv</a>
+                  
+                    <a href="/posts/78293504.html" class="">18-日志与调试</a>
+                  
+                    <a href="/posts/3580172094.html" class="">19-常用传感器驱动</a>
+                  
+                    <a href="/posts/107634443.html" class="">20-机器人运动学基础</a>
+                  
+                    <a href="/posts/1090496406.html" class="">21-导航框架move_base</a>
+                  
+                    <a href="/posts/3445109373.html" class="">22-建图</a>
+                  
+                    <a href="/posts/774536357.html" class="">23-路径规划与避障</a>
+                  
+                    <a href="/posts/2139127442.html" class="">24-AMCL定位</a>
+                  
+                    <a href="/posts/1373317896.html" class="">25-视觉处理</a>
+                  
+                    <a href="/posts/2932687442.html" class="">26-语音交互</a>
+                  
+                    <a href="/posts/1912127119.html" class="">27-MoveIt机械臂控制</a>
+                  
+                    <a href="/posts/2602875264.html" class="">28-多机器人协同</a>
+                  
+                    <a href="/posts/616282562.html" class="">29-rosbridge与Web端</a>
+                  
+                    <a href="/posts/1820681443.html" class="">30-ROS与Docker</a>
+                  
+                    <a href="/posts/1838862059.html" class="">ros1 00-索引</a>
+                  
+                    <a href="/posts/1752376526.html" class="">ros1 90-资料索引指南</a>
+                  
+                    <a href="/posts/520426601.html" class="">31-ROS与嵌入式平台</a>
+                  
+                    <a href="/posts/1774912468.html" class="">32-ROS1与ROS2对比迁移</a>
+                  
+                    <a href="/posts/3778090335.html" class="">33-仿真场景搭建</a>
+                  
+                    <a href="/posts/3561607965.html" class="">34-常见问题排查</a>
+                  
+                    <a href="/posts/1451115071.html" class="">35-性能优化</a>
+                  
+                    <a href="/posts/1856851824.html" class="">36-产品化实践</a>
+                  
+                    <a href="/posts/3405034604.html" class="">37-插件机制与自定义工具</a>
+                  
+                    <a href="/posts/3819213526.html" class="">38-ROS生态常用库</a>
+                  
+                    <a href="/posts/1488454277.html" class="">39-实战：小车自主导航</a>
+                  
+                    <a href="/posts/1504338169.html" class="">40-实战：机械臂抓取</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros2">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros2/" class=""><span>🐢</span><span>ros2</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros2 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1204306053.html" class="">01-ROS2概述与生态</a>
+                  
+                    <a href="/posts/1039368075.html" class="">02-ROS2安装与环境配置</a>
+                  
+                    <a href="/posts/3950396837.html" class="">04-工作空间与colcon构建</a>
+                  
+                    <a href="/posts/3022531917.html" class="">08-动作通信</a>
+                  
+                    <a href="/posts/3927300417.html" class="">09-参数机制</a>
+                  
+                    <a href="/posts/3825548204.html" class="">10-rclcpp编程</a>
+                  
+                    <a href="/posts/3191786011.html" class="">11-rclpy编程</a>
+                  
+                    <a href="/posts/3441056145.html" class="">12-生命周期节点</a>
+                  
+                    <a href="/posts/3898278822.html" class="">13-自定义消息接口</a>
+                  
+                    <a href="/posts/742500733.html" class="">14-执行器与回调组</a>
+                  
+                    <a href="/posts/201369509.html" class="">15-tf2坐标变换</a>
+                  
+                    <a href="/posts/1182880406.html" class="">16-URDF与xacro建模</a>
+                  
+                    <a href="/posts/1106872961.html" class="">17-rviz2可视化</a>
+                  
+                    <a href="/posts/2049131804.html" class="">18-Gazebo与Ignition仿真</a>
+                  
+                    <a href="/posts/3503988486.html" class="">19-launch系统</a>
+                  
+                    <a href="/posts/3559813711.html" class="">20-日志与调试工具</a>
+                  
+                    <a href="/posts/2378366256.html" class="">21-常用传感器驱动</a>
+                  
+                    <a href="/posts/2969019117.html" class="">22-导航2框架</a>
+                  
+                    <a href="/posts/2928992651.html" class="">23-SLAM建图</a>
+                  
+                    <a href="/posts/1486087179.html" class="">24-路径规划与避障</a>
+                  
+                    <a href="/posts/3827643133.html" class="">25-AMCL定位</a>
+                  
+                    <a href="/posts/767168211.html" class="">26-视觉处理</a>
+                  
+                    <a href="/posts/868393764.html" class="">27-语音交互</a>
+                  
+                    <a href="/posts/711846815.html" class="">28-MoveIt2机械臂控制</a>
+                  
+                    <a href="/posts/4265837254.html" class="">29-多机器人协同</a>
+                  
+                    <a href="/posts/1138612136.html" class="">30-rosbridge与Web端</a>
+                  
+                    <a href="/posts/4101548266.html" class="">ros2 00-索引</a>
+                  
+                    <a href="/posts/381645954.html" class="">ros2 03-核心概念</a>
+                  
+                    <a href="/posts/1488323843.html" class="">ros2 05-命令行工具</a>
+                  
+                    <a href="/posts/344998706.html" class="">ros2 06-话题通信</a>
+                  
+                    <a href="/posts/131381209.html" class="">ros2 07-服务通信</a>
+                  
+                    <a href="/posts/172068224.html" class="">ros2 40-实战：机械臂抓取</a>
+                  
+                    <a href="/posts/513154547.html" class="">ros2 90-资料索引指南</a>
+                  
+                    <a href="/posts/1661557767.html" class="">31-ROS2与Docker</a>
+                  
+                    <a href="/posts/1400569321.html" class="">32-ROS2与嵌入式平台</a>
+                  
+                    <a href="/posts/514195102.html" class="">33-实时性与QoS策略</a>
+                  
+                    <a href="/posts/26068340.html" class="">34-安全与权限</a>
+                  
+                    <a href="/posts/4284941043.html" class="">35-性能优化与Benchmark</a>
+                  
+                    <a href="/posts/512206225.html" class="">36-常见问题排查</a>
+                  
+                    <a href="/posts/103591067.html" class="">37-ROS2与ROS1桥接迁移</a>
+                  
+                    <a href="/posts/496626970.html" class="">38-产品化与部署实践</a>
+                  
+                    <a href="/posts/4258040718.html" class="">39-实战：自动驾驶小车</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="RT-Thread">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/RT-Thread/" class=""><span>🧵</span><span>RT-Thread</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 RT-Thread 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3906847031.html" class="">01-RT-Thread简介与生态</a>
+                  
+                    <a href="/posts/610362104.html" class="">02-内核架构</a>
+                  
+                    <a href="/posts/284852137.html" class="">03-线程管理与调度</a>
+                  
+                    <a href="/posts/1006179627.html" class="">04-线程创建与删除</a>
+                  
+                    <a href="/posts/2919135044.html" class="">05-线程状态机与优先级</a>
+                  
+                    <a href="/posts/357331050.html" class="">06-时钟与定时器</a>
+                  
+                    <a href="/posts/1414862789.html" class="">08-互斥量</a>
+                  
+                    <a href="/posts/3456321070.html" class="">09-事件集</a>
+                  
+                    <a href="/posts/2205341896.html" class="">10-邮箱</a>
+                  
+                    <a href="/posts/3843597198.html" class="">11-消息队列</a>
+                  
+                    <a href="/posts/643009288.html" class="">12-内存管理</a>
+                  
+                    <a href="/posts/2340600776.html" class="">13-内存池与内存堆</a>
+                  
+                    <a href="/posts/2027116276.html" class="">14-中断管理</a>
+                  
+                    <a href="/posts/4146654009.html" class="">15-临界区与线程同步</a>
+                  
+                    <a href="/posts/61094340.html" class="">16-设备驱动框架</a>
+                  
+                    <a href="/posts/2180335808.html" class="">17-I-O设备模型</a>
+                  
+                    <a href="/posts/3069243359.html" class="">18-FinSH控制台</a>
+                  
+                    <a href="/posts/3174840723.html" class="">19-组件与软件包</a>
+                  
+                    <a href="/posts/501684497.html" class="">20-Env与menuconfig配置</a>
+                  
+                    <a href="/posts/1358882682.html" class="">21-RT-Thread Studio</a>
+                  
+                    <a href="/posts/1974679192.html" class="">22-Scons构建</a>
+                  
+                    <a href="/posts/1558395596.html" class="">23-AT组件</a>
+                  
+                    <a href="/posts/4270916110.html" class="">24-网络组件lwIP</a>
+                  
+                    <a href="/posts/4025911074.html" class="">25-DFS文件系统</a>
+                  
+                    <a href="/posts/2437688169.html" class="">26-POSIX支持</a>
+                  
+                    <a href="/posts/1239645384.html" class="">27-动态模块加载</a>
+                  
+                    <a href="/posts/4089363247.html" class="">28-常见移植实践</a>
+                  
+                    <a href="/posts/849796471.html" class="">29-低功耗</a>
+                  
+                    <a href="/posts/47134548.html" class="">30-多核与SMP</a>
+                  
+                    <a href="/posts/2902895778.html" class="">RT-Thread 00-索引</a>
+                  
+                    <a href="/posts/4044683037.html" class="">RT-Thread 07-信号量</a>
+                  
+                    <a href="/posts/1755746755.html" class="">RT-Thread 40-高级主题展望</a>
+                  
+                    <a href="/posts/2924604793.html" class="">RT-Thread 90-资料索引指南</a>
+                  
+                    <a href="/posts/603515604.html" class="">31-微内核与混合微内核</a>
+                  
+                    <a href="/posts/1273830891.html" class="">32-调试与优化</a>
+                  
+                    <a href="/posts/2088952723.html" class="">33-安全</a>
+                  
+                    <a href="/posts/3972366794.html" class="">34-GUI组件与柿饼UI</a>
+                  
+                    <a href="/posts/4194237798.html" class="">35-传感器与驱动组件</a>
+                  
+                    <a href="/posts/1254828870.html" class="">36-实时性分析与优化</a>
+                  
+                    <a href="/posts/70811593.html" class="">37-电源管理</a>
+                  
+                    <a href="/posts/192380990.html" class="">38-实战项目入门</a>
+                  
+                    <a href="/posts/1645794736.html" class="">39-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="Zephyr">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Zephyr/" class=""><span>🍃</span><span>Zephyr</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Zephyr 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2998335701.html" class="">01-Zephyr简介与基金会</a>
+                  
+                    <a href="/posts/111570124.html" class="">02-安装与west工具</a>
+                  
+                    <a href="/posts/391350374.html" class="">03-工程结构</a>
+                  
+                    <a href="/posts/1788752700.html" class="">04-设备树Device Tree</a>
+                  
+                    <a href="/posts/2760731910.html" class="">05-Kconfig配置</a>
+                  
+                    <a href="/posts/2266609168.html" class="">06-内核与调度</a>
+                  
+                    <a href="/posts/2595343241.html" class="">07-线程管理</a>
+                  
+                    <a href="/posts/2487926311.html" class="">08-信号量</a>
+                  
+                    <a href="/posts/4159413018.html" class="">09-队列与消息</a>
+                  
+                    <a href="/posts/3342684069.html" class="">10-内存管理</a>
+                  
+                    <a href="/posts/1826938431.html" class="">11-中断处理</a>
+                  
+                    <a href="/posts/3296401581.html" class="">12-时钟与定时器</a>
+                  
+                    <a href="/posts/911217641.html" class="">13-驱动模型</a>
+                  
+                    <a href="/posts/1524886392.html" class="">14-GPIO驱动</a>
+                  
+                    <a href="/posts/497960377.html" class="">15-UART驱动</a>
+                  
+                    <a href="/posts/515235046.html" class="">16-SPI驱动</a>
+                  
+                    <a href="/posts/3496686401.html" class="">17-I2C驱动</a>
+                  
+                    <a href="/posts/2457140616.html" class="">18-ADC驱动</a>
+                  
+                    <a href="/posts/2991435572.html" class="">19-传感器子系统</a>
+                  
+                    <a href="/posts/819898526.html" class="">20-网络栈</a>
+                  
+                    <a href="/posts/551898650.html" class="">21-蓝牙BLE</a>
+                  
+                    <a href="/posts/686766330.html" class="">22-USB支持</a>
+                  
+                    <a href="/posts/4032698702.html" class="">23-文件系统</a>
+                  
+                    <a href="/posts/2833611844.html" class="">24-Shell子系统</a>
+                  
+                    <a href="/posts/2017556036.html" class="">25-日志系统</a>
+                  
+                    <a href="/posts/80085439.html" class="">26-ztest测试框架</a>
+                  
+                    <a href="/posts/3382284514.html" class="">27-twister测试</a>
+                  
+                    <a href="/posts/2853899551.html" class="">28-构建系统CMake</a>
+                  
+                    <a href="/posts/3766947609.html" class="">29-多架构支持</a>
+                  
+                    <a href="/posts/608772131.html" class="">Zephyr 00-索引</a>
+                  
+                    <a href="/posts/2374992791.html" class="">Zephyr 90-资料索引指南</a>
+                  
+                    <a href="/posts/2085179778.html" class="">30-移植新板卡</a>
+                  
+                    <a href="/posts/2023471085.html" class="">31-低功耗管理</a>
+                  
+                    <a href="/posts/447085682.html" class="">32-安全机制</a>
+                  
+                    <a href="/posts/2755005965.html" class="">33-OTA升级</a>
+                  
+                    <a href="/posts/3554942251.html" class="">34-QEMU模拟器</a>
+                  
+                    <a href="/posts/2564223040.html" class="">35-native模拟器</a>
+                  
+                    <a href="/posts/66503584.html" class="">36-调试与追踪</a>
+                  
+                    <a href="/posts/2974884396.html" class="">37-CMake模块</a>
+                  
+                    <a href="/posts/1879468777.html" class="">38-发布与版本管理</a>
+                  
+                    <a href="/posts/1364311534.html" class="">39-实战项目</a>
+                  
+                    <a href="/posts/4081303068.html" class="">40-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ubuntu24.04">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ubuntu24-04/" class=""><span>🐧</span><span>ubuntu24.04</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ubuntu24.04 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2909325257.html" class="">01-apt 与 dpkg</a>
+                  
+                    <a href="/posts/912530846.html" class="">snap</a>
+                  
+                    <a href="/posts/3939215804.html" class="">03-systemctl 与 service</a>
+                  
+                    <a href="/posts/719879336.html" class="">04-journalctl</a>
+                  
+                    <a href="/posts/3351581332.html" class="">05-htop 与 top</a>
+                  
+                    <a href="/posts/3990143705.html" class="">06-ps 与 kill</a>
+                  
+                    <a href="/posts/585076020.html" class="">07-vim 与 nano</a>
+                  
+                    <a href="/posts/1568442627.html" class="">08-grep</a>
+                  
+                    <a href="/posts/1977677039.html" class="">09-awk 与 sed</a>
+                  
+                    <a href="/posts/4049174153.html" class="">10-find 与 locate</a>
+                  
+                    <a href="/posts/3717903947.html" class="">11-tar 与 zip 与 rsync</a>
+                  
+                    <a href="/posts/2237282420.html" class="">12-ssh 与 scp</a>
+                  
+                    <a href="/posts/1707164187.html" class="">13-ufw</a>
+                  
+                    <a href="/posts/55246962.html" class="">14-cron</a>
+                  
+                    <a href="/posts/651339923.html" class="">15-systemd 定时器</a>
+                  
+                    <a href="/posts/3732393277.html" class="">16-netstat 与 ss 与 ip</a>
+                  
+                    <a href="/posts/2075061187.html" class="">17-curl 与 wget</a>
+                  
+                    <a href="/posts/321014113.html" class="">18-git</a>
+                  
+                    <a href="/posts/2822540859.html" class="">19-docker</a>
+                  
+                    <a href="/posts/3712678695.html" class="">20-python3 与 pip</a>
+                  
+                    <a href="/posts/2522287106.html" class="">21-gcc 与 make</a>
+                  
+                    <a href="/posts/635533000.html" class="">22-磁盘与日志排错工具集</a>
+                  
+                    <a href="/posts/1019958619.html" class="">ubuntu24.04 00-索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="windows">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/windows/" class=""><span>🪟</span><span>windows</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 windows 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2345133774.html" class="">01-PowerShell</a>
+                  
+                    <a href="/posts/746402433.html" class="">02-Windows Terminal</a>
+                  
+                    <a href="/posts/119374108.html" class="">03-任务管理器</a>
+                  
+                    <a href="/posts/3593758667.html" class="">04-资源监视器</a>
+                  
+                    <a href="/posts/279260672.html" class="">05-事件查看器</a>
+                  
+                    <a href="/posts/861959827.html" class="">06-注册表编辑器</a>
+                  
+                    <a href="/posts/1682198913.html" class="">07-磁盘管理</a>
+                  
+                    <a href="/posts/2304893546.html" class="">08-系统配置(msconfig)</a>
+                  
+                    <a href="/posts/143523753.html" class="">09-性能监视器</a>
+                  
+                    <a href="/posts/3851129891.html" class="">10-备份与还原</a>
+                  
+                    <a href="/posts/3417706708.html" class="">11-Windows Defender</a>
+                  
+                    <a href="/posts/2900354160.html" class="">12-Sysinternals 套件</a>
+                  
+                    <a href="/posts/569218026.html" class="">13-winget</a>
+                  
+                    <a href="/posts/1864485545.html" class="">14-PowerToys</a>
+                  
+                    <a href="/posts/1859880826.html" class="">15-剪贴板历史与截图工具</a>
+                  
+                    <a href="/posts/2173435638.html" class="">16-远程桌面</a>
+                  
+                    <a href="/posts/388811029.html" class="">17-Hyper-V</a>
+                  
+                    <a href="/posts/987941398.html" class="">18-WSL</a>
+                  
+                    <a href="/posts/2454912129.html" class="">19-BitLocker</a>
+                  
+                    <a href="/posts/2195244691.html" class="">20-任务计划程序与服务管理器</a>
+                  
+                    <a href="/posts/979849589.html" class="">21-组策略与系统还原</a>
+                  
+                    <a href="/posts/4259947464.html" class="">22-命令行工具集</a>
+                  
+                    <a href="/posts/1775093485.html" class="">windows 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/">🤖 操作系统与机器人</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/">🐧 Linux</a> / <span>33-Flash存储器原理与编程实例</span></div>
+
+<h1>33-Flash存储器原理与编程实例</h1>
+<div class="subtitle">做嵌入式存储选型，绕不开 NOR 和 NAND 这两条路线。我一般先把这两类分清：一类能直接跑代码、容量小但可靠，另一类容量大、成本低但必须靠控制器管理；分清楚之后，擦写方式和文件系统怎么选就顺理成章了。</div>
+<div class="article-meta">
+  <span>📅 2026-10-19</span><span>· 更新于 2026-10-19</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 6954 字 · 约 18 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/Linux/">#Linux</a><a class="tagchip" href="/tags/%E6%A6%82%E5%BF%B5/">#概念</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/3281658937.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="Flash存储器原理与编程实例"><a href="#Flash存储器原理与编程实例" class="headerlink" title="Flash存储器原理与编程实例"></a>Flash存储器原理与编程实例</h1><p>做嵌入式存储选型，绕不开 NOR 和 NAND 这两条路线。我一般先把这两类分清：一类能直接跑代码、容量小但可靠，另一类容量大、成本低但必须靠控制器管理；分清楚之后，擦写方式和文件系统怎么选就顺理成章了。</p>
+<p><strong>一图看懂</strong>：Flash 靠浮栅电荷存储，读写擦三种电压条件各不同。</p>
+<div class="mermaid">
+graph LR
+    F[Flash 类型] --&gt; NOR[NOR 可 XIP 随机访问]
+    F --&gt; NAND[NAND 高密度 按块擦]
+    NOR --&gt; OP[读 写 擦 三步]
+    NAND --&gt; OP
+    OP --&gt; MLC[多层单元 SLC MLC TLC]
+    MLC --&gt; D3[3D NAND 垂直堆叠]
+</div>
+
+<h2 id="1-Flash存储器概述：掉电不丢数据的浮栅晶体管">1. Flash存储器概述：掉电不丢数据的浮栅晶体管<a class="hlink" data-h="1-Flash存储器概述：掉电不丢数据的浮栅晶体管" href="#1-Flash存储器概述：掉电不丢数据的浮栅晶体管" title="跳到本节">¶</a></h2><p>Flash存储器是一种非易失性存储器(Non-Volatile Memory)，即掉电后数据不会丢失。它基于浮栅晶体管(Floating Gate Transistor)原理，通过在浮栅中存储电荷来表示数据状态。Flash存储器广泛应用于嵌入式系统、移动设备、SSD硬盘等领域，已成为现代电子设备不可或缺的部分。</p>
+<p>我一般按掉电是否丢数据来给存储器分类，Flash 的浮栅结构正好卡在「非易失、可电擦」这个位置上，这是它压过早期 EPROM 的根本原因。</p>
+<h3 id="1-1-发展历史：从东芝发明到3D-NAND">1.1 发展历史：从东芝发明到3D NAND<a class="hlink" data-h="1-1-发展历史：从东芝发明到3D-NAND" href="#1-1-发展历史：从东芝发明到3D-NAND" title="跳到本节">¶</a></h3><p>Flash存储器由东芝(Toshiba)的舛岡富士雄(Fujio Masuoka)于1984年发明，命名为”Flash”是因为它的擦除过程让人联想到相机闪光灯的快速闪烁。Flash技术的发展历程如下：</p>
+<ul>
+<li><strong>1984年</strong>: 东芝发明Flash存储技术</li>
+<li><strong>1988年</strong>: Intel商业化NOR Flash</li>
+<li><strong>1989年</strong>: 东芝推出NAND Flash</li>
+<li><strong>1994年</strong>: CompactFlash存储卡推出</li>
+<li><strong>2000年</strong>: USB闪存盘普及</li>
+<li><strong>2005年</strong>: NAND Flash成为主流移动存储解决方案</li>
+<li><strong>2010年+</strong>: SSD大规模应用，3D NAND技术发展</li>
+</ul>
+<h3 id="1-2-基本特性：非易失、可电擦、按块擦除">1.2 基本特性：非易失、可电擦、按块擦除<a class="hlink" data-h="1-2-基本特性：非易失、可电擦、按块擦除" href="#1-2-基本特性：非易失、可电擦、按块擦除" title="跳到本节">¶</a></h3><ul>
+<li><strong>非易失性</strong>: 断电后数据仍保持</li>
+<li><strong>电子可擦除</strong>: 无需紫外线即可擦除数据</li>
+<li><strong>块擦除</strong>: 需要先擦除整个块后才能写入</li>
+<li><strong>擦写寿命</strong>: 有限的擦写次数(约10,000~100,000次)</li>
+<li><strong>读取速度快</strong>: 随机读取性能良好</li>
+<li><strong>能耗低</strong>: 比机械存储设备能耗低</li>
+<li><strong>抗震性好</strong>: 无机械部件，抗冲击性强</li>
+</ul>
+<h2 id="2-Flash存储器类型：NOR可XIP，NAND拼密度与成本">2. Flash存储器类型：NOR可XIP，NAND拼密度与成本<a class="hlink" data-h="2-Flash存储器类型：NOR可XIP，NAND拼密度与成本" href="#2-Flash存储器类型：NOR可XIP，NAND拼密度与成本" title="跳到本节">¶</a></h2><p>Flash存储器主要分为两大类：NOR Flash和NAND Flash，它们在架构、性能特性、应用场景等方面存在显著差异。</p>
+<p>我选型时最先看的就是 XIP 支持：要在 Flash 上直接跑代码就只能 NOR，数据量大则必须 NAND，这一条基本没有折中。</p>
+<h3 id="2-1-NOR与NAND对比：结构差异决定性能与用途">2.1 NOR与NAND对比：结构差异决定性能与用途<a class="hlink" data-h="2-1-NOR与NAND对比：结构差异决定性能与用途" href="#2-1-NOR与NAND对比：结构差异决定性能与用途" title="跳到本节">¶</a></h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>NOR Flash</th>
+<th>NAND Flash</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>发明时间</td>
+<td>1988年 (Intel)</td>
+<td>1989年 (东芝)</td>
+</tr>
+<tr>
+<td>单元连接结构</td>
+<td>并联结构</td>
+<td>串联结构</td>
+</tr>
+<tr>
+<td>接口类型</td>
+<td>地址&#x2F;数据复用，内存式接口</td>
+<td>I&#x2F;O接口，非内存式</td>
+</tr>
+<tr>
+<td>随机访问性能</td>
+<td>优秀</td>
+<td>较差</td>
+</tr>
+<tr>
+<td>顺序读写性能</td>
+<td>一般</td>
+<td>优秀</td>
+</tr>
+<tr>
+<td>擦除&#x2F;写入速度</td>
+<td>慢 (秒级)</td>
+<td>快 (毫秒级)</td>
+</tr>
+<tr>
+<td>最小读取单位</td>
+<td>字节</td>
+<td>页 (512B~16KB)</td>
+</tr>
+<tr>
+<td>最小擦除单位</td>
+<td>块 (64KB~128KB)</td>
+<td>块 (8KB~512KB)</td>
+</tr>
+<tr>
+<td>容量规模</td>
+<td>小 (MB级)</td>
+<td>大 (GB级)</td>
+</tr>
+<tr>
+<td>单位成本</td>
+<td>高</td>
+<td>低</td>
+</tr>
+<tr>
+<td>寿命</td>
+<td>10万擦写次数</td>
+<td>1万~10万擦写次数</td>
+</tr>
+<tr>
+<td>位反转概率</td>
+<td>低</td>
+<td>高，需ECC纠错</td>
+</tr>
+<tr>
+<td>坏块管理</td>
+<td>不需要</td>
+<td>必需</td>
+</tr>
+<tr>
+<td>XIP支持</td>
+<td>支持</td>
+<td>不支持</td>
+</tr>
+<tr>
+<td>主要应用</td>
+<td>代码存储，启动程序</td>
+<td>大容量数据存储</td>
+</tr>
+</tbody></table>
+<h3 id="2-2-NOR-Flash：并联结构带来随机访问与XIP">2.2 NOR Flash：并联结构带来随机访问与XIP<a class="hlink" data-h="2-2-NOR-Flash：并联结构带来随机访问与XIP" href="#2-2-NOR-Flash：并联结构带来随机访问与XIP" title="跳到本节">¶</a></h3><p>NOR Flash采用并联结构，每个存储单元直接连接到位线和字线上，这种架构使得NOR Flash具有类似RAM的随机访问能力。</p>
+<h4 id="2-2-1-NOR-Flash特点"><a href="#2-2-1-NOR-Flash特点" class="headerlink" title="2.2.1 NOR Flash特点"></a>2.2.1 NOR Flash特点</h4><ul>
+<li><strong>读取灵活</strong>: 支持字节级随机访问，可直接从Flash执行代码(XIP, eXecute In Place)</li>
+<li><strong>读取速度快</strong>: 访问时间短，适合存储程序代码</li>
+<li><strong>写入速度慢</strong>: 写入和擦除操作比NAND Flash慢得多</li>
+<li><strong>接口简单</strong>: 采用标准的地址&#x2F;数据总线，类似SRAM接口</li>
+<li><strong>容量较小</strong>: 通常从几MB到几十MB</li>
+<li><strong>可靠性高</strong>: 较少位错误，通常不需要错误校正码(ECC)</li>
+</ul>
+<h4 id="2-2-2-NOR-Flash内部结构"><a href="#2-2-2-NOR-Flash内部结构" class="headerlink" title="2.2.2 NOR Flash内部结构"></a>2.2.2 NOR Flash内部结构</h4><p>NOR Flash内部由多个块(Block)组成，每个块可以独立擦除。块的大小通常为64KB或128KB。NOR Flash的每个存储单元使用浮栅MOS管，当浮栅充满电荷时为”0”，无电荷时为”1”。</p>
+<h4 id="2-2-3-NOR-Flash连接方式"><a href="#2-2-3-NOR-Flash连接方式" class="headerlink" title="2.2.3 NOR Flash连接方式"></a>2.2.3 NOR Flash连接方式</h4><p>NOR Flash的连接方式类似于RAM：</p>
+<ul>
+<li>地址线：用于寻址</li>
+<li>数据线：用于传输数据</li>
+<li>控制线：CE#(片选)、OE#(输出使能)、WE#(写使能)等</li>
+</ul>
+<h3 id="2-3-NAND-Flash：串联结构换来密度与低成本">2.3 NAND Flash：串联结构换来密度与低成本<a class="hlink" data-h="2-3-NAND-Flash：串联结构换来密度与低成本" href="#2-3-NAND-Flash：串联结构换来密度与低成本" title="跳到本节">¶</a></h3><p>NAND Flash采用串联结构，存储单元以串行方式排列。这种结构使得NAND Flash的密度更高，但随机访问能力较差。</p>
+<h4 id="2-3-1-NAND-Flash特点"><a href="#2-3-1-NAND-Flash特点" class="headerlink" title="2.3.1 NAND Flash特点"></a>2.3.1 NAND Flash特点</h4><ul>
+<li><strong>高存储密度</strong>: 芯片面积利用率高，容量大</li>
+<li><strong>成本低</strong>: 单位容量成本比NOR Flash低</li>
+<li><strong>擦写速度快</strong>: 擦除和写入速度远快于NOR Flash</li>
+<li><strong>块寿命长</strong>: 擦写寿命通常高于NOR Flash</li>
+<li><strong>页读取</strong>: 以页(Page)为单位读取，通常为2KB或4KB</li>
+<li><strong>不支持XIP</strong>: 无法直接从NAND Flash执行代码</li>
+<li><strong>位错误率高</strong>: 需要错误校正码(ECC)</li>
+<li><strong>坏块管理</strong>: 需要坏块管理机制</li>
+</ul>
+<h4 id="2-3-2-NAND-Flash内部结构"><a href="#2-3-2-NAND-Flash内部结构" class="headerlink" title="2.3.2 NAND Flash内部结构"></a>2.3.2 NAND Flash内部结构</h4><p>NAND Flash内部由多个块组成，每个块可以独立擦除。块内又分为多个页，页是读写的基本单位。一个典型的NAND Flash结构为：</p>
+<ul>
+<li>芯片 &gt; 平面(Plane) &gt; 块(Block) &gt; 页(Page) &gt; 字节</li>
+</ul>
+<p>每个页通常有两个区域：</p>
+<ul>
+<li><strong>数据区(Main Area)</strong>: 存储用户数据</li>
+<li><strong>备用区(Spare Area&#x2F;OOB)</strong>: 存储ECC校验码、坏块标记等管理信息</li>
+</ul>
+<h4 id="2-3-3-NAND-Flash连接方式"><a href="#2-3-3-NAND-Flash连接方式" class="headerlink" title="2.3.3 NAND Flash连接方式"></a>2.3.3 NAND Flash连接方式</h4><p>NAND Flash的连接方式不同于NOR Flash，它使用I&#x2F;O接口：</p>
+<ul>
+<li>I&#x2F;O引脚：既传输地址，也传输数据，还传输命令</li>
+<li>控制线：CE#(片选)、RE#(读使能)、WE#(写使能)、ALE(地址锁存)、CLE(命令锁存)、R&#x2F;B#(就绪&#x2F;忙)</li>
+</ul>
+<h2 id="3-Flash工作原理：浮栅电荷决定读、写、擦三步">3. Flash工作原理：浮栅电荷决定读、写、擦三步<a class="hlink" data-h="3-Flash工作原理：浮栅电荷决定读、写、擦三步" href="#3-Flash工作原理：浮栅电荷决定读、写、擦三步" title="跳到本节">¶</a></h2><p>踩过的坑是，把编程和擦除混成一回事——写是逐页改阈值电压，擦却是整块回初始态，顺序错了数据必坏。</p>
+<h3 id="3-1-存储单元结构：浮栅被绝缘层包住">3.1 存储单元结构：浮栅被绝缘层包住<a class="hlink" data-h="3-1-存储单元结构：浮栅被绝缘层包住" href="#3-1-存储单元结构：浮栅被绝缘层包住" title="跳到本节">¶</a></h3><p>Flash存储单元的核心是浮栅晶体管。它与普通MOS晶体管的主要区别在于栅极结构：在控制栅和衬底之间增加了一个完全被绝缘材料包围的浮栅。浮栅能够长期存储电荷，从而保持数据状态。</p>
+<h3 id="3-2-读、写、擦：三种电压条件">3.2 读、写、擦：三种电压条件<a class="hlink" data-h="3-2-读、写、擦：三种电压条件" href="#3-2-读、写、擦：三种电压条件" title="跳到本节">¶</a></h3><p>Flash存储器的基本操作包括读、写(编程)和擦除：</p>
+<h4 id="3-2-1-读操作"><a href="#3-2-1-读操作" class="headerlink" title="3.2.1 读操作"></a>3.2.1 读操作</h4><p>读取Flash单元时，在控制栅上施加适当电压，根据浮栅中是否存有电荷，晶体管导通特性不同，从而可判断存储的是”0”还是”1”。</p>
+<h4 id="3-2-2-写操作-编程"><a href="#3-2-2-写操作-编程" class="headerlink" title="3.2.2 写操作(编程)"></a>3.2.2 写操作(编程)</h4><p>写入或编程Flash单元时，在栅极和漏极之间施加高电压，使电子通过量子隧道效应或热电子注入进入浮栅，改变单元的阈值电压，从而写入数据。</p>
+<h4 id="3-2-3-擦除操作"><a href="#3-2-3-擦除操作" class="headerlink" title="3.2.3 擦除操作"></a>3.2.3 擦除操作</h4><p>擦除Flash单元时，在衬底施加高电压，使浮栅中的电子通过隧道效应回到衬底，恢复单元到初始状态。擦除操作通常以块为单位进行。</p>
+<h3 id="3-3-多层单元：位数越多，密度越高、寿命越短">3.3 多层单元：位数越多，密度越高、寿命越短<a class="hlink" data-h="3-3-多层单元：位数越多，密度越高、寿命越短" href="#3-3-多层单元：位数越多，密度越高、寿命越短" title="跳到本节">¶</a></h3><p>随着技术发展，Flash存储器从最初的单层单元(SLC)发展到多层单元(MLC)、三层单元(TLC)和四层单元(QLC)：</p>
+<ul>
+<li><strong>SLC(Single-Level Cell)</strong>: 每个单元存储1位数据(0或1)</li>
+<li><strong>MLC(Multi-Level Cell)</strong>: 每个单元存储2位数据(00,01,10,11)</li>
+<li><strong>TLC(Triple-Level Cell)</strong>: 每个单元存储3位数据</li>
+<li><strong>QLC(Quad-Level Cell)</strong>: 每个单元存储4位数据</li>
+</ul>
+<p>单元层数增加带来更高存储密度和更低成本，但也伴随着寿命减少、性能下降和可靠性降低的问题。</p>
+<h3 id="3-4-3D-NAND：靠垂直堆叠突破平面极限">3.4 3D NAND：靠垂直堆叠突破平面极限<a class="hlink" data-h="3-4-3D-NAND：靠垂直堆叠突破平面极限" href="#3-4-3D-NAND：靠垂直堆叠突破平面极限" title="跳到本节">¶</a></h3><p>为了突破平面NAND的物理极限，3D NAND技术通过在垂直方向上堆叠多层单元，大幅提高了存储密度。主要优势包括：</p>
+<ul>
+<li>容量显著提升</li>
+<li>改善了写入性能和寿命</li>
+<li>降低了单位成本</li>
+<li>减少了干扰问题</li>
+</ul>
+<p>目前主流3D NAND已经发展到96层甚至更多层。</p>
+<h2 id="4-NOR-Flash工作机制：读取像内存，写入要命令序列">4. NOR Flash工作机制：读取像内存，写入要命令序列<a class="hlink" data-h="4-NOR-Flash工作机制：读取像内存，写入要命令序列" href="#4-NOR-Flash工作机制：读取像内存，写入要命令序列" title="跳到本节">¶</a></h2><p>实测下来，NOR 的读时序简单到可以直接用一个指针取值，但写和擦的命令序列一步都不能少，否则芯片根本不认。</p>
+<h3 id="4-1-读时序：送地址、拉低CE与OE即可取数">4.1 读时序：送地址、拉低CE与OE即可取数<a class="hlink" data-h="4-1-读时序：送地址、拉低CE与OE即可取数" href="#4-1-读时序：送地址、拉低CE与OE即可取数" title="跳到本节">¶</a></h3><p>NOR Flash读取操作类似于随机存取存储器(RAM)，能够随机访问任意地址的数据：</p>
+<ol>
+<li>将目标地址送入地址线</li>
+<li>使CE#信号有效(低电平)</li>
+<li>使OE#信号有效(低电平)</li>
+<li>从数据线读取数据</li>
+</ol>
+<p>一个简单的读取过程示例：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 从NOR Flash读取数据 */</span></span><br><span class="line">unsigned char read_nor_flash(unsigned int addr)</span><br><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">    volatile unsigned char *p = (volatile unsigned char *)addr;</span><br><span class="line">    return *p;  <span class="comment">// 直接像访问内存一样读取数据</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-写操作：先解锁再写，按状态位判断完成">4.2 写操作：先解锁再写，按状态位判断完成<a class="hlink" data-h="4-2-写操作：先解锁再写，按状态位判断完成" href="#4-2-写操作：先解锁再写，按状态位判断完成" title="跳到本节">¶</a></h3><p>NOR Flash的写操作（也称为编程）相对复杂，需要遵循特定的命令序列：</p>
+<ol>
+<li>发送写使能命令序列</li>
+<li>指定目标地址</li>
+<li>发送要写入的数据</li>
+<li>等待操作完成</li>
+</ol>
+<p>一个典型的写操作实现：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">write_nor_flash_byte</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> addr, <span class="type">unsigned</span> <span class="type">char</span> data)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *flash_addr = (<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)addr;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 解锁序列 */</span></span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x555</span> = <span class="number">0xAA</span>;</span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x2AA</span> = <span class="number">0x55</span>;</span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x555</span> = <span class="number">0xA0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 写入数据 */</span></span><br><span class="line">    *flash_addr = data;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 等待操作完成 */</span></span><br><span class="line">    <span class="keyword">while</span>((*flash_addr &amp; <span class="number">0x80</span>) != (data &amp; <span class="number">0x80</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-擦除操作：以扇区为单位发命令序列">4.3 擦除操作：以扇区为单位发命令序列<a class="hlink" data-h="4-3-擦除操作：以扇区为单位发命令序列" href="#4-3-擦除操作：以扇区为单位发命令序列" title="跳到本节">¶</a></h3><p>NOR Flash擦除以块为单位，一般流程为：</p>
+<ol>
+<li>发送擦除命令序列</li>
+<li>指定要擦除的块</li>
+<li>等待擦除完成</li>
+</ol>
+<p>擦除操作示例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">erase_nor_flash_sector</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> sector_addr)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *addr = (<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)sector_addr;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 解锁序列 */</span></span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x555</span> = <span class="number">0xAA</span>;</span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x2AA</span> = <span class="number">0x55</span>;</span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x555</span> = <span class="number">0x80</span>;</span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x555</span> = <span class="number">0xAA</span>;</span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x2AA</span> = <span class="number">0x55</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 发出扇区擦除命令 */</span></span><br><span class="line">    *addr = <span class="number">0x30</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 等待擦除完成 */</span></span><br><span class="line">    <span class="keyword">while</span>(*addr != <span class="number">0xFF</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-命令集：多数器件遵循JEDEC或CFI">4.4 命令集：多数器件遵循JEDEC或CFI<a class="hlink" data-h="4-4-命令集：多数器件遵循JEDEC或CFI" href="#4-4-命令集：多数器件遵循JEDEC或CFI" title="跳到本节">¶</a></h3><p>不同厂商的NOR Flash可能有不同的命令集，但大多数遵循JEDEC标准或CFI(Common Flash Interface)规范。典型的NOR Flash命令包括：</p>
+<table>
+<thead>
+<tr>
+<th>命令名称</th>
+<th>命令码</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Read Array</td>
+<td>0xFF</td>
+<td>回到读取模式</td>
+</tr>
+<tr>
+<td>Read ID</td>
+<td>0x90</td>
+<td>读取厂商和设备ID</td>
+</tr>
+<tr>
+<td>Block Erase</td>
+<td>0x30</td>
+<td>擦除指定块</td>
+</tr>
+<tr>
+<td>Chip Erase</td>
+<td>0x10</td>
+<td>擦除整个芯片</td>
+</tr>
+<tr>
+<td>Program</td>
+<td>0xA0</td>
+<td>写入数据</td>
+</tr>
+<tr>
+<td>Status Register Read</td>
+<td>0x70</td>
+<td>读取状态寄存器</td>
+</tr>
+</tbody></table>
+<h3 id="4-5-CFI查询：软件自动读出容量与命令集">4.5 CFI查询：软件自动读出容量与命令集<a class="hlink" data-h="4-5-CFI查询：软件自动读出容量与命令集" href="#4-5-CFI查询：软件自动读出容量与命令集" title="跳到本节">¶</a></h3><p>CFI(Common Flash Interface)是一个行业标准，允许软件自动识别NOR Flash的特性，如大小、块布局、命令集等。通过发送特定命令进入CFI查询模式，软件可以读取Flash的详细参数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">read_nor_flash_cfi</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">short</span> *flash_addr;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 进入CFI模式 */</span></span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">short</span> *)<span class="number">0x55</span> = <span class="number">0x98</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 读取CFI数据 */</span></span><br><span class="line">    flash_addr = (<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">short</span> *)<span class="number">0x10</span>;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Q-R-Y signature: %c%c%c\n&quot;</span>,</span><br><span class="line">           flash_addr[<span class="number">0</span>], flash_addr[<span class="number">1</span>], flash_addr[<span class="number">2</span>]);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 读取设备大小 */</span></span><br><span class="line">    flash_addr = (<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">short</span> *)<span class="number">0x27</span>;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Device size: %u MB\n&quot;</span>, <span class="number">1</span> &lt;&lt; flash_addr[<span class="number">0</span>]);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 退出CFI模式 */</span></span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">short</span> *)<span class="number">0x0</span> = <span class="number">0xFF</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="5-NAND-Flash工作机制：以页读写、以块擦除">5. NAND Flash工作机制：以页读写、以块擦除<a class="hlink" data-h="5-NAND-Flash工作机制：以页读写、以块擦除" href="#5-NAND-Flash工作机制：以页读写、以块擦除" title="跳到本节">¶</a></h2><p>我一般把 ECC、坏块表、磨损均衡当成 NAND 的三件套，控制器没有这三样就直接别用。</p>
+<h3 id="5-1-基本架构：Die、Plane、Block、Page四层">5.1 基本架构：Die、Plane、Block、Page四层<a class="hlink" data-h="5-1-基本架构：Die、Plane、Block、Page四层" href="#5-1-基本架构：Die、Plane、Block、Page四层" title="跳到本节">¶</a></h3><p>NAND Flash内部由以下层次结构组成：</p>
+<ul>
+<li><strong>芯片(Die)</strong>: 一个物理封装中可能包含多个Die</li>
+<li><strong>平面(Plane)</strong>: 每个Die包含多个Plane，可并行操作</li>
+<li><strong>块(Block)</strong>: 擦除的最小单位，通常为128KB-512KB</li>
+<li><strong>页(Page)</strong>: 读写的最小单位，通常为2KB-16KB</li>
+<li><strong>页内结构</strong>: 包含主数据区和备用区(OOB)</li>
+</ul>
+<h3 id="5-2-操作时序：命令、地址、确认三步走">5.2 操作时序：命令、地址、确认三步走<a class="hlink" data-h="5-2-操作时序：命令、地址、确认三步走" href="#5-2-操作时序：命令、地址、确认三步走" title="跳到本节">¶</a></h3><h4 id="5-2-1-读操作时序"><a href="#5-2-1-读操作时序" class="headerlink" title="5.2.1 读操作时序"></a>5.2.1 读操作时序</h4><p>NAND Flash读取操作需要先发送命令，然后发送地址，再读取数据：</p>
+<ol>
+<li>选中芯片(CE#&#x3D;0)</li>
+<li>发送读命令(0x00)，CLE&#x3D;1</li>
+<li>发送地址(行列地址)，ALE&#x3D;1</li>
+<li>发送读确认命令(0x30)</li>
+<li>等待就绪信号(R&#x2F;B#)</li>
+<li>读取数据</li>
+</ol>
+<h4 id="5-2-2-写操作时序"><a href="#5-2-2-写操作时序" class="headerlink" title="5.2.2 写操作时序"></a>5.2.2 写操作时序</h4><p>NAND Flash写操作流程：</p>
+<ol>
+<li>选中芯片(CE#&#x3D;0)</li>
+<li>发送页编程命令(0x80)，CLE&#x3D;1</li>
+<li>发送地址(行列地址)，ALE&#x3D;1</li>
+<li>传输要写入的数据</li>
+<li>发送编程确认命令(0x10)</li>
+<li>等待就绪信号(R&#x2F;B#)</li>
+<li>检查操作状态</li>
+</ol>
+<h4 id="5-2-3-擦除操作时序"><a href="#5-2-3-擦除操作时序" class="headerlink" title="5.2.3 擦除操作时序"></a>5.2.3 擦除操作时序</h4><p>NAND Flash擦除以块为单位：</p>
+<ol>
+<li>选中芯片(CE#&#x3D;0)</li>
+<li>发送块擦除命令(0x60)，CLE&#x3D;1</li>
+<li>发送块地址，ALE&#x3D;1</li>
+<li>发送擦除确认命令(0xD0)</li>
+<li>等待就绪信号(R&#x2F;B#)</li>
+<li>检查操作状态</li>
+</ol>
+<h3 id="5-3-控制器：把时序、ECC和DMA接过来">5.3 控制器：把时序、ECC和DMA接过来<a class="hlink" data-h="5-3-控制器：把时序、ECC和DMA接过来" href="#5-3-控制器：把时序、ECC和DMA接过来" title="跳到本节">¶</a></h3><p>由于NAND Flash的接口复杂性，大多数微控制器集成了NAND Flash控制器以简化操作。NAND Flash控制器通常提供以下功能：</p>
+<ul>
+<li>命令&#x2F;地址&#x2F;数据的自动时序控制</li>
+<li>ECC校验和生成</li>
+<li>DMA数据传输</li>
+<li>坏块管理支持</li>
+<li>磨损均衡算法支持</li>
+</ul>
+<p>以S3C2440为例，其NAND Flash控制器寄存器包括：</p>
+<ul>
+<li>NFCONF: 配置寄存器</li>
+<li>NFCONT: 控制寄存器</li>
+<li>NFCMMD: 命令寄存器</li>
+<li>NFADDR: 地址寄存器</li>
+<li>NFDATA: 数据寄存器</li>
+<li>NFSTAT: 状态寄存器</li>
+</ul>
+<h3 id="5-4-四大挑战：坏块、ECC、磨损均衡与写放大">5.4 四大挑战：坏块、ECC、磨损均衡与写放大<a class="hlink" data-h="5-4-四大挑战：坏块、ECC、磨损均衡与写放大" href="#5-4-四大挑战：坏块、ECC、磨损均衡与写放大" title="跳到本节">¶</a></h3><h4 id="5-4-1-坏块管理"><a href="#5-4-1-坏块管理" class="headerlink" title="5.4.1 坏块管理"></a>5.4.1 坏块管理</h4><p>NAND Flash在制造过程中不可避免地会有一些坏块，使用过程中也会产生新的坏块。坏块管理策略包括：</p>
+<ul>
+<li><strong>出厂坏块标记</strong>: 制造商标记的初始坏块</li>
+<li><strong>坏块表(BBT)</strong>: 记录已知坏块的表格</li>
+<li><strong>坏块替换</strong>: 将坏块映射到保留的好块</li>
+<li><strong>坏块跳过</strong>: 检测到坏块后跳过它</li>
+</ul>
+<h4 id="5-4-2-ECC-错误校正码"><a href="#5-4-2-ECC-错误校正码" class="headerlink" title="5.4.2 ECC(错误校正码)"></a>5.4.2 ECC(错误校正码)</h4><p>NAND Flash读写过程中可能出现位错误，需要使用ECC技术检测和纠正：</p>
+<ul>
+<li><strong>汉明码(Hamming Code)</strong>: 可纠正单位错误</li>
+<li><strong>BCH码</strong>: 可纠正多位错误</li>
+<li><strong>LDPC码</strong>: 高级纠错技术，用于更高密度的NAND</li>
+</ul>
+<h4 id="5-4-3-磨损均衡"><a href="#5-4-3-磨损均衡" class="headerlink" title="5.4.3 磨损均衡"></a>5.4.3 磨损均衡</h4><p>Flash存储单元的擦写次数有限，为延长整个设备的寿命，需要均衡分布擦写操作：</p>
+<ul>
+<li><strong>静态磨损均衡</strong>: 初始数据分布时考虑块的擦写次数</li>
+<li><strong>动态磨损均衡</strong>: 在运行时动态调整数据分布</li>
+<li><strong>预留空间</strong>: 保留部分块作为替换用</li>
+</ul>
+<h4 id="5-4-4-写放大"><a href="#5-4-4-写放大" class="headerlink" title="5.4.4 写放大"></a>5.4.4 写放大</h4><p>Flash存储器的写放大(Write Amplification)问题是指实际写入的物理数据量大于逻辑数据量：</p>
+<ul>
+<li>由于只能以页写入但以块擦除</li>
+<li>更新小数据可能需要读取-修改-写回整个页</li>
+<li>写放大增加了闪存的磨损速度</li>
+</ul>
+<h3 id="5-5-可靠性设计：冗余、ECC、分级保护与刷新">5.5 可靠性设计：冗余、ECC、分级保护与刷新<a class="hlink" data-h="5-5-可靠性设计：冗余、ECC、分级保护与刷新" href="#5-5-可靠性设计：冗余、ECC、分级保护与刷新" title="跳到本节">¶</a></h3><p>为确保NAND Flash存储系统的可靠性，需要综合考虑以下方面：</p>
+<ul>
+<li><strong>冗余设计</strong>: 额外存储空间用于备份和纠错</li>
+<li><strong>先进的ECC算法</strong>: 适应不断增加的位错误率</li>
+<li><strong>多层次的数据保护</strong>: 包括页级、块级和芯片级保护</li>
+<li><strong>定期数据刷新</strong>: 对长期未访问的数据进行刷新</li>
+<li><strong>电源保护</strong>: 防止意外断电导致的数据损坏</li>
+</ul>
+<h2 id="6-Flash与文件系统：先擦后写催生了专用文件系统">6. Flash与文件系统：先擦后写催生了专用文件系统<a class="hlink" data-h="6-Flash与文件系统：先擦后写催生了专用文件系统" href="#6-Flash与文件系统：先擦后写催生了专用文件系统" title="跳到本节">¶</a></h2><p>我一般按容量和介质来挑文件系统：小容量 NOR 走 JFFS2，大容量 NAND 走 UBIFS，SSD&#x2F;eMMC 才轮到 F2FS。</p>
+<h3 id="6-1-先擦后写倒逼文件系统改造">6.1 先擦后写倒逼文件系统改造<a class="hlink" data-h="6-1-先擦后写倒逼文件系统改造" href="#6-1-先擦后写倒逼文件系统改造" title="跳到本节">¶</a></h3><p>Flash存储器的特殊特性对传统文件系统提出了挑战：</p>
+<ul>
+<li>必须先擦除再写入</li>
+<li>擦除操作以块为单位，粒度大</li>
+<li>有限的擦写寿命</li>
+<li>需要坏块管理和磨损均衡</li>
+</ul>
+<p>因此，专门为Flash设计的文件系统应运而生。</p>
+<h3 id="6-2-四种文件系统：按容量和介质选">6.2 四种文件系统：按容量和介质选<a class="hlink" data-h="6-2-四种文件系统：按容量和介质选" href="#6-2-四种文件系统：按容量和介质选" title="跳到本节">¶</a></h3><p>针对Flash存储器特性设计的文件系统有：</p>
+<h4 id="6-2-1-JFFS2-Journaling-Flash-File-System-2"><a href="#6-2-1-JFFS2-Journaling-Flash-File-System-2" class="headerlink" title="6.2.1 JFFS2(Journaling Flash File System 2)"></a>6.2.1 JFFS2(Journaling Flash File System 2)</h4><p>主要用于NOR Flash和小容量NAND Flash：</p>
+<ul>
+<li>日志结构文件系统</li>
+<li>支持压缩</li>
+<li>集成磨损均衡</li>
+<li>掉电安全</li>
+<li>内存消耗较大</li>
+</ul>
+<h4 id="6-2-2-YAFFS2-Yet-Another-Flash-File-System-2"><a href="#6-2-2-YAFFS2-Yet-Another-Flash-File-System-2" class="headerlink" title="6.2.2 YAFFS2(Yet Another Flash File System 2)"></a>6.2.2 YAFFS2(Yet Another Flash File System 2)</h4><p>专为NAND Flash设计：</p>
+<ul>
+<li>支持坏块管理</li>
+<li>高效的磨损均衡</li>
+<li>优化的启动时间</li>
+<li>掉电保护</li>
+<li>适用于中小容量设备</li>
+</ul>
+<h4 id="6-2-3-UBIFS-UBI-File-System"><a href="#6-2-3-UBIFS-UBI-File-System" class="headerlink" title="6.2.3 UBIFS(UBI File System)"></a>6.2.3 UBIFS(UBI File System)</h4><p>基于UBI(Unsorted Block Images)层的文件系统：</p>
+<ul>
+<li>卷管理功能</li>
+<li>高级磨损均衡</li>
+<li>压缩功能</li>
+<li>日志机制</li>
+<li>适用于大容量NAND Flash</li>
+</ul>
+<h4 id="6-2-4-F2FS-Flash-Friendly-File-System"><a href="#6-2-4-F2FS-Flash-Friendly-File-System" class="headerlink" title="6.2.4 F2FS(Flash-Friendly File System)"></a>6.2.4 F2FS(Flash-Friendly File System)</h4><p>由三星为现代Flash存储设备开发的文件系统：</p>
+<ul>
+<li>针对SSD和eMMC优化</li>
+<li>减少写放大</li>
+<li>高性能垃圾回收</li>
+<li>适用于高容量设备</li>
+</ul>
+<h3 id="6-3-FTL：逻辑地址到物理地址的映射层">6.3 FTL：逻辑地址到物理地址的映射层<a class="hlink" data-h="6-3-FTL：逻辑地址到物理地址的映射层" href="#6-3-FTL：逻辑地址到物理地址的映射层" title="跳到本节">¶</a></h3><p>FTL是Flash设备中软件或固件层，负责将逻辑块地址(LBA)映射到物理块地址(PBA)，同时实现以下功能：</p>
+<ul>
+<li><strong>地址映射</strong>: 维护逻辑地址到物理地址的映射表</li>
+<li><strong>磨损均衡</strong>: 平衡不同块的擦写次数</li>
+<li><strong>垃圾回收</strong>: 回收包含无效数据的页面</li>
+<li><strong>坏块管理</strong>: 避开坏块，使用保留块</li>
+<li><strong>掉电保护</strong>: 保证元数据在意外断电时的完整性</li>
+</ul>
+<p>FTL是SSD、USB闪存盘、SD卡等设备的核心组件。</p>
+<h2 id="7-Flash存储应用：NOR放代码，NAND放数据">7. Flash存储应用：NOR放代码，NAND放数据<a class="hlink" data-h="7-Flash存储应用：NOR放代码，NAND放数据" href="#7-Flash存储应用：NOR放代码，NAND放数据" title="跳到本节">¶</a></h2><p>我看产品方案时，通常先问代码放哪、数据放哪——答案基本就是 NOR 存启动代码、NAND 或 eMMC 存大容量数据。</p>
+<h3 id="7-1-NOR应用：启动代码与XIP系统">7.1 NOR应用：启动代码与XIP系统<a class="hlink" data-h="7-1-NOR应用：启动代码与XIP系统" href="#7-1-NOR应用：启动代码与XIP系统" title="跳到本节">¶</a></h3><p>NOR Flash由于其可靠性高、可XIP的特性，主要应用于：</p>
+<ul>
+<li><strong>启动代码存储</strong>: BIOS、BootLoader</li>
+<li><strong>嵌入式固件</strong>: 通常小于几MB的固件</li>
+<li><strong>参数存储</strong>: 配置数据、校准数据等</li>
+<li><strong>XIP系统</strong>: 资源受限的系统，程序直接在Flash上执行</li>
+<li><strong>关键任务系统</strong>: 航空航天、医疗设备等对可靠性要求高的场景</li>
+</ul>
+<h3 id="7-2-NAND应用：大容量数据与SSD">7.2 NAND应用：大容量数据与SSD<a class="hlink" data-h="7-2-NAND应用：大容量数据与SSD" href="#7-2-NAND应用：大容量数据与SSD" title="跳到本节">¶</a></h3><p>NAND Flash凭借其高容量、低成本的优势，常用于：</p>
+<ul>
+<li><strong>大容量数据存储</strong>: MP3播放器、相机、手机等</li>
+<li><strong>SSD(固态硬盘)</strong>: 结合控制器和缓存</li>
+<li><strong>嵌入式MMC(eMMC)</strong>: 集成控制器的封装NAND Flash</li>
+<li><strong>SD卡&#x2F;TF卡</strong>: 便携式存储设备</li>
+<li><strong>USB闪存盘</strong>: 便携式存储设备</li>
+</ul>
+<h3 id="7-3-主流产品：SSD、eMMC、UFS与板载Flash">7.3 主流产品：SSD、eMMC、UFS与板载Flash<a class="hlink" data-h="7-3-主流产品：SSD、eMMC、UFS与板载Flash" href="#7-3-主流产品：SSD、eMMC、UFS与板载Flash" title="跳到本节">¶</a></h3><h4 id="7-3-1-SSD-Solid-State-Drive"><a href="#7-3-1-SSD-Solid-State-Drive" class="headerlink" title="7.3.1 SSD(Solid State Drive)"></a>7.3.1 SSD(Solid State Drive)</h4><p>SSD是使用闪存作为存储介质的硬盘，通常使用NAND Flash：</p>
+<ul>
+<li>SATA接口SSD</li>
+<li>PCIe&#x2F;NVMe接口SSD</li>
+<li>U.2&#x2F;U.3接口SSD</li>
+<li>企业级与消费级SSD</li>
+</ul>
+<h4 id="7-3-2-eMMC-embedded-MultiMedia-Card"><a href="#7-3-2-eMMC-embedded-MultiMedia-Card" class="headerlink" title="7.3.2 eMMC(embedded MultiMedia Card)"></a>7.3.2 eMMC(embedded MultiMedia Card)</h4><p>eMMC集成NAND Flash和控制器：</p>
+<ul>
+<li>广泛用于手机、平板等设备</li>
+<li>提供标准接口，减少设计复杂度</li>
+<li>容量通常为8GB-256GB</li>
+</ul>
+<h4 id="7-3-3-UFS-Universal-Flash-Storage"><a href="#7-3-3-UFS-Universal-Flash-Storage" class="headerlink" title="7.3.3 UFS(Universal Flash Storage)"></a>7.3.3 UFS(Universal Flash Storage)</h4><p>UFS是手机和便携设备的新一代存储标准：</p>
+<ul>
+<li>高性能接口，全双工</li>
+<li>比eMMC带宽更高</li>
+<li>支持命令队列</li>
+<li>更低功耗</li>
+</ul>
+<h4 id="7-3-4-嵌入式Flash"><a href="#7-3-4-嵌入式Flash" class="headerlink" title="7.3.4 嵌入式Flash"></a>7.3.4 嵌入式Flash</h4><p>直接焊接在PCB上的Flash芯片：</p>
+<ul>
+<li>SPI NOR Flash: 低容量，高可靠性</li>
+<li>SPI NAND Flash: 中等容量，低成本</li>
+<li>Parallel NAND Flash: 需要专用控制器</li>
+<li>eMMC&#x2F;UFS: 集成控制器</li>
+</ul>
+<h2 id="8-Flash的下一步：堆叠层数与新型非易失存储并存">8. Flash的下一步：堆叠层数与新型非易失存储并存<a class="hlink" data-h="8-Flash的下一步：堆叠层数与新型非易失存储并存" href="#8-Flash的下一步：堆叠层数与新型非易失存储并存" title="跳到本节">¶</a></h2><p>我倾向于把 3D XPoint、MRAM 这些看作补充而不是替代，眼下 Flash 的密度和成本优势还没被真正撼动。</p>
+<h3 id="8-1-趋势：堆叠、单元、接口与封装一起卷">8.1 趋势：堆叠、单元、接口与封装一起卷<a class="hlink" data-h="8-1-趋势：堆叠、单元、接口与封装一起卷" href="#8-1-趋势：堆叠、单元、接口与封装一起卷" title="跳到本节">¶</a></h3><p>Flash存储技术持续演进：</p>
+<ul>
+<li><strong>堆叠层数增加</strong>: 3D NAND已达到176层以上</li>
+<li><strong>单元技术进步</strong>: QLC、PLC(Penta-Level Cell)技术</li>
+<li><strong>接口速度提升</strong>: 更高速的NVMe、PCIe 5.0</li>
+<li><strong>新型封装技术</strong>: 硅穿孔(TSV)等技术提高集成度</li>
+<li><strong>智能控制算法</strong>: 更先进的ECC和磨损均衡算法</li>
+</ul>
+<h3 id="8-2-挑战：物理极限、可靠性与成本压力">8.2 挑战：物理极限、可靠性与成本压力<a class="hlink" data-h="8-2-挑战：物理极限、可靠性与成本压力" href="#8-2-挑战：物理极限、可靠性与成本压力" title="跳到本节">¶</a></h3><p>Flash技术面临的主要挑战：</p>
+<ul>
+<li><strong>物理极限</strong>: 单元尺寸缩小的物理极限</li>
+<li><strong>可靠性问题</strong>: 随着密度增加，可靠性问题加剧</li>
+<li><strong>写入放大</strong>: 对寿命的负面影响</li>
+<li><strong>性能一致性</strong>: 随着使用时间增加，性能可能下降</li>
+<li><strong>成本压力</strong>: 制造工艺复杂化导致成本上升</li>
+</ul>
+<h3 id="8-3-新兴技术：五类存储与Flash并存">8.3 新兴技术：五类存储与Flash并存<a class="hlink" data-h="8-3-新兴技术：五类存储与Flash并存" href="#8-3-新兴技术：五类存储与Flash并存" title="跳到本节">¶</a></h3><p>与Flash并存或可能替代Flash的存储技术：</p>
+<ul>
+<li><strong>3D XPoint&#x2F;Optane</strong>: Intel与美光开发的高速、高耐久性存储</li>
+<li><strong>MRAM(磁阻式随机存取存储器)</strong>: 利用磁隧道结存储数据</li>
+<li><strong>ReRAM(阻变存储器)</strong>: 利用材料电阻变化存储信息</li>
+<li><strong>FeRAM(铁电随机存取存储器)</strong>: 使用铁电材料的极化方向记录数据</li>
+<li><strong>PRAM(相变存储器)</strong>: 利用材料晶体相变化记录信息</li>
+</ul>
+<h2 id="9-Flash编程实例：从识别ID到页读写">9. Flash编程实例：从识别ID到页读写<a class="hlink" data-h="9-Flash编程实例：从识别ID到页读写" href="#9-Flash编程实例：从识别ID到页读写" title="跳到本节">¶</a></h2><p>实测下来，NAND 的页读写最容易出错的地方是地址字节的发送顺序，行地址低中高三位少一位就读到别的页。</p>
+<h3 id="9-1-NOR编程：识别、擦除与写入">9.1 NOR编程：识别、擦除与写入<a class="hlink" data-h="9-1-NOR编程：识别、擦除与写入" href="#9-1-NOR编程：识别、擦除与写入" title="跳到本节">¶</a></h3><h4 id="9-1-1-NOR-Flash识别"><a href="#9-1-1-NOR-Flash识别" class="headerlink" title="9.1.1 NOR Flash识别"></a>9.1.1 NOR Flash识别</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">nor_flash_identify</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> manufacturer_id, device_id;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 进入ID读取模式 */</span></span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x555</span> = <span class="number">0xAA</span>;</span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x2AA</span> = <span class="number">0x55</span>;</span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x555</span> = <span class="number">0x90</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 读取ID */</span></span><br><span class="line">    manufacturer_id = *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x0</span>;</span><br><span class="line">    device_id = *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 退出ID模式 */</span></span><br><span class="line">    *(<span class="keyword">volatile</span> <span class="type">unsigned</span> <span class="type">char</span> *)<span class="number">0x0</span> = <span class="number">0xF0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Manufacturer ID: 0x%02X\n&quot;</span>, manufacturer_id);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;Device ID: 0x%02X\n&quot;</span>, device_id);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="9-1-2-NOR-Flash擦除和写入"><a href="#9-1-2-NOR-Flash擦除和写入" class="headerlink" title="9.1.2 NOR Flash擦除和写入"></a>9.1.2 NOR Flash擦除和写入</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nor_flash_erase_write</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> addr, <span class="type">const</span> <span class="type">unsigned</span> <span class="type">char</span> *data, <span class="type">unsigned</span> <span class="type">int</span> len)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> sector_addr = addr &amp; ~(SECTOR_SIZE - <span class="number">1</span>);</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> i;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 擦除扇区 */</span></span><br><span class="line">    nor_flash_erase_sector(sector_addr);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 写入数据 */</span></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; len; i++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (nor_flash_write_byte(addr + i, data[i]) != <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="number">-1</span>;  <span class="comment">// 写入失败</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;  <span class="comment">// 成功</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-2-NAND编程：基本函数与页读写">9.2 NAND编程：基本函数与页读写<a class="hlink" data-h="9-2-NAND编程：基本函数与页读写" href="#9-2-NAND编程：基本函数与页读写" title="跳到本节">¶</a></h3><h4 id="9-2-1-NAND-Flash基本操作函数"><a href="#9-2-1-NAND-Flash基本操作函数" class="headerlink" title="9.2.1 NAND Flash基本操作函数"></a>9.2.1 NAND Flash基本操作函数</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 选中NAND Flash芯片 */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">nand_select</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    NFCONT &amp;= ~(<span class="number">1</span>&lt;&lt;<span class="number">1</span>);  <span class="comment">// 使能片选</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 取消选中NAND Flash芯片 */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">nand_deselect</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    NFCONT |= (<span class="number">1</span>&lt;&lt;<span class="number">1</span>);   <span class="comment">// 禁用片选</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 发送命令 */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">nand_cmd</span><span class="params">(<span class="type">unsigned</span> <span class="type">char</span> cmd)</span></span><br><span class="line">&#123;</span><br><span class="line">    NFCMMD = cmd;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 发送地址 */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">nand_addr</span><span class="params">(<span class="type">unsigned</span> <span class="type">char</span> addr)</span></span><br><span class="line">&#123;</span><br><span class="line">    NFADDR = addr;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 等待NAND Flash就绪 */</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">nand_wait_ready</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">while</span> (!(NFSTAT &amp; <span class="number">1</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="9-2-2-NAND-Flash读取页"><a href="#9-2-2-NAND-Flash读取页" class="headerlink" title="9.2.2 NAND Flash读取页"></a>9.2.2 NAND Flash读取页</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">nand_read_page</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> page, <span class="type">unsigned</span> <span class="type">char</span> *buffer)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> i;</span><br><span class="line"></span><br><span class="line">    nand_select();</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 发送读命令 */</span></span><br><span class="line">    nand_cmd(<span class="number">0x00</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 发送地址 */</span></span><br><span class="line">    nand_addr(<span class="number">0</span>);         <span class="comment">// 列地址低位</span></span><br><span class="line">    nand_addr(<span class="number">0</span>);         <span class="comment">// 列地址高位</span></span><br><span class="line">    nand_addr(page &amp; <span class="number">0xFF</span>);         <span class="comment">// 行地址低位</span></span><br><span class="line">    nand_addr((page &gt;&gt; <span class="number">8</span>) &amp; <span class="number">0xFF</span>);  <span class="comment">// 行地址中位</span></span><br><span class="line">    nand_addr((page &gt;&gt; <span class="number">16</span>) &amp; <span class="number">0xFF</span>); <span class="comment">// 行地址高位</span></span><br><span class="line"></span><br><span class="line">    nand_cmd(<span class="number">0x30</span>);  <span class="comment">// 读确认命令</span></span><br><span class="line"></span><br><span class="line">    nand_wait_ready();</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 读取数据 */</span></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; PAGE_SIZE; i++) &#123;</span><br><span class="line">        buffer[i] = NFDATA;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    nand_deselect();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="9-2-3-NAND-Flash写入页"><a href="#9-2-3-NAND-Flash写入页" class="headerlink" title="9.2.3 NAND Flash写入页"></a>9.2.3 NAND Flash写入页</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nand_write_page</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> page, <span class="type">const</span> <span class="type">unsigned</span> <span class="type">char</span> *buffer)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> i;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span> status;</span><br><span class="line"></span><br><span class="line">    nand_select();</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 发送页写入命令 */</span></span><br><span class="line">    nand_cmd(<span class="number">0x80</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 发送地址 */</span></span><br><span class="line">    nand_addr(<span class="number">0</span>);         <span class="comment">// 列地址低位</span></span><br><span class="line">    nand_addr(<span class="number">0</span>);         <span class="comment">// 列地址高位</span></span><br><span class="line">    nand_addr(page &amp; <span class="number">0xFF</span>);         <span class="comment">// 行地址低位</span></span><br><span class="line">    nand_addr((page &gt;&gt; <span class="number">8</span>) &amp; <span class="number">0xFF</span>);  <span class="comment">// 行地址中位</span></span><br><span class="line">    nand_addr((page &gt;&gt; <span class="number">16</span>) &amp; <span class="number">0xFF</span>); <span class="comment">// 行地址高位</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 写入数据 */</span></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; PAGE_SIZE; i++) &#123;</span><br><span class="line">        NFDATA = buffer[i];</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 确认写入 */</span></span><br><span class="line">    nand_cmd(<span class="number">0x10</span>);</span><br><span class="line"></span><br><span class="line">    nand_wait_ready();</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 检查状态 */</span></span><br><span class="line">    nand_cmd(<span class="number">0x70</span>);</span><br><span class="line">    status = NFDATA;</span><br><span class="line"></span><br><span class="line">    nand_deselect();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> (status &amp; <span class="number">0x01</span>) ? <span class="number">-1</span> : <span class="number">0</span>;  <span class="comment">// 返回操作结果</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="10-故障处理与维护：位翻转、坏块和写慢是三类常见症状">10. 故障处理与维护：位翻转、坏块和写慢是三类常见症状<a class="hlink" data-h="10-故障处理与维护：位翻转、坏块和写慢是三类常见症状" href="#10-故障处理与维护：位翻转、坏块和写慢是三类常见症状" title="跳到本节">¶</a></h2><p>我一般先查位翻转和坏块这两项，因为它们是电荷泄漏和擦写磨损的直接结果，其他问题往往是连带反应。</p>
+<h3 id="10-1-常见问题：四种症状与对策">10.1 常见问题：四种症状与对策<a class="hlink" data-h="10-1-常见问题：四种症状与对策" href="#10-1-常见问题：四种症状与对策" title="跳到本节">¶</a></h3><h4 id="10-1-1-位翻转-Bit-Flip"><a href="#10-1-1-位翻转-Bit-Flip" class="headerlink" title="10.1.1 位翻转(Bit Flip)"></a>10.1.1 位翻转(Bit Flip)</h4><p>现象：随机位发生变化，导致数据错误<br>原因：电荷泄漏或干扰<br>解决方案：</p>
+<ul>
+<li>使用ECC纠错</li>
+<li>定期数据刷新</li>
+<li>降低存储密度</li>
+</ul>
+<h4 id="10-1-2-坏块增加"><a href="#10-1-2-坏块增加" class="headerlink" title="10.1.2 坏块增加"></a>10.1.2 坏块增加</h4><p>现象：可用块数量逐渐减少<br>原因：擦写次数过多或生产缺陷<br>解决方案：</p>
+<ul>
+<li>有效的坏块管理</li>
+<li>预留足够的冗余块</li>
+<li>减少擦写频率</li>
+</ul>
+<h4 id="10-1-3-写入速度变慢"><a href="#10-1-3-写入速度变慢" class="headerlink" title="10.1.3 写入速度变慢"></a>10.1.3 写入速度变慢</h4><p>现象：写入操作需要越来越长的时间<br>原因：垃圾回收开销增加<br>解决方案：</p>
+<ul>
+<li>保持足够的空闲空间</li>
+<li>优化数据分布</li>
+<li>执行TRIM操作(适用于SSD)</li>
+</ul>
+<h4 id="10-1-4-读取干扰"><a href="#10-1-4-读取干扰" class="headerlink" title="10.1.4 读取干扰"></a>10.1.4 读取干扰</h4><p>现象：频繁读取某页会导致相邻页数据错误<br>原因：浮栅电荷干扰<br>解决方案：</p>
+<ul>
+<li>设定读取阈值</li>
+<li>增强ECC能力</li>
+<li>重新布局热数据</li>
+</ul>
+<h3 id="10-2-寿命延长：少写、分区与系统级优化">10.2 寿命延长：少写、分区与系统级优化<a class="hlink" data-h="10-2-寿命延长：少写、分区与系统级优化" href="#10-2-寿命延长：少写、分区与系统级优化" title="跳到本节">¶</a></h3><h4 id="10-2-1-减少写入量"><a href="#10-2-1-减少写入量" class="headerlink" title="10.2.1 减少写入量"></a>10.2.1 减少写入量</h4><ul>
+<li>合并小写入为大块写入</li>
+<li>避免频繁更新同一区域</li>
+<li>使用写缓存减少物理写入</li>
+</ul>
+<h4 id="10-2-2-优化数据存储方式"><a href="#10-2-2-优化数据存储方式" class="headerlink" title="10.2.2 优化数据存储方式"></a>10.2.2 优化数据存储方式</h4><ul>
+<li>静态数据与动态数据分离</li>
+<li>根据更新频率分区</li>
+<li>考虑数据重要性进行分配</li>
+</ul>
+<h4 id="10-2-3-系统级优化"><a href="#10-2-3-系统级优化" class="headerlink" title="10.2.3 系统级优化"></a>10.2.3 系统级优化</h4><ul>
+<li>启用TRIM&#x2F;Discard命令</li>
+<li>保持充足的空闲空间(至少15%)</li>
+<li>定期执行健康检查</li>
+</ul>
+<h3 id="10-3-数据恢复：软件、固件、芯片与服务">10.3 数据恢复：软件、固件、芯片与服务<a class="hlink" data-h="10-3-数据恢复：软件、固件、芯片与服务" href="#10-3-数据恢复：软件、固件、芯片与服务" title="跳到本节">¶</a></h3><p>当Flash存储设备数据丢失时，可能的恢复方法：</p>
+<ul>
+<li><strong>软件恢复</strong>: 使用专业恢复软件扫描设备</li>
+<li><strong>固件修复</strong>: 解决固件问题导致的设备不可见</li>
+<li><strong>芯片直接读取</strong>: 严重情况下拆卸芯片直接读取</li>
+<li><strong>专业服务</strong>: 委托专业数据恢复公司处理</li>
+</ul>
+<p>数据恢复成功率取决于：</p>
+<ul>
+<li>数据丢失的原因(逻辑错误vs物理损坏)</li>
+<li>丢失后的操作(继续使用会降低恢复几率)</li>
+<li>设备是否加密</li>
+<li>损坏的严重程度</li>
+</ul>
+<h2 id="落地结论：先分清介质再谈擦写与维护">落地结论：先分清介质再谈擦写与维护<a class="hlink" data-h="落地结论：先分清介质再谈擦写与维护" href="#落地结论：先分清介质再谈擦写与维护" title="跳到本节">¶</a></h2><p>我实际做 Flash 方案时会按这个顺序收敛：先定 NOR 还是 NAND，确定要不要 XIP；再按容量挑文件系统，把 ECC、坏块管理和磨损均衡交给控制器或文件系统去扛；最后用位翻转、坏块增长、写入变慢这三类症状做日常体检。这三层理清楚，驱动编程实例里的那些命令序列才不会写反。</p>
+<h2 id="参考资料：器件手册与标准清单">参考资料：器件手册与标准清单<a class="hlink" data-h="参考资料：器件手册与标准清单" href="#参考资料：器件手册与标准清单" title="跳到本节">¶</a></h2><ol>
+<li>Samsung Semiconductor NAND Flash Memory</li>
+<li>Intel NOR Flash Memory Technology</li>
+<li>“Flash Memories” by Paolo Pavan et al.</li>
+<li>“Inside NAND Flash Memories” by Rino Micheloni et al.</li>
+<li>“Memory Systems: Cache, DRAM, Disk” by Bruce Jacob et al.</li>
+<li>JEDEC Standards for Flash Memory</li>
+<li>ONFI (Open NAND Flash Interface) Specifications</li>
+<li>Technical documents from Micron, Samsung, Western Digital, and Kioxia</li>
+</ol>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"33-Flash存储器原理与编程实例","description":"做嵌入式存储选型，绕不开 NOR 和 NAND 这两条路线。我一般先把这两类分清：一类能直接跑代码、容量小但可靠，另一类容量大、成本低但必须靠控制器管理；分清楚之后，擦写方式和文件系统怎么选就顺理成章了。","datePublished":"2026-10-19T00:00:00+08:00","dateModified":"2026-10-19T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/3281658937.html"},"url":"https://zeek-zhao.github.io/posts/3281658937.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"操作系统与机器人","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/"},{"@type":"ListItem","position":4,"name":"Linux","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/"},{"@type":"ListItem","position":5,"name":"33-Flash存储器原理与编程实例","item":"https://zeek-zhao.github.io/posts/3281658937.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#1-Flash存储器概述：掉电不丢数据的浮栅晶体管" data-h="1-Flash存储器概述：掉电不丢数据的浮栅晶体管" class="">1. Flash存储器概述：掉电不丢数据的浮栅晶体管</a>
+      
+        <a href="#1-1-发展历史：从东芝发明到3D-NAND" data-h="1-1-发展历史：从东芝发明到3D-NAND" class="l2">1.1 发展历史：从东芝发明到3D NAND</a>
+      
+        <a href="#1-2-基本特性：非易失、可电擦、按块擦除" data-h="1-2-基本特性：非易失、可电擦、按块擦除" class="l2">1.2 基本特性：非易失、可电擦、按块擦除</a>
+      
+        <a href="#2-Flash存储器类型：NOR可XIP，NAND拼密度与成本" data-h="2-Flash存储器类型：NOR可XIP，NAND拼密度与成本" class="">2. Flash存储器类型：NOR可XIP，NAND拼密度与成本</a>
+      
+        <a href="#2-1-NOR与NAND对比：结构差异决定性能与用途" data-h="2-1-NOR与NAND对比：结构差异决定性能与用途" class="l2">2.1 NOR与NAND对比：结构差异决定性能与用途</a>
+      
+        <a href="#2-2-NOR-Flash：并联结构带来随机访问与XIP" data-h="2-2-NOR-Flash：并联结构带来随机访问与XIP" class="l2">2.2 NOR Flash：并联结构带来随机访问与XIP</a>
+      
+        <a href="#2-3-NAND-Flash：串联结构换来密度与低成本" data-h="2-3-NAND-Flash：串联结构换来密度与低成本" class="l2">2.3 NAND Flash：串联结构换来密度与低成本</a>
+      
+        <a href="#3-Flash工作原理：浮栅电荷决定读、写、擦三步" data-h="3-Flash工作原理：浮栅电荷决定读、写、擦三步" class="">3. Flash工作原理：浮栅电荷决定读、写、擦三步</a>
+      
+        <a href="#3-1-存储单元结构：浮栅被绝缘层包住" data-h="3-1-存储单元结构：浮栅被绝缘层包住" class="l2">3.1 存储单元结构：浮栅被绝缘层包住</a>
+      
+        <a href="#3-2-读、写、擦：三种电压条件" data-h="3-2-读、写、擦：三种电压条件" class="l2">3.2 读、写、擦：三种电压条件</a>
+      
+        <a href="#3-3-多层单元：位数越多，密度越高、寿命越短" data-h="3-3-多层单元：位数越多，密度越高、寿命越短" class="l2">3.3 多层单元：位数越多，密度越高、寿命越短</a>
+      
+        <a href="#3-4-3D-NAND：靠垂直堆叠突破平面极限" data-h="3-4-3D-NAND：靠垂直堆叠突破平面极限" class="l2">3.4 3D NAND：靠垂直堆叠突破平面极限</a>
+      
+        <a href="#4-NOR-Flash工作机制：读取像内存，写入要命令序列" data-h="4-NOR-Flash工作机制：读取像内存，写入要命令序列" class="">4. NOR Flash工作机制：读取像内存，写入要命令序列</a>
+      
+        <a href="#4-1-读时序：送地址、拉低CE与OE即可取数" data-h="4-1-读时序：送地址、拉低CE与OE即可取数" class="l2">4.1 读时序：送地址、拉低CE与OE即可取数</a>
+      
+        <a href="#4-2-写操作：先解锁再写，按状态位判断完成" data-h="4-2-写操作：先解锁再写，按状态位判断完成" class="l2">4.2 写操作：先解锁再写，按状态位判断完成</a>
+      
+        <a href="#4-3-擦除操作：以扇区为单位发命令序列" data-h="4-3-擦除操作：以扇区为单位发命令序列" class="l2">4.3 擦除操作：以扇区为单位发命令序列</a>
+      
+        <a href="#4-4-命令集：多数器件遵循JEDEC或CFI" data-h="4-4-命令集：多数器件遵循JEDEC或CFI" class="l2">4.4 命令集：多数器件遵循JEDEC或CFI</a>
+      
+        <a href="#4-5-CFI查询：软件自动读出容量与命令集" data-h="4-5-CFI查询：软件自动读出容量与命令集" class="l2">4.5 CFI查询：软件自动读出容量与命令集</a>
+      
+        <a href="#5-NAND-Flash工作机制：以页读写、以块擦除" data-h="5-NAND-Flash工作机制：以页读写、以块擦除" class="">5. NAND Flash工作机制：以页读写、以块擦除</a>
+      
+        <a href="#5-1-基本架构：Die、Plane、Block、Page四层" data-h="5-1-基本架构：Die、Plane、Block、Page四层" class="l2">5.1 基本架构：Die、Plane、Block、Page四层</a>
+      
+        <a href="#5-2-操作时序：命令、地址、确认三步走" data-h="5-2-操作时序：命令、地址、确认三步走" class="l2">5.2 操作时序：命令、地址、确认三步走</a>
+      
+        <a href="#5-3-控制器：把时序、ECC和DMA接过来" data-h="5-3-控制器：把时序、ECC和DMA接过来" class="l2">5.3 控制器：把时序、ECC和DMA接过来</a>
+      
+        <a href="#5-4-四大挑战：坏块、ECC、磨损均衡与写放大" data-h="5-4-四大挑战：坏块、ECC、磨损均衡与写放大" class="l2">5.4 四大挑战：坏块、ECC、磨损均衡与写放大</a>
+      
+        <a href="#5-5-可靠性设计：冗余、ECC、分级保护与刷新" data-h="5-5-可靠性设计：冗余、ECC、分级保护与刷新" class="l2">5.5 可靠性设计：冗余、ECC、分级保护与刷新</a>
+      
+        <a href="#6-Flash与文件系统：先擦后写催生了专用文件系统" data-h="6-Flash与文件系统：先擦后写催生了专用文件系统" class="">6. Flash与文件系统：先擦后写催生了专用文件系统</a>
+      
+        <a href="#6-1-先擦后写倒逼文件系统改造" data-h="6-1-先擦后写倒逼文件系统改造" class="l2">6.1 先擦后写倒逼文件系统改造</a>
+      
+        <a href="#6-2-四种文件系统：按容量和介质选" data-h="6-2-四种文件系统：按容量和介质选" class="l2">6.2 四种文件系统：按容量和介质选</a>
+      
+        <a href="#6-3-FTL：逻辑地址到物理地址的映射层" data-h="6-3-FTL：逻辑地址到物理地址的映射层" class="l2">6.3 FTL：逻辑地址到物理地址的映射层</a>
+      
+        <a href="#7-Flash存储应用：NOR放代码，NAND放数据" data-h="7-Flash存储应用：NOR放代码，NAND放数据" class="">7. Flash存储应用：NOR放代码，NAND放数据</a>
+      
+        <a href="#7-1-NOR应用：启动代码与XIP系统" data-h="7-1-NOR应用：启动代码与XIP系统" class="l2">7.1 NOR应用：启动代码与XIP系统</a>
+      
+        <a href="#7-2-NAND应用：大容量数据与SSD" data-h="7-2-NAND应用：大容量数据与SSD" class="l2">7.2 NAND应用：大容量数据与SSD</a>
+      
+        <a href="#7-3-主流产品：SSD、eMMC、UFS与板载Flash" data-h="7-3-主流产品：SSD、eMMC、UFS与板载Flash" class="l2">7.3 主流产品：SSD、eMMC、UFS与板载Flash</a>
+      
+        <a href="#8-Flash的下一步：堆叠层数与新型非易失存储并存" data-h="8-Flash的下一步：堆叠层数与新型非易失存储并存" class="">8. Flash的下一步：堆叠层数与新型非易失存储并存</a>
+      
+        <a href="#8-1-趋势：堆叠、单元、接口与封装一起卷" data-h="8-1-趋势：堆叠、单元、接口与封装一起卷" class="l2">8.1 趋势：堆叠、单元、接口与封装一起卷</a>
+      
+        <a href="#8-2-挑战：物理极限、可靠性与成本压力" data-h="8-2-挑战：物理极限、可靠性与成本压力" class="l2">8.2 挑战：物理极限、可靠性与成本压力</a>
+      
+        <a href="#8-3-新兴技术：五类存储与Flash并存" data-h="8-3-新兴技术：五类存储与Flash并存" class="l2">8.3 新兴技术：五类存储与Flash并存</a>
+      
+        <a href="#9-Flash编程实例：从识别ID到页读写" data-h="9-Flash编程实例：从识别ID到页读写" class="">9. Flash编程实例：从识别ID到页读写</a>
+      
+        <a href="#9-1-NOR编程：识别、擦除与写入" data-h="9-1-NOR编程：识别、擦除与写入" class="l2">9.1 NOR编程：识别、擦除与写入</a>
+      
+        <a href="#9-2-NAND编程：基本函数与页读写" data-h="9-2-NAND编程：基本函数与页读写" class="l2">9.2 NAND编程：基本函数与页读写</a>
+      
+        <a href="#10-故障处理与维护：位翻转、坏块和写慢是三类常见症状" data-h="10-故障处理与维护：位翻转、坏块和写慢是三类常见症状" class="">10. 故障处理与维护：位翻转、坏块和写慢是三类常见症状</a>
+      
+        <a href="#10-1-常见问题：四种症状与对策" data-h="10-1-常见问题：四种症状与对策" class="l2">10.1 常见问题：四种症状与对策</a>
+      
+        <a href="#10-2-寿命延长：少写、分区与系统级优化" data-h="10-2-寿命延长：少写、分区与系统级优化" class="l2">10.2 寿命延长：少写、分区与系统级优化</a>
+      
+        <a href="#10-3-数据恢复：软件、固件、芯片与服务" data-h="10-3-数据恢复：软件、固件、芯片与服务" class="l2">10.3 数据恢复：软件、固件、芯片与服务</a>
+      
+        <a href="#落地结论：先分清介质再谈擦写与维护" data-h="落地结论：先分清介质再谈擦写与维护" class="">落地结论：先分清介质再谈擦写与维护</a>
+      
+        <a href="#参考资料：器件手册与标准清单" data-h="参考资料：器件手册与标准清单" class="">参考资料：器件手册与标准清单</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>

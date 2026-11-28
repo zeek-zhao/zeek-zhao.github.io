@@ -1,0 +1,2089 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>08-网络协议与通信原理 · Zeek 的 AI 知识工程</title>
+<meta name="description" content="学网络绕不开协议，可我一开始死记各层字段总记不住，后来改成盯住「一个包从我的机器出发，经过哪些环节才到对方」这条主线，反而全串起来了。">
+
+
+<link rel="canonical" href="https://zeek-zhao.github.io/posts/286299626.html">
+<link rel="alternate" type="application/atom+xml" title="Zeek 的 AI 知识工程" href="https://zeek-zhao.github.io/atom.xml">
+<meta property="og:site_name" content="Zeek 的 AI 知识工程">
+<meta property="og:title" content="08-网络协议与通信原理">
+<meta property="og:description" content="学网络绕不开协议，可我一开始死记各层字段总记不住，后来改成盯住「一个包从我的机器出发，经过哪些环节才到对方」这条主线，反而全串起来了。">
+<meta property="og:url" content="https://zeek-zhao.github.io/posts/286299626.html">
+<meta property="og:type" content="article">
+
+<meta property="og:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:image:alt" content="08-网络协议与通信原理">
+<meta name="twitter:image" content="https://zeek-zhao.github.io/img/og-default.svg">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-13T00:00:00+08:00">
+<meta name="twitter:card" content="summary">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Zeek 的 AI 知识工程","url":"https://zeek-zhao.github.io/","description":"AI 驱动的 Obsidian 知识工程博客","inLanguage":"zh-CN"}</script>
+
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; https:; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https:; style-src &#39;self&#39; &#39;unsafe-inline&#39; https:; img-src &#39;self&#39; data: https:; font-src &#39;self&#39; https: data:; connect-src &#39;self&#39; https:; frame-ancestors &#39;none&#39;; base-uri &#39;self&#39;; form-action &#39;self&#39;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+<body data-page="post">
+
+<a class="skip-link" href="#view" onclick="event.preventDefault();const v=document.querySelector('#view');v.setAttribute('tabindex','-1');v.focus()">跳到主要内容</a>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">Z</span>Zeek 的 AI 知识工程</a>
+  
+  <nav class="topnav" id="topnav">
+    <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="searchbox" id="openSearch" type="button" title="搜索文章（Ctrl+K / ⌘K / 按 / 唤起）">🔍<span class="s-label">搜索文章…</span><kbd>Ctrl K</kbd></button>
+    <button class="iconbtn" id="themeBtn" title="切换明暗主题">◐</button>
+    
+    <button class="iconbtn bgmbtn" id="bgmBtn" type="button" title="背景音乐" aria-label="背景音乐开关" hidden>🎵</button>
+    
+    <button class="iconbtn" id="menuBtn" style="display:none" title="导航与目录">☰</button>
+  </div>
+</header>
+
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+<button class="backtop" id="backtop" type="button" title="返回顶部" aria-label="返回顶部">↑</button>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <nav class="mobile-nav" id="mobileNav">
+      <a href="/" data-nav="home" class="">首页</a><a href="/archives/" data-nav="archive" class="">归档</a><a href="/tags/" data-nav="tags" class="">标签</a><a href="/about/" data-nav="about" class="">关于</a>
+    </nav>
+    <div id="sideTree">
+      
+        <div class="sidegroup" data-cat="操作系统与机器人">
+          <div class="sg-head">
+            <span>🤖</span><span>操作系统与机器人</span><span class="cnt">447 篇</span><span class="arrow">▼</span>
+          </div>
+          <div class="sg-items">
+            
+              <div class="sg-sub" data-cat="Linux">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/" class=""><span>🐧</span><span>Linux</span><span class="cnt">129</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Linux 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1681936644.html" class="">01-EC20模块4G拨号与GPS定位开发</a>
+                  
+                    <a href="/posts/4083254943.html" class="">01-Linux安全子系统访问控制与隔离</a>
+                  
+                    <a href="/posts/2415137652.html" class="">01-Linux常用命令速查</a>
+                  
+                    <a href="/posts/533232104.html" class="">01-U-Boot基础与启动流程</a>
+                  
+                    <a href="/posts/3075951192.html" class="">01-Systemd核心组件架构与功能</a>
+                  
+                    <a href="/posts/228001063.html" class="">01-基础工具排查内存泄漏</a>
+                  
+                    <a href="/posts/2735785623.html" class="">01-工业控制器软硬件测试方案</a>
+                  
+                    <a href="/posts/419018602.html" class="">01-裸机开发流程与硬件操控</a>
+                  
+                    <a href="/posts/1072254920.html" class="">02-Linux系统网络配置方法与排障</a>
+                  
+                    <a href="/posts/299621239.html" class="">02-Linux电源管理子系统架构与调优</a>
+                  
+                    <a href="/posts/1221451.html" class="">02-U-Boot新板移植适配流程</a>
+                  
+                    <a href="/posts/4128798125.html" class="">02-systemd-analyze启动性能分析</a>
+                  
+                    <a href="/posts/3888100408.html" class="">02-内核功能与模块管理命令</a>
+                  
+                    <a href="/posts/1471709349.html" class="">02-外设接口测试指南</a>
+                  
+                    <a href="/posts/609416877.html" class="">02-嵌入式开发板硬件接口速查</a>
+                  
+                    <a href="/posts/711801502.html" class="">02-磁盘与文件系统管理</a>
+                  
+                    <a href="/posts/2990991122.html" class="">03-Linux进程管理调度与IPC机制</a>
+                  
+                    <a href="/posts/2680037132.html" class="">03-U-Boot源码结构与启动流程</a>
+                  
+                    <a href="/posts/101579121.html" class="">03-mmap内存映射原理与驱动实现</a>
+                  
+                    <a href="/posts/4216171518.html" class="">03-systemd服务配置与管理</a>
+                  
+                    <a href="/posts/2319334978.html" class="">03-内核基础编译与模块开发</a>
+                  
+                    <a href="/posts/3923580784.html" class="">03-各类工具代理配置</a>
+                  
+                    <a href="/posts/3161741332.html" class="">03-开发板SSH默认端口修改与安全连接</a>
+                  
+                    <a href="/posts/3641886687.html" class="">03-网络测试指南</a>
+                  
+                    <a href="/posts/3785836924.html" class="">04-systemd核心概念与基础</a>
+                  
+                    <a href="/posts/3734120973.html" class="">04-内存管理子系统的层次与机制</a>
+                  
+                    <a href="/posts/972888713.html" class="">04-内核编译与模块功能定制</a>
+                  
+                    <a href="/posts/3751178843.html" class="">04-开发板Linux下修改MAC地址</a>
+                  
+                    <a href="/posts/1112658189.html" class="">04-根文件系统开发实践</a>
+                  
+                    <a href="/posts/1854171497.html" class="">04-芯片四大组件性能测试与选型</a>
+                  
+                    <a href="/posts/262344998.html" class="">04-驱动开发概念分类与架构流程</a>
+                  
+                    <a href="/posts/1094537113.html" class="">05-IMA完整性测量架构与配置</a>
+                  
+                    <a href="/posts/2881050404.html" class="">05-kmemleak内核内存泄漏检测</a>
+                  
+                    <a href="/posts/1992174196.html" class="">05-systemd启动流程与机制</a>
+                  
+                    <a href="/posts/3908546189.html" class="">05-内核架构与子系统协作</a>
+                  
+                    <a href="/posts/3140138007.html" class="">05-根文件系统类型与构建方法</a>
+                  
+                    <a href="/posts/2172472796.html" class="">05-音频设备测试与故障排查</a>
+                  
+                    <a href="/posts/2557508733.html" class="">05-驱动开发框架与通用子系统</a>
+                  
+                    <a href="/posts/862017958.html" class="">06-ICM20608六轴传感器驱动移植</a>
+                  
+                    <a href="/posts/4115811846.html" class="">06-Linux基础术语与核心概念</a>
+                  
+                    <a href="/posts/2015394678.html" class="">06-S3C2440时钟体系与寄存器配置</a>
+                  
+                    <a href="/posts/1758255262.html" class="">06-journald日志查询与管理</a>
+                  
+                    <a href="/posts/45575455.html" class="">06-mtrace内存泄漏分析技巧</a>
+                  
+                    <a href="/posts/3755082214.html" class="">06-内核同步机制与并发控制</a>
+                  
+                    <a href="/posts/3813382677.html" class="">07-Linux计划任务配置与选型</a>
+                  
+                    <a href="/posts/1886591968.html" class="">07-Linux设备驱动模型核心机制</a>
+                  
+                    <a href="/posts/3144201791.html" class="">07-Sanitizer内存泄漏分析</a>
+                  
+                    <a href="/posts/1893451115.html" class="">07-systemd架构与服务管理</a>
+                  
+                    <a href="/posts/992563292.html" class="">07-内核子系统总览</a>
+                  
+                    <a href="/posts/2252012541.html" class="">07-裸机点亮LED与GPIO寄存器操作</a>
+                  
+                    <a href="/posts/2494136140.html" class="">08-Linux图像设备V4L2开发</a>
+                  
+                    <a href="/posts/2551125294.html" class="">08-TCMalloc内存分配器与内存泄漏分析</a>
+                  
+                    <a href="/posts/286299626.html" class="active">08-网络协议与通信原理</a>
+                  
+                    <a href="/posts/2856475980.html" class="">08-裸机交叉编译工具链与链接脚本</a>
+                  
+                    <a href="/posts/423458188.html" class="">08-设备驱动模型与开发实践</a>
+                  
+                    <a href="/posts/4014961628.html" class="">09-Linux网卡流量统计工具选型与用法</a>
+                  
+                    <a href="/posts/4142321600.html" class="">09-Ubuntu2004禁止自动休眠的几种方式</a>
+                  
+                    <a href="/posts/1114536982.html" class="">09-内存管理基础</a>
+                  
+                    <a href="/posts/1702870561.html" class="">09-时间子系统原理与实现</a>
+                  
+                    <a href="/posts/729158944.html" class="">09-设备树DTS语法与内核解析</a>
+                  
+                    <a href="/posts/1720365042.html" class="">10-GPIO三种操作方式与设备树配置</a>
+                  
+                    <a href="/posts/1524901879.html" class="">10-Valgrind内存泄漏分析实战</a>
+                  
+                    <a href="/posts/683186726.html" class="">10-内存泄漏分析与定位流程</a>
+                  
+                    <a href="/posts/1370598446.html" class="">10-图形子系统架构与渲染栈</a>
+                  
+                    <a href="/posts/1626889410.html" class="">10-设备树架构与内核处理流程</a>
+                  
+                    <a href="/posts/1631881322.html" class="">11-CAN总线SocketCAN与CANopen开发</a>
+                  
+                    <a href="/posts/3507320406.html" class="">11-内存泄漏概念检测与修复</a>
+                  
+                    <a href="/posts/2395844944.html" class="">11-网络子系统架构与数据包流程</a>
+                  
+                    <a href="/posts/3827344601.html" class="">11-设备树开发流程与驱动实践</a>
+                  
+                    <a href="/posts/2542203250.html" class="">12-Flash驱动开发与MTD测试体系</a>
+                  
+                    <a href="/posts/3601506011.html" class="">12-嵌入式设备烧录与自动烧录SD卡</a>
+                  
+                    <a href="/posts/1249611102.html" class="">12-文件系统VFS架构与调优</a>
+                  
+                    <a href="/posts/3302243246.html" class="">12-设备树语法规则与节点属性</a>
+                  
+                    <a href="/posts/4232086438.html" class="">13-I2C协议与驱动开发调试</a>
+                  
+                    <a href="/posts/1745770341.html" class="">13-系统调用接口与陷入机制</a>
+                  
+                    <a href="/posts/3541193669.html" class="">13-设备树源码与内核实现</a>
+                  
+                    <a href="/posts/1932562151.html" class="">13-软件包管理工具与依赖排障</a>
+                  
+                    <a href="/posts/3679683762.html" class="">14-kmod工具集与内核模块管理</a>
+                  
+                    <a href="/posts/204754706.html" class="">14-内核调试工具与方法</a>
+                  
+                    <a href="/posts/337401038.html" class="">14-虚拟化子系统架构与实现</a>
+                  
+                    <a href="/posts/3619291073.html" class="">14-网络编程基础与高性能实践</a>
+                  
+                    <a href="/posts/30952159.html" class="">15-PWM子系统与三种开发方式</a>
+                  
+                    <a href="/posts/3428022739.html" class="">15-内核体系结构与学习路径</a>
+                  
+                    <a href="/posts/1156349833.html" class="">15-网络调试工具与防火墙配置</a>
+                  
+                    <a href="/posts/2084393826.html" class="">15-虚拟文件系统VFS架构与缓存</a>
+                  
+                    <a href="/posts/1492466562.html" class="">16-Linux网络基础与协议栈</a>
+                  
+                    <a href="/posts/1443612112.html" class="">16-RPMSG核间通信与开发流程</a>
+                  
+                    <a href="/posts/64163175.html" class="">16-中断处理子系统与上下半部</a>
+                  
+                    <a href="/posts/1662370678.html" class="">17-Linux网络配置与故障排查</a>
+                  
+                    <a href="/posts/3499888327.html" class="">17-RTC驱动与应用开发</a>
+                  
+                    <a href="/posts/1472071864.html" class="">17-内核子系统间交互与IPC机制</a>
+                  
+                    <a href="/posts/3375308729.html" class="">18-GPIO子系统与引脚控制架构</a>
+                  
+                    <a href="/posts/413524861.html" class="">18-Linux网络驱动与收发流程</a>
+                  
+                    <a href="/posts/1787716189.html" class="">18-Socket网络编程与粘包处理</a>
+                  
+                    <a href="/posts/2536056501.html" class="">19-SPI总线驱动与设备树配置</a>
+                  
+                    <a href="/posts/1043009254.html" class="">19-TTY子系统架构与驱动</a>
+                  
+                    <a href="/posts/2820206790.html" class="">19-以太网MAC与PHY接口</a>
+                  
+                    <a href="/posts/1783654330.html" class="">20-Linux文本处理命令与实战</a>
+                  
+                    <a href="/posts/4179949671.html" class="">20-UART串口驱动与RS485应用</a>
+                  
+                    <a href="/posts/865986603.html" class="">21-USB总线驱动框架与设备枚举</a>
+                  
+                    <a href="/posts/3847399252.html" class="">21-无线网络基础与部署排查</a>
+                  
+                    <a href="/posts/4143405040.html" class="">22-看门狗机制与软硬死锁检测</a>
+                  
+                    <a href="/posts/2990894265.html" class="">22-系统掉电保护与日志文件系统</a>
+                  
+                    <a href="/posts/3047565199.html" class="">23-Linux用户与组权限管理</a>
+                  
+                    <a href="/posts/4251339438.html" class="">23-WiFi模块PEB-WLBT-01配置与排障</a>
+                  
+                    <a href="/posts/3144456274.html" class="">24-环境变量修改与生效方法</a>
+                  
+                    <a href="/posts/2406993733.html" class="">25-ADC基础知识与工程实现</a>
+                  
+                    <a href="/posts/901317427.html" class="">26-ADB设备调试命令指南</a>
+                  
+                    <a href="/posts/970239254.html" class="">27-ARM-DSP-FPGA技术对比</a>
+                  
+                    <a href="/posts/1599150771.html" class="">28-awk文本处理与实战</a>
+                  
+                    <a href="/posts/1554852273.html" class="">29-can总线协议与编程基础</a>
+                  
+                    <a href="/posts/3987772023.html" class="">30-diff与patch补丁实战</a>
+                  
+                    <a href="/posts/663676011.html" class="">Linux 技能总览与索引</a>
+                  
+                    <a href="/posts/212295555.html" class="">31-DMA工作原理与内核API</a>
+                  
+                    <a href="/posts/2335117280.html" class="">32-eMMC嵌入式存储原理与优化</a>
+                  
+                    <a href="/posts/3281658937.html" class="">33-Flash存储器原理与编程实例</a>
+                  
+                    <a href="/posts/449212517.html" class="">34-GPIO工作模式与寄存器控制</a>
+                  
+                    <a href="/posts/2802968252.html" class="">35-I2C总线协议与驱动编程</a>
+                  
+                    <a href="/posts/646183460.html" class="">36-I2S音频总线与时钟配置</a>
+                  
+                    <a href="/posts/3921515715.html" class="">37-iMX8处理器系列与型号对比</a>
+                  
+                    <a href="/posts/3676773691.html" class="">38-KVM架构与CPU内存中断虚拟化</a>
+                  
+                    <a href="/posts/2296163704.html" class="">39-xPico240网卡配置与固件升级</a>
+                  
+                    <a href="/posts/4048648752.html" class="">40-MMU地址转换与页表管理</a>
+                  
+                    <a href="/posts/3573195005.html" class="">41-RK平台开发流程与组件</a>
+                  
+                    <a href="/posts/1368966976.html" class="">42-Shell脚本编程与实用案例</a>
+                  
+                    <a href="/posts/3800580745.html" class="">43-SPI总线原理与驱动实战</a>
+                  
+                    <a href="/posts/4029932750.html" class="">44-UART串口原理与通信实战</a>
+                  
+                    <a href="/posts/3428875847.html" class="">45-USB固件开发全流程</a>
+                  
+                    <a href="/posts/1079176846.html" class="">46-USB总线协议与驱动开发基础</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="apollo">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/apollo/" class=""><span>🚗</span><span>apollo</span><span class="cnt">62</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 apollo 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2818472804.html" class="">01-百度Apollo概述与生态</a>
+                  
+                    <a href="/posts/452198409.html" class="">02-版本发展与架构演进</a>
+                  
+                    <a href="/posts/1132755144.html" class="">03-自动驾驶技术基础</a>
+                  
+                    <a href="/posts/260457831.html" class="">04-开发环境搭建（Docker）</a>
+                  
+                    <a href="/posts/3892420017.html" class="">05-源码编译与部署</a>
+                  
+                    <a href="/posts/4189053877.html" class="">06-核心模块总览</a>
+                  
+                    <a href="/posts/2291656538.html" class="">07-高精地图HD Map</a>
+                  
+                    <a href="/posts/1640301657.html" class="">08-定位模块</a>
+                  
+                    <a href="/posts/2974331331.html" class="">09-传感器接入（相机激光雷达毫米波）</a>
+                  
+                    <a href="/posts/1455150168.html" class="">10-CAN总线与车辆控制接口</a>
+                  
+                    <a href="/posts/2682517011.html" class="">11-Apollo Cyber RT框架</a>
+                  
+                    <a href="/posts/1297150334.html" class="">12-Cyber消息通信与组件开发</a>
+                  
+                    <a href="/posts/3060441397.html" class="">13-Apollo配置文件与参数</a>
+                  
+                    <a href="/posts/1643555401.html" class="">14-调试与可视化工具（DreamView）</a>
+                  
+                    <a href="/posts/1298984781.html" class="">15-感知模块总览与点云感知</a>
+                  
+                    <a href="/posts/2907166516.html" class="">16-感知模块-视觉感知</a>
+                  
+                    <a href="/posts/4078895387.html" class="">17-感知模块-雷达感知</a>
+                  
+                    <a href="/posts/2013834045.html" class="">18-传感器标定与坐标转换</a>
+                  
+                    <a href="/posts/3984938707.html" class="">19-预测模块</a>
+                  
+                    <a href="/posts/1834975411.html" class="">20-规划模块</a>
+                  
+                    <a href="/posts/4019786798.html" class="">21-决策模块与场景决策</a>
+                  
+                    <a href="/posts/122258190.html" class="">22-控制模块</a>
+                  
+                    <a href="/posts/3133762148.html" class="">23-车辆动力学基础</a>
+                  
+                    <a href="/posts/1453710074.html" class="">24-仿真平台与场景数据</a>
+                  
+                    <a href="/posts/2673778811.html" class="">25-Cyber启动系统详解</a>
+                  
+                    <a href="/posts/2526415752.html" class="">26-Cyber调度系统详解</a>
+                  
+                    <a href="/posts/2588802797.html" class="">27-Cyber时间系统与定时器</a>
+                  
+                    <a href="/posts/3670574823.html" class="">28-Cyber异步调用机制</a>
+                  
+                    <a href="/posts/3931639321.html" class="">29-Cyber数据系统详解</a>
+                  
+                    <a href="/posts/2442147404.html" class="">30-Cyber网络IO详解</a>
+                  
+                    <a href="/posts/789481480.html" class="">apollo 90-资料索引指南</a>
+                  
+                    <a href="/posts/4180254357.html" class="">apollo 00-索引</a>
+                  
+                    <a href="/posts/4241092442.html" class="">31-Cyber Transform与坐标变换</a>
+                  
+                    <a href="/posts/1946355615.html" class="">32-历史版本模块演进（2.0-5.0）</a>
+                  
+                    <a href="/posts/460001587.html" class="">33-车道级导航与决策</a>
+                  
+                    <a href="/posts/2878817428.html" class="">34-红绿灯感知与通行</a>
+                  
+                    <a href="/posts/3264947560.html" class="">35-泊车场景</a>
+                  
+                    <a href="/posts/3477625335.html" class="">36-高速场景</a>
+                  
+                    <a href="/posts/2091754220.html" class="">37-城市道路场景</a>
+                  
+                    <a href="/posts/3677233744.html" class="">38-端到端自动驾驶与大模型</a>
+                  
+                    <a href="/posts/3012449597.html" class="">39-车路协同与V2X</a>
+                  
+                    <a href="/posts/2752057546.html" class="">40-安全机制与冗余设计</a>
+                  
+                    <a href="/posts/143389874.html" class="">41-性能优化与车规级部署</a>
+                  
+                    <a href="/posts/2080454184.html" class="">42-实战：搭建Demo自动驾驶演示</a>
+                  
+                    <a href="/posts/1558901718.html" class="">43-常见问题排查</a>
+                  
+                    <a href="/posts/711159921.html" class="">45-SLAM概述与开发指南</a>
+                  
+                    <a href="/posts/519418161.html" class="">44-Apollo与ROS对比及生态互通</a>
+                  
+                    <a href="/posts/1474075229.html" class="">46-激光雷达技术原理与发展</a>
+                  
+                    <a href="/posts/1848584950.html" class="">47-激光雷达算法与Lidar模块详解</a>
+                  
+                    <a href="/posts/2562893149.html" class="">48-自动驾驶数据集总览</a>
+                  
+                    <a href="/posts/1294651885.html" class="">49-KITTI与Waymo数据集实战</a>
+                  
+                    <a href="/posts/2011272759.html" class="">50-仿真平台对比与Gazebo-LGSVL实战</a>
+                  
+                    <a href="/posts/1352878638.html" class="">51-深度学习基础与CNN</a>
+                  
+                    <a href="/posts/48707843.html" class="">52-PyTorch与自动驾驶实践</a>
+                  
+                    <a href="/posts/2665165307.html" class="">53-TensorFlow与Caffe2在自动驾驶中的应用</a>
+                  
+                    <a href="/posts/2511406057.html" class="">54-自动驾驶测试方法</a>
+                  
+                    <a href="/posts/1279187638.html" class="">55-标注工具与数据闭环</a>
+                  
+                    <a href="/posts/370472885.html" class="">56-自动驾驶云服务与基础设施</a>
+                  
+                    <a href="/posts/140110120.html" class="">57-自动驾驶操作系统</a>
+                  
+                    <a href="/posts/664493653.html" class="">58-自动驾驶运行时框架对比</a>
+                  
+                    <a href="/posts/1203635596.html" class="">59-自动驾驶学习资源与链接</a>
+                  
+                    <a href="/posts/2049739451.html" class="">60-Audio模块与扩展开发</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="FreeRTOS">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/FreeRTOS/" class=""><span>⏱️</span><span>FreeRTOS</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 FreeRTOS 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1571422233.html" class="">01-FreeRTOS简介与内核特性</a>
+                  
+                    <a href="/posts/1616849365.html" class="">02-任务管理与调度</a>
+                  
+                    <a href="/posts/2794860845.html" class="">03-任务创建与删除</a>
+                  
+                    <a href="/posts/1110013041.html" class="">04-任务状态机</a>
+                  
+                    <a href="/posts/45138943.html" class="">05-优先级与时间片</a>
+                  
+                    <a href="/posts/586549084.html" class="">06-队列</a>
+                  
+                    <a href="/posts/129125089.html" class="">07-信号量</a>
+                  
+                    <a href="/posts/2081041408.html" class="">08-互斥量与优先级反转</a>
+                  
+                    <a href="/posts/3205967530.html" class="">09-事件组</a>
+                  
+                    <a href="/posts/1094377116.html" class="">10-任务通知</a>
+                  
+                    <a href="/posts/1628705678.html" class="">11-流缓冲与消息缓冲</a>
+                  
+                    <a href="/posts/479641272.html" class="">12-软件定时器</a>
+                  
+                    <a href="/posts/3143395966.html" class="">13-内存管理</a>
+                  
+                    <a href="/posts/359640070.html" class="">14-中断管理与临界区</a>
+                  
+                    <a href="/posts/339821033.html" class="">15-Tick与时间管理</a>
+                  
+                    <a href="/posts/224362852.html" class="">16-内核裁剪配置</a>
+                  
+                    <a href="/posts/1572534698.html" class="">17-任务栈溢出检测</a>
+                  
+                    <a href="/posts/670312188.html" class="">18-低功耗与tickless</a>
+                  
+                    <a href="/posts/544846964.html" class="">19-多核SMP</a>
+                  
+                    <a href="/posts/1505843641.html" class="">20-FreeRTOS+TCP</a>
+                  
+                    <a href="/posts/2850073665.html" class="">21-CMSIS-RTOS适配</a>
+                  
+                    <a href="/posts/2762677009.html" class="">22-常见移植实践</a>
+                  
+                    <a href="/posts/574731705.html" class="">23-调试与跟踪</a>
+                  
+                    <a href="/posts/1113963761.html" class="">24-内存保护MPU</a>
+                  
+                    <a href="/posts/1361167341.html" class="">25-FreeRTOS与C++</a>
+                  
+                    <a href="/posts/3732453393.html" class="">26-队列集与流操作</a>
+                  
+                    <a href="/posts/3895620481.html" class="">27-实战项目入门</a>
+                  
+                    <a href="/posts/2560978280.html" class="">28-常见问题排查</a>
+                  
+                    <a href="/posts/3215440781.html" class="">29-任务通知进阶</a>
+                  
+                    <a href="/posts/2405586932.html" class="">30-中断安全编程</a>
+                  
+                    <a href="/posts/3652009953.html" class="">FreeRTOS 00-索引</a>
+                  
+                    <a href="/posts/1437498579.html" class="">FreeRTOS 90-资料索引指南</a>
+                  
+                    <a href="/posts/182118895.html" class="">31-内存管理进阶</a>
+                  
+                    <a href="/posts/517617803.html" class="">32-看门狗与可靠性</a>
+                  
+                    <a href="/posts/4097610364.html" class="">33-电源管理实战</a>
+                  
+                    <a href="/posts/918463786.html" class="">34-多核任务设计</a>
+                  
+                    <a href="/posts/316568827.html" class="">35-TCP网络实战</a>
+                  
+                    <a href="/posts/944546225.html" class="">36-外设驱动集成</a>
+                  
+                    <a href="/posts/276185314.html" class="">37-系统测试与验证</a>
+                  
+                    <a href="/posts/2845406665.html" class="">38-任务间通信模式</a>
+                  
+                    <a href="/posts/271812983.html" class="">39-安全与认证</a>
+                  
+                    <a href="/posts/2988932715.html" class="">40-高级主题展望</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros1">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros1/" class=""><span>🐢</span><span>ros1</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros1 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1845556343.html" class="">01-ROS1概述与生态</a>
+                  
+                    <a href="/posts/76272331.html" class="">02-ROS1安装与环境配置</a>
+                  
+                    <a href="/posts/985253049.html" class="">03-核心概念</a>
+                  
+                    <a href="/posts/4040033312.html" class="">04-工作空间与catkin构建</a>
+                  
+                    <a href="/posts/2100167891.html" class="">05-命令行工具</a>
+                  
+                    <a href="/posts/949416713.html" class="">06-话题通信</a>
+                  
+                    <a href="/posts/735184866.html" class="">07-服务通信</a>
+                  
+                    <a href="/posts/1658567558.html" class="">08-动作通信actionlib</a>
+                  
+                    <a href="/posts/3193113578.html" class="">09-参数服务器</a>
+                  
+                    <a href="/posts/951743246.html" class="">10-roscpp编程</a>
+                  
+                    <a href="/posts/3615205173.html" class="">11-rospy编程</a>
+                  
+                    <a href="/posts/2474828684.html" class="">12-tf坐标变换</a>
+                  
+                    <a href="/posts/510479535.html" class="">13-URDF机器人建模</a>
+                  
+                    <a href="/posts/3467326343.html" class="">14-rviz可视化</a>
+                  
+                    <a href="/posts/178034368.html" class="">15-Gazebo仿真</a>
+                  
+                    <a href="/posts/1047193066.html" class="">16-launch启动文件</a>
+                  
+                    <a href="/posts/1386748878.html" class="">17-自定义消息与srv</a>
+                  
+                    <a href="/posts/78293504.html" class="">18-日志与调试</a>
+                  
+                    <a href="/posts/3580172094.html" class="">19-常用传感器驱动</a>
+                  
+                    <a href="/posts/107634443.html" class="">20-机器人运动学基础</a>
+                  
+                    <a href="/posts/1090496406.html" class="">21-导航框架move_base</a>
+                  
+                    <a href="/posts/3445109373.html" class="">22-建图</a>
+                  
+                    <a href="/posts/774536357.html" class="">23-路径规划与避障</a>
+                  
+                    <a href="/posts/2139127442.html" class="">24-AMCL定位</a>
+                  
+                    <a href="/posts/1373317896.html" class="">25-视觉处理</a>
+                  
+                    <a href="/posts/2932687442.html" class="">26-语音交互</a>
+                  
+                    <a href="/posts/1912127119.html" class="">27-MoveIt机械臂控制</a>
+                  
+                    <a href="/posts/2602875264.html" class="">28-多机器人协同</a>
+                  
+                    <a href="/posts/616282562.html" class="">29-rosbridge与Web端</a>
+                  
+                    <a href="/posts/1820681443.html" class="">30-ROS与Docker</a>
+                  
+                    <a href="/posts/1838862059.html" class="">ros1 00-索引</a>
+                  
+                    <a href="/posts/1752376526.html" class="">ros1 90-资料索引指南</a>
+                  
+                    <a href="/posts/520426601.html" class="">31-ROS与嵌入式平台</a>
+                  
+                    <a href="/posts/1774912468.html" class="">32-ROS1与ROS2对比迁移</a>
+                  
+                    <a href="/posts/3778090335.html" class="">33-仿真场景搭建</a>
+                  
+                    <a href="/posts/3561607965.html" class="">34-常见问题排查</a>
+                  
+                    <a href="/posts/1451115071.html" class="">35-性能优化</a>
+                  
+                    <a href="/posts/1856851824.html" class="">36-产品化实践</a>
+                  
+                    <a href="/posts/3405034604.html" class="">37-插件机制与自定义工具</a>
+                  
+                    <a href="/posts/3819213526.html" class="">38-ROS生态常用库</a>
+                  
+                    <a href="/posts/1488454277.html" class="">39-实战：小车自主导航</a>
+                  
+                    <a href="/posts/1504338169.html" class="">40-实战：机械臂抓取</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ros2">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ros2/" class=""><span>🐢</span><span>ros2</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ros2 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/1204306053.html" class="">01-ROS2概述与生态</a>
+                  
+                    <a href="/posts/1039368075.html" class="">02-ROS2安装与环境配置</a>
+                  
+                    <a href="/posts/3950396837.html" class="">04-工作空间与colcon构建</a>
+                  
+                    <a href="/posts/3022531917.html" class="">08-动作通信</a>
+                  
+                    <a href="/posts/3927300417.html" class="">09-参数机制</a>
+                  
+                    <a href="/posts/3825548204.html" class="">10-rclcpp编程</a>
+                  
+                    <a href="/posts/3191786011.html" class="">11-rclpy编程</a>
+                  
+                    <a href="/posts/3441056145.html" class="">12-生命周期节点</a>
+                  
+                    <a href="/posts/3898278822.html" class="">13-自定义消息接口</a>
+                  
+                    <a href="/posts/742500733.html" class="">14-执行器与回调组</a>
+                  
+                    <a href="/posts/201369509.html" class="">15-tf2坐标变换</a>
+                  
+                    <a href="/posts/1182880406.html" class="">16-URDF与xacro建模</a>
+                  
+                    <a href="/posts/1106872961.html" class="">17-rviz2可视化</a>
+                  
+                    <a href="/posts/2049131804.html" class="">18-Gazebo与Ignition仿真</a>
+                  
+                    <a href="/posts/3503988486.html" class="">19-launch系统</a>
+                  
+                    <a href="/posts/3559813711.html" class="">20-日志与调试工具</a>
+                  
+                    <a href="/posts/2378366256.html" class="">21-常用传感器驱动</a>
+                  
+                    <a href="/posts/2969019117.html" class="">22-导航2框架</a>
+                  
+                    <a href="/posts/2928992651.html" class="">23-SLAM建图</a>
+                  
+                    <a href="/posts/1486087179.html" class="">24-路径规划与避障</a>
+                  
+                    <a href="/posts/3827643133.html" class="">25-AMCL定位</a>
+                  
+                    <a href="/posts/767168211.html" class="">26-视觉处理</a>
+                  
+                    <a href="/posts/868393764.html" class="">27-语音交互</a>
+                  
+                    <a href="/posts/711846815.html" class="">28-MoveIt2机械臂控制</a>
+                  
+                    <a href="/posts/4265837254.html" class="">29-多机器人协同</a>
+                  
+                    <a href="/posts/1138612136.html" class="">30-rosbridge与Web端</a>
+                  
+                    <a href="/posts/4101548266.html" class="">ros2 00-索引</a>
+                  
+                    <a href="/posts/381645954.html" class="">ros2 03-核心概念</a>
+                  
+                    <a href="/posts/1488323843.html" class="">ros2 05-命令行工具</a>
+                  
+                    <a href="/posts/344998706.html" class="">ros2 06-话题通信</a>
+                  
+                    <a href="/posts/131381209.html" class="">ros2 07-服务通信</a>
+                  
+                    <a href="/posts/172068224.html" class="">ros2 40-实战：机械臂抓取</a>
+                  
+                    <a href="/posts/513154547.html" class="">ros2 90-资料索引指南</a>
+                  
+                    <a href="/posts/1661557767.html" class="">31-ROS2与Docker</a>
+                  
+                    <a href="/posts/1400569321.html" class="">32-ROS2与嵌入式平台</a>
+                  
+                    <a href="/posts/514195102.html" class="">33-实时性与QoS策略</a>
+                  
+                    <a href="/posts/26068340.html" class="">34-安全与权限</a>
+                  
+                    <a href="/posts/4284941043.html" class="">35-性能优化与Benchmark</a>
+                  
+                    <a href="/posts/512206225.html" class="">36-常见问题排查</a>
+                  
+                    <a href="/posts/103591067.html" class="">37-ROS2与ROS1桥接迁移</a>
+                  
+                    <a href="/posts/496626970.html" class="">38-产品化与部署实践</a>
+                  
+                    <a href="/posts/4258040718.html" class="">39-实战：自动驾驶小车</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="RT-Thread">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/RT-Thread/" class=""><span>🧵</span><span>RT-Thread</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 RT-Thread 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/3906847031.html" class="">01-RT-Thread简介与生态</a>
+                  
+                    <a href="/posts/610362104.html" class="">02-内核架构</a>
+                  
+                    <a href="/posts/284852137.html" class="">03-线程管理与调度</a>
+                  
+                    <a href="/posts/1006179627.html" class="">04-线程创建与删除</a>
+                  
+                    <a href="/posts/2919135044.html" class="">05-线程状态机与优先级</a>
+                  
+                    <a href="/posts/357331050.html" class="">06-时钟与定时器</a>
+                  
+                    <a href="/posts/1414862789.html" class="">08-互斥量</a>
+                  
+                    <a href="/posts/3456321070.html" class="">09-事件集</a>
+                  
+                    <a href="/posts/2205341896.html" class="">10-邮箱</a>
+                  
+                    <a href="/posts/3843597198.html" class="">11-消息队列</a>
+                  
+                    <a href="/posts/643009288.html" class="">12-内存管理</a>
+                  
+                    <a href="/posts/2340600776.html" class="">13-内存池与内存堆</a>
+                  
+                    <a href="/posts/2027116276.html" class="">14-中断管理</a>
+                  
+                    <a href="/posts/4146654009.html" class="">15-临界区与线程同步</a>
+                  
+                    <a href="/posts/61094340.html" class="">16-设备驱动框架</a>
+                  
+                    <a href="/posts/2180335808.html" class="">17-I-O设备模型</a>
+                  
+                    <a href="/posts/3069243359.html" class="">18-FinSH控制台</a>
+                  
+                    <a href="/posts/3174840723.html" class="">19-组件与软件包</a>
+                  
+                    <a href="/posts/501684497.html" class="">20-Env与menuconfig配置</a>
+                  
+                    <a href="/posts/1358882682.html" class="">21-RT-Thread Studio</a>
+                  
+                    <a href="/posts/1974679192.html" class="">22-Scons构建</a>
+                  
+                    <a href="/posts/1558395596.html" class="">23-AT组件</a>
+                  
+                    <a href="/posts/4270916110.html" class="">24-网络组件lwIP</a>
+                  
+                    <a href="/posts/4025911074.html" class="">25-DFS文件系统</a>
+                  
+                    <a href="/posts/2437688169.html" class="">26-POSIX支持</a>
+                  
+                    <a href="/posts/1239645384.html" class="">27-动态模块加载</a>
+                  
+                    <a href="/posts/4089363247.html" class="">28-常见移植实践</a>
+                  
+                    <a href="/posts/849796471.html" class="">29-低功耗</a>
+                  
+                    <a href="/posts/47134548.html" class="">30-多核与SMP</a>
+                  
+                    <a href="/posts/2902895778.html" class="">RT-Thread 00-索引</a>
+                  
+                    <a href="/posts/4044683037.html" class="">RT-Thread 07-信号量</a>
+                  
+                    <a href="/posts/1755746755.html" class="">RT-Thread 40-高级主题展望</a>
+                  
+                    <a href="/posts/2924604793.html" class="">RT-Thread 90-资料索引指南</a>
+                  
+                    <a href="/posts/603515604.html" class="">31-微内核与混合微内核</a>
+                  
+                    <a href="/posts/1273830891.html" class="">32-调试与优化</a>
+                  
+                    <a href="/posts/2088952723.html" class="">33-安全</a>
+                  
+                    <a href="/posts/3972366794.html" class="">34-GUI组件与柿饼UI</a>
+                  
+                    <a href="/posts/4194237798.html" class="">35-传感器与驱动组件</a>
+                  
+                    <a href="/posts/1254828870.html" class="">36-实时性分析与优化</a>
+                  
+                    <a href="/posts/70811593.html" class="">37-电源管理</a>
+                  
+                    <a href="/posts/192380990.html" class="">38-实战项目入门</a>
+                  
+                    <a href="/posts/1645794736.html" class="">39-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="Zephyr">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Zephyr/" class=""><span>🍃</span><span>Zephyr</span><span class="cnt">42</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 Zephyr 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2998335701.html" class="">01-Zephyr简介与基金会</a>
+                  
+                    <a href="/posts/111570124.html" class="">02-安装与west工具</a>
+                  
+                    <a href="/posts/391350374.html" class="">03-工程结构</a>
+                  
+                    <a href="/posts/1788752700.html" class="">04-设备树Device Tree</a>
+                  
+                    <a href="/posts/2760731910.html" class="">05-Kconfig配置</a>
+                  
+                    <a href="/posts/2266609168.html" class="">06-内核与调度</a>
+                  
+                    <a href="/posts/2595343241.html" class="">07-线程管理</a>
+                  
+                    <a href="/posts/2487926311.html" class="">08-信号量</a>
+                  
+                    <a href="/posts/4159413018.html" class="">09-队列与消息</a>
+                  
+                    <a href="/posts/3342684069.html" class="">10-内存管理</a>
+                  
+                    <a href="/posts/1826938431.html" class="">11-中断处理</a>
+                  
+                    <a href="/posts/3296401581.html" class="">12-时钟与定时器</a>
+                  
+                    <a href="/posts/911217641.html" class="">13-驱动模型</a>
+                  
+                    <a href="/posts/1524886392.html" class="">14-GPIO驱动</a>
+                  
+                    <a href="/posts/497960377.html" class="">15-UART驱动</a>
+                  
+                    <a href="/posts/515235046.html" class="">16-SPI驱动</a>
+                  
+                    <a href="/posts/3496686401.html" class="">17-I2C驱动</a>
+                  
+                    <a href="/posts/2457140616.html" class="">18-ADC驱动</a>
+                  
+                    <a href="/posts/2991435572.html" class="">19-传感器子系统</a>
+                  
+                    <a href="/posts/819898526.html" class="">20-网络栈</a>
+                  
+                    <a href="/posts/551898650.html" class="">21-蓝牙BLE</a>
+                  
+                    <a href="/posts/686766330.html" class="">22-USB支持</a>
+                  
+                    <a href="/posts/4032698702.html" class="">23-文件系统</a>
+                  
+                    <a href="/posts/2833611844.html" class="">24-Shell子系统</a>
+                  
+                    <a href="/posts/2017556036.html" class="">25-日志系统</a>
+                  
+                    <a href="/posts/80085439.html" class="">26-ztest测试框架</a>
+                  
+                    <a href="/posts/3382284514.html" class="">27-twister测试</a>
+                  
+                    <a href="/posts/2853899551.html" class="">28-构建系统CMake</a>
+                  
+                    <a href="/posts/3766947609.html" class="">29-多架构支持</a>
+                  
+                    <a href="/posts/608772131.html" class="">Zephyr 00-索引</a>
+                  
+                    <a href="/posts/2374992791.html" class="">Zephyr 90-资料索引指南</a>
+                  
+                    <a href="/posts/2085179778.html" class="">30-移植新板卡</a>
+                  
+                    <a href="/posts/2023471085.html" class="">31-低功耗管理</a>
+                  
+                    <a href="/posts/447085682.html" class="">32-安全机制</a>
+                  
+                    <a href="/posts/2755005965.html" class="">33-OTA升级</a>
+                  
+                    <a href="/posts/3554942251.html" class="">34-QEMU模拟器</a>
+                  
+                    <a href="/posts/2564223040.html" class="">35-native模拟器</a>
+                  
+                    <a href="/posts/66503584.html" class="">36-调试与追踪</a>
+                  
+                    <a href="/posts/2974884396.html" class="">37-CMake模块</a>
+                  
+                    <a href="/posts/1879468777.html" class="">38-发布与版本管理</a>
+                  
+                    <a href="/posts/1364311534.html" class="">39-实战项目</a>
+                  
+                    <a href="/posts/4081303068.html" class="">40-常见问题排查</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="ubuntu24.04">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/ubuntu24-04/" class=""><span>🐧</span><span>ubuntu24.04</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 ubuntu24.04 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2909325257.html" class="">01-apt 与 dpkg</a>
+                  
+                    <a href="/posts/912530846.html" class="">snap</a>
+                  
+                    <a href="/posts/3939215804.html" class="">03-systemctl 与 service</a>
+                  
+                    <a href="/posts/719879336.html" class="">04-journalctl</a>
+                  
+                    <a href="/posts/3351581332.html" class="">05-htop 与 top</a>
+                  
+                    <a href="/posts/3990143705.html" class="">06-ps 与 kill</a>
+                  
+                    <a href="/posts/585076020.html" class="">07-vim 与 nano</a>
+                  
+                    <a href="/posts/1568442627.html" class="">08-grep</a>
+                  
+                    <a href="/posts/1977677039.html" class="">09-awk 与 sed</a>
+                  
+                    <a href="/posts/4049174153.html" class="">10-find 与 locate</a>
+                  
+                    <a href="/posts/3717903947.html" class="">11-tar 与 zip 与 rsync</a>
+                  
+                    <a href="/posts/2237282420.html" class="">12-ssh 与 scp</a>
+                  
+                    <a href="/posts/1707164187.html" class="">13-ufw</a>
+                  
+                    <a href="/posts/55246962.html" class="">14-cron</a>
+                  
+                    <a href="/posts/651339923.html" class="">15-systemd 定时器</a>
+                  
+                    <a href="/posts/3732393277.html" class="">16-netstat 与 ss 与 ip</a>
+                  
+                    <a href="/posts/2075061187.html" class="">17-curl 与 wget</a>
+                  
+                    <a href="/posts/321014113.html" class="">18-git</a>
+                  
+                    <a href="/posts/2822540859.html" class="">19-docker</a>
+                  
+                    <a href="/posts/3712678695.html" class="">20-python3 与 pip</a>
+                  
+                    <a href="/posts/2522287106.html" class="">21-gcc 与 make</a>
+                  
+                    <a href="/posts/635533000.html" class="">22-磁盘与日志排错工具集</a>
+                  
+                    <a href="/posts/1019958619.html" class="">ubuntu24.04 00-索引</a>
+                  
+                </div>
+              </div>
+            
+              <div class="sg-sub" data-cat="windows">
+                <div class="sg-subhead">
+                  <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/windows/" class=""><span>🪟</span><span>windows</span><span class="cnt">23</span></a>
+                  <span class="subarrow arrow" role="button" tabindex="0" aria-label="展开 windows 的文章列表">▼</span>
+                </div>
+                <div class="sg-items2">
+                  
+                    <a href="/posts/2345133774.html" class="">01-PowerShell</a>
+                  
+                    <a href="/posts/746402433.html" class="">02-Windows Terminal</a>
+                  
+                    <a href="/posts/119374108.html" class="">03-任务管理器</a>
+                  
+                    <a href="/posts/3593758667.html" class="">04-资源监视器</a>
+                  
+                    <a href="/posts/279260672.html" class="">05-事件查看器</a>
+                  
+                    <a href="/posts/861959827.html" class="">06-注册表编辑器</a>
+                  
+                    <a href="/posts/1682198913.html" class="">07-磁盘管理</a>
+                  
+                    <a href="/posts/2304893546.html" class="">08-系统配置(msconfig)</a>
+                  
+                    <a href="/posts/143523753.html" class="">09-性能监视器</a>
+                  
+                    <a href="/posts/3851129891.html" class="">10-备份与还原</a>
+                  
+                    <a href="/posts/3417706708.html" class="">11-Windows Defender</a>
+                  
+                    <a href="/posts/2900354160.html" class="">12-Sysinternals 套件</a>
+                  
+                    <a href="/posts/569218026.html" class="">13-winget</a>
+                  
+                    <a href="/posts/1864485545.html" class="">14-PowerToys</a>
+                  
+                    <a href="/posts/1859880826.html" class="">15-剪贴板历史与截图工具</a>
+                  
+                    <a href="/posts/2173435638.html" class="">16-远程桌面</a>
+                  
+                    <a href="/posts/388811029.html" class="">17-Hyper-V</a>
+                  
+                    <a href="/posts/987941398.html" class="">18-WSL</a>
+                  
+                    <a href="/posts/2454912129.html" class="">19-BitLocker</a>
+                  
+                    <a href="/posts/2195244691.html" class="">20-任务计划程序与服务管理器</a>
+                  
+                    <a href="/posts/979849589.html" class="">21-组策略与系统还原</a>
+                  
+                    <a href="/posts/4259947464.html" class="">22-命令行工具集</a>
+                  
+                    <a href="/posts/1775093485.html" class="">windows 00-索引</a>
+                  
+                </div>
+              </div>
+            
+            
+          </div>
+        </div>
+      
+    </div>
+  </aside>
+  <main class="main"><div class="content" id="view">
+
+<div class="crumb"><a href="/">首页</a> / <a href="/archives/">归档</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/">🤖 操作系统与机器人</a> / <a href="/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/">🐧 Linux</a> / <span>08-网络协议与通信原理</span></div>
+
+<h1>08-网络协议与通信原理</h1>
+<div class="subtitle">学网络绕不开协议，可我一开始死记各层字段总记不住，后来改成盯住「一个包从我的机器出发，经过哪些环节才到对方」这条主线，反而全串起来了。</div>
+<div class="article-meta">
+  <span>📅 2026-11-13</span><span>· 更新于 2026-11-13</span>
+  <span class="meta-wc" title="中文字 + 西文词">· 12887 字 · 约 33 分钟</span>
+  <a class="meta-author" href="/about/">✍ zeek.zhao</a>
+  <a class="tagchip" href="/tags/Linux/">#Linux</a><a class="tagchip" href="/tags/%E6%A6%82%E5%BF%B5/">#概念</a>
+  <button type="button" class="copy-link" data-url="https://zeek-zhao.github.io/posts/286299626.html" title="复制本文链接">🔗 复制链接</button>
+</div>
+
+<h1 id="网络协议与通信原理"><a href="#网络协议与通信原理" class="headerlink" title="网络协议与通信原理"></a>网络协议与通信原理</h1><p>学网络绕不开协议，可我一开始死记各层字段总记不住，后来改成盯住「一个包从我的机器出发，经过哪些环节才到对方」这条主线，反而全串起来了。协议本质上就是通信双方约定好的规则，跟不同方言的人要靠普通话沟通是一个道理——ARPANET 当年能推广开，靠的就是把 TCP&#x2F;IP 做成了互联网里的通用语言。下面按分层模型、地址解析、传输控制、应用协议、安全这条线往下捋。</p>
+<p><strong>一图看懂</strong>：OSI 七层、TCP&#x2F;IP 四层、五层模型逐层封装与解封装。</p>
+<div class="mermaid">
+graph TD
+    A[应用层] --&gt; T[传输层 TCP UDP]
+    T --&gt; N[网络层 IP 路由]
+    N --&gt; L[数据链路层 成帧 MAC]
+    L --&gt; P[物理层 比特流]
+    P --&gt;|传输媒体| P2[对端物理层]
+    P2 --&gt; N2[逐层解封装到对端应用]
+</div>
+
+<h2 id="1-网络层次划分：OSI-七层、TCP-IP-四层与五层的对应">1. 网络层次划分：OSI 七层、TCP&#x2F;IP 四层与五层的对应<a class="hlink" data-h="1-网络层次划分：OSI-七层、TCP-IP-四层与五层的对应" href="#1-网络层次划分：OSI-七层、TCP-IP-四层与五层的对应" title="跳到本节">¶</a></h2><p>为了使不同计算机厂家生产的计算机能够相互通信，以便在更大的范围内建立计算机网络，国际标准化组织（ISO）在1978年提出了”开放系统互联参考模型”，即著名的OSI&#x2F;RM模型（Open System Interconnection&#x2F;Reference Model）。它将计算机网络体系结构的通信协议划分为七层，自下而上依次为：物理层（Physics Layer）、数据链路层（Data Link Layer）、网络层（Network Layer）、传输层（Transport Layer）、会话层（Session Layer）、表示层（Presentation Layer）、应用层（Application Layer）。其中第四层完成数据传送服务，上面三层面向用户。</p>
+<p>除了标准的OSI七层模型以外，常见的网络层次划分还有TCP&#x2F;IP四层协议以及TCP&#x2F;IP五层协议，它们之间的对应关系如下：</p>
+<table>
+<thead>
+<tr>
+<th>OSI七层模型</th>
+<th>TCP&#x2F;IP五层模型</th>
+<th>TCP&#x2F;IP四层模型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>应用层</td>
+<td>应用层</td>
+<td>应用层</td>
+</tr>
+<tr>
+<td>表示层</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>会话层</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>传输层</td>
+<td>传输层</td>
+<td>传输层</td>
+</tr>
+<tr>
+<td>网络层</td>
+<td>网络层</td>
+<td>互联网层</td>
+</tr>
+<tr>
+<td>数据链路层</td>
+<td>数据链路层</td>
+<td>网络接口层</td>
+</tr>
+<tr>
+<td>物理层</td>
+<td>物理层</td>
+<td>-</td>
+</tr>
+</tbody></table>
+<p>我记这张表时只抓两头：OSI 是理论上的七层，实际互联网跑的是 TCP&#x2F;IP 四层，五层只是把四层的网络接口拆成数据链路和物理两层方便教学。</p>
+<h2 id="2-OSI-七层模型：从物理信号逐层封装到应用数据">2. OSI 七层模型：从物理信号逐层封装到应用数据<a class="hlink" data-h="2-OSI-七层模型：从物理信号逐层封装到应用数据" href="#2-OSI-七层模型：从物理信号逐层封装到应用数据" title="跳到本节">¶</a></h2><p>TCP&#x2F;IP协议是互联网的基础协议，没有它就无法上网，任何与互联网相关的操作都离不开TCP&#x2F;IP协议。不管是OSI七层模型还是TCP&#x2F;IP的四层、五层模型，每一层都有自己的专属协议，完成相应的工作并与上下层级沟通。以下是OSI七层模型的详细介绍：</p>
+<h3 id="2-1-物理层：把比特流送上物理媒体">2.1 物理层：把比特流送上物理媒体<a class="hlink" data-h="2-1-物理层：把比特流送上物理媒体" href="#2-1-物理层：把比特流送上物理媒体" title="跳到本节">¶</a></h3><p>物理层负责激活、维持、关闭通信端点之间的机械特性、电气特性、功能特性以及过程特性。<strong>该层为上层协议提供了一个传输数据的可靠物理媒体。简单来说，物理层确保原始数据可在各种物理媒体上传输。</strong>物理层的重要设备包括中继器（Repeater，也叫放大器）和集线器。</p>
+<h4 id="2-1-1-基本概念和功能"><a href="#2-1-1-基本概念和功能" class="headerlink" title="2.1.1 基本概念和功能"></a>2.1.1 基本概念和功能</h4><p>物理层解决如何在连接各种计算机的传输媒体上传输数据比特流，而不是指具体的传输媒体，尽可能地屏蔽掉传输媒体和通信手段的差异。物理层的主要任务包括：</p>
+<ul>
+<li>确定机械特性：接口形状，引线数目</li>
+<li>电气特性：规定电压的范围（如-5V到+5V）</li>
+<li>功能特性：如规定-5V表示0，+5V表示1</li>
+<li>过程特性：各个相关部件的工作步骤</li>
+</ul>
+<h4 id="2-1-2-数据通信相关术语"><a href="#2-1-2-数据通信相关术语" class="headerlink" title="2.1.2 数据通信相关术语"></a>2.1.2 数据通信相关术语</h4><ul>
+<li><strong>数据</strong>：运送消息的实体</li>
+<li><strong>信号</strong>：数据电气或电磁的表现<ul>
+<li>模拟信号：代表消息的参数取值是连续的</li>
+<li>数字信号：代表消息的参数取值是离散的</li>
+</ul>
+</li>
+<li><strong>码元</strong>：代表不同离散数值的基本波形</li>
+</ul>
+<h4 id="2-1-3-信道的基本概念"><a href="#2-1-3-信道的基本概念" class="headerlink" title="2.1.3 信道的基本概念"></a>2.1.3 信道的基本概念</h4><p>信道一般表示向一个方向上传递信息的媒体：</p>
+<ul>
+<li><strong>单工通道</strong>：只有一个方向的通信，没有反方向的交互</li>
+<li><strong>半双工通信</strong>：通信双方都可发送信息，但不能同时发送（如对讲机）</li>
+<li><strong>全双工通信</strong>：通信双方可以同时发送和接收信息（如手机）</li>
+</ul>
+<h4 id="2-1-4-编码与调制"><a href="#2-1-4-编码与调制" class="headerlink" title="2.1.4 编码与调制"></a>2.1.4 编码与调制</h4><ul>
+<li><strong>基带信号</strong>：来自信源的信号</li>
+<li><strong>带通信号</strong>：通过将基带信号进行载波调制后，把信号频率搬到较高的频段</li>
+</ul>
+<p>常见编码方式：</p>
+<ul>
+<li><strong>曼切斯特编码</strong>：位中间有信号跳变，跳变方向决定比特值（低到高为1，高到低为0）</li>
+<li><strong>差分曼切斯特编码</strong>：位中间有信号跳变，位与位之间是否有跳变决定比特值</li>
+</ul>
+<h4 id="2-1-5-信道极限容量"><a href="#2-1-5-信道极限容量" class="headerlink" title="2.1.5 信道极限容量"></a>2.1.5 信道极限容量</h4><ul>
+<li><strong>奈氏准则</strong>：在任何信道中，码元的传输速率是有上限的，否则会出现码间串扰</li>
+<li><strong>香农定理</strong>：信道的极限信息传输速度 C &#x3D; W log₂(1 + S&#x2F;N) bit&#x2F;s<ul>
+<li>W：信道的带宽（Hz）</li>
+<li>S：信号平均功率</li>
+<li>N：噪声功率</li>
+</ul>
+</li>
+</ul>
+<h4 id="2-1-6-传输媒体"><a href="#2-1-6-传输媒体" class="headerlink" title="2.1.6 传输媒体"></a>2.1.6 传输媒体</h4><ul>
+<li><strong>导向传输媒体</strong>：电磁波沿着固体媒体传播<ul>
+<li>双绞线（屏蔽STP和非屏蔽UTP）</li>
+<li>同轴电缆</li>
+<li>光纤</li>
+</ul>
+</li>
+<li><strong>非导向传输媒体</strong>：无线传输</li>
+</ul>
+<h4 id="2-1-7-信道复用技术"><a href="#2-1-7-信道复用技术" class="headerlink" title="2.1.7 信道复用技术"></a>2.1.7 信道复用技术</h4><ul>
+<li><strong>频分复用</strong>（FDM）：用户在不同频带同时占用信道</li>
+<li><strong>时分复用</strong>（TDM）：用户在不同的时间片使用信道</li>
+<li><strong>波分复用</strong>（WDM）：光的频分复用，在光纤中传输多种不同波长的光信号</li>
+<li><strong>码分复用</strong>（CDM）：每个用户使用不同的码型进行编码</li>
+</ul>
+<h3 id="2-2-数据链路层：成帧、透明传输与差错控制">2.2 数据链路层：成帧、透明传输与差错控制<a class="hlink" data-h="2-2-数据链路层：成帧、透明传输与差错控制" href="#2-2-数据链路层：成帧、透明传输与差错控制" title="跳到本节">¶</a></h3><p>数据链路层在物理层提供的服务基础上向网络层提供服务，其最基本的服务是将源自网络层的数据可靠地传输到相邻节点的目标机网络层。</p>
+<h4 id="2-2-1-基本概念和功能"><a href="#2-2-1-基本概念和功能" class="headerlink" title="2.2.1 基本概念和功能"></a>2.2.1 基本概念和功能</h4><ul>
+<li><strong>链路</strong>：一条点到点的物理线路段，中间没有其它交换节点</li>
+<li><strong>数据链路</strong>：除物理链路外，还包括控制数据传输的通信协议</li>
+</ul>
+<p>数据链路层的主要功能包括：</p>
+<ul>
+<li><strong>封装成帧</strong>：将网络层数据添加首部和尾部，构成帧</li>
+<li><strong>透明传输</strong>：确保数据中的任何比特组合都能够正确传输</li>
+<li><strong>差错控制</strong>：检测并尽可能纠正传输中的差错</li>
+</ul>
+<h4 id="2-2-2-封装成帧与透明传输"><a href="#2-2-2-封装成帧与透明传输" class="headerlink" title="2.2.2 封装成帧与透明传输"></a>2.2.2 封装成帧与透明传输</h4><p>封装成帧是通过在一段数据前后添加特殊字符（如SOH-开始标记和EOT-结束标记）来定界一个帧。当数据部分出现控制字符时，采用字符填充（或字节填充）技术解决：在控制字符前插入转义字符ESC。</p>
+<h4 id="2-2-3-差错控制"><a href="#2-2-3-差错控制" class="headerlink" title="2.2.3 差错控制"></a>2.2.3 差错控制</h4><p>传输中可能会产生比特差错（1变成0，或0变成1）。误码率（BER）是指在一段时间内传输错误的比特占总传输比特的比率。</p>
+<p><strong>CRC循环冗余校验</strong>：</p>
+<ul>
+<li>发送方和接收方约定一个生成多项式G(x)</li>
+<li>发送方对要发送的数据M进行模2除法运算，得到余数R</li>
+<li>发送方将余数R添加到数据M后面，构成待传输的帧</li>
+<li>接收方对接收到的帧执行同样的除法运算</li>
+<li>如果余数为0，则认为帧无差错；否则认为有差错，丢弃该帧</li>
+</ul>
+<h4 id="2-2-4-局域网的拓扑结构"><a href="#2-2-4-局域网的拓扑结构" class="headerlink" title="2.2.4 局域网的拓扑结构"></a>2.2.4 局域网的拓扑结构</h4><p>局域网的主要拓扑结构包括：</p>
+<ul>
+<li><strong>星形拓扑</strong>：所有节点连接到中央节点</li>
+<li><strong>总线拓扑</strong>：所有节点连接到一条公共传输介质</li>
+<li><strong>环形拓扑</strong>：节点形成一个闭环</li>
+<li><strong>网状拓扑</strong>：节点之间有多条连接路径</li>
+</ul>
+<h4 id="2-2-5-CSMA-CD协议"><a href="#2-2-5-CSMA-CD协议" class="headerlink" title="2.2.5 CSMA&#x2F;CD协议"></a>2.2.5 CSMA&#x2F;CD协议</h4><p>CSMA&#x2F;CD（载波监听多址接入&#x2F;碰撞检测）是以太网使用的一种介质访问控制方法：</p>
+<ul>
+<li><strong>多点接入</strong>：多台计算机连接到同一总线</li>
+<li><strong>载波监听</strong>：发送前检测总线上是否有其它信号</li>
+<li><strong>碰撞检测</strong>：发送时检测是否发生碰撞，如发生碰撞则立即停止发送</li>
+</ul>
+<p>当碰撞发生时，站点会发送阻塞信号，然后等待一个随机时间（退避时间）再尝试重发。</p>
+<h4 id="2-2-6-以太网与流量控制"><a href="#2-2-6-以太网与流量控制" class="headerlink" title="2.2.6 以太网与流量控制"></a>2.2.6 以太网与流量控制</h4><p><strong>以太网</strong>是目前最流行的局域网技术，遵循CSMA&#x2F;CD原则。以太网提供的是不可靠的交付服务。</p>
+<p>流量控制协议主要有：</p>
+<ul>
+<li><strong>单工停等协议</strong>：发送方每发送一帧就等待接收方的确认</li>
+<li><strong>连续ARQ协议</strong>：发送方可以连续发送多个帧，不必等待确认</li>
+<li><strong>滑动窗口协议</strong>：发送方和接收方各维护一个窗口，只允许在窗口内的帧发送或接收</li>
+</ul>
+<p>我在理解 CSMA&#x2F;CD 时抓住「先听后发、边发边听、冲突停发、随机重发」这四句就够了，以太网不可靠这点也在这层就定了。</p>
+<h3 id="2-3-网络层：路径选择、路由与逻辑寻址">2.3 网络层：路径选择、路由与逻辑寻址<a class="hlink" data-h="2-3-网络层：路径选择、路由与逻辑寻址" href="#2-3-网络层：路径选择、路由与逻辑寻址" title="跳到本节">¶</a></h3><p>网络层的目的是实现两个端系统之间的数据透明传送，功能包括寻址和路由选择、连接的建立、保持和终止等。它提供的服务使传输层不需要了解网络中的数据传输和交换技术。网络层可以简单概括为”路径选择、路由及逻辑寻址”。</p>
+<p>网络层中涉及众多的协议，其中最重要的是TCP&#x2F;IP的核心协议——IP协议。IP协议提供不可靠、无连接的传送服务，主要功能有：无连接数据报传输、数据报路由选择和差错控制。</p>
+<p>重要知识点：</p>
+<ul>
+<li><strong>网络层负责对子网间的数据包进行路由选择，并实现拥塞控制、网际互连等功能</strong></li>
+<li><strong>基本数据单位为IP数据报</strong></li>
+<li><strong>主要协议：</strong><ul>
+<li><strong>IP协议（Internet Protocol）</strong></li>
+<li><strong>ICMP协议（Internet Control Message Protocol）</strong></li>
+<li><strong>ARP协议（Address Resolution Protocol）</strong></li>
+<li><strong>RARP协议（Reverse Address Resolution Protocol）</strong></li>
+</ul>
+</li>
+<li><strong>重要设备：路由器</strong></li>
+</ul>
+<h3 id="2-4-传输层：第一个端到端的层次">2.4 传输层：第一个端到端的层次<a class="hlink" data-h="2-4-传输层：第一个端到端的层次" href="#2-4-传输层：第一个端到端的层次" title="跳到本节">¶</a></h3><p>传输层是第一个端到端的层次，负责将上层数据分段并提供端到端的、可靠或不可靠的传输。此外，传输层还处理端到端的差错控制和流量控制问题。传输层根据通信子网特性，最佳利用网络资源，为会话层提供建立、维护和取消传输连接的功能。</p>
+<p>重要知识点：</p>
+<ul>
+<li><strong>传输层负责端到端的数据分段传输、差错控制和流量控制</strong></li>
+<li><strong>主要协议：TCP协议（传输控制协议）、UDP协议（用户数据报协议）</strong></li>
+<li><strong>重要设备：网关</strong></li>
+</ul>
+<h4 id="2-4-1-流量控制：靠接收窗口限制发送速率"><a href="#2-4-1-流量控制：靠接收窗口限制发送速率" class="headerlink" title="2.4.1 流量控制：靠接收窗口限制发送速率"></a>2.4.1 流量控制：靠接收窗口限制发送速率</h4><p><strong>流量控制的概念</strong></p>
+<p>流量控制是指防止发送方发送数据过快，导致接收方来不及处理，从而导致数据丢失的一种机制。流量控制的依据是接收端缓冲区的大小，目标是确保接收端能够处理所有收到的数据。</p>
+<p><strong>滑动窗口机制</strong></p>
+<p>滑动窗口是实现流量控制的关键机制，它允许发送方在收到确认前发送多个数据包。主要特点包括：</p>
+<ol>
+<li>接收端通过TCP首部中的”窗口大小”字段通知发送端自己可用的缓冲区大小</li>
+<li>窗口大小字段越大，表示网络吞吐率越高</li>
+<li>窗口大小是指无需等待确认应答而可以继续发送的数据量上限</li>
+<li>发送方维护发送缓冲区，记录未收到确认的数据</li>
+<li>当接收方缓冲区即将满时，会减小通知的窗口大小，从而降低发送速率</li>
+<li>如果接收方缓冲区满，会将窗口大小设为0，发送方将暂停发送数据，但会定期发送窗口探测报文</li>
+</ol>
+<p>滑动窗口的优势在于可以高效可靠地发送大量数据，提高网络的吞吐量。</p>
+<h4 id="2-4-2-拥塞控制：慢启动、拥塞避免、快重传、快恢复"><a href="#2-4-2-拥塞控制：慢启动、拥塞避免、快重传、快恢复" class="headerlink" title="2.4.2 拥塞控制：慢启动、拥塞避免、快重传、快恢复"></a>2.4.2 拥塞控制：慢启动、拥塞避免、快重传、快恢复</h4><p><strong>拥塞控制的概念</strong></p>
+<p>拥塞控制是防止过多的数据注入网络中，避免网络负载过重而导致网络性能下降的机制。拥塞控制的主要表现为丢包和延时增加。</p>
+<p><strong>拥塞控制算法</strong></p>
+<p>TCP采用了多种拥塞控制算法：</p>
+<ol>
+<li><strong>慢启动（Slow Start）</strong>：连接初始阶段，拥塞窗口（cwnd）从1个MSS开始，每收到一个确认就将cwnd加1，呈指数增长</li>
+<li><strong>拥塞避免（Congestion Avoidance）</strong>：当cwnd达到慢启动阈值（ssthresh）后，每经过一个往返时间增加1个MSS，呈线性增长</li>
+<li><strong>快速重传（Fast Retransmit）</strong>：接收方收到失序报文段后立即发送重复确认，发送方收到3个重复确认后立即重传</li>
+<li><strong>快速恢复（Fast Recovery）</strong>：发生拥塞后，ssthresh设为当前cwnd的一半，cwnd&#x3D;ssthresh+3，并线性增长直到收到新的确认</li>
+</ol>
+<p><strong>拥塞控制工作过程</strong></p>
+<p>拥塞控制经历以下阶段：</p>
+<ul>
+<li><strong>初始化</strong>：cwnd&#x3D;1，ssthresh&#x3D;65535</li>
+<li><strong>慢启动阶段</strong>：cwnd指数增长</li>
+<li><strong>拥塞避免阶段</strong>：cwnd线性增长</li>
+<li><strong>拥塞发生后调整</strong>：检测到丢包后，ssthresh&#x3D;cwnd&#x2F;2，cwnd&#x3D;1，重新开始慢启动</li>
+</ul>
+<h4 id="2-4-3-流量控制与拥塞控制的区别"><a href="#2-4-3-流量控制与拥塞控制的区别" class="headerlink" title="2.4.3 流量控制与拥塞控制的区别"></a>2.4.3 流量控制与拥塞控制的区别</h4><p><strong>相同点</strong>：</p>
+<ul>
+<li>都会导致丢包现象</li>
+<li>都通过控制发送方的发送速率来解决问题</li>
+</ul>
+<p><strong>不同点</strong>：</p>
+<ul>
+<li><strong>丢包位置不同</strong>：流量控制丢包在接收端，拥塞控制丢包在路由器</li>
+<li><strong>作用对象不同</strong>：流量控制针对接收方，拥塞控制针对整个网络</li>
+<li><strong>范围不同</strong>：流量控制是点对点的控制，拥塞控制是全局性的过程</li>
+</ul>
+<p>这两个概念我一开始老混，后来记成「流量控制是收方撑不住，拥塞控制是网络堵了」，丢包位置一个在接收端、一个在路由器，区分起来就清楚了。</p>
+<h3 id="2-5-会话层、表示层和应用层：面向用户的三层">2.5 会话层、表示层和应用层：面向用户的三层<a class="hlink" data-h="2-5-会话层、表示层和应用层：面向用户的三层" href="#2-5-会话层、表示层和应用层：面向用户的三层" title="跳到本节">¶</a></h3><p><strong>会话层</strong>：管理主机之间的会话进程，负责建立、管理、终止进程之间的会话，并通过在数据中插入校验点实现数据同步。</p>
+<p><strong>表示层</strong>：对上层数据或信息进行变换，确保一个主机应用层信息可以被另一个主机的应用程序理解。表示层的数据转换包括数据加密、压缩、格式转换等。</p>
+<p><strong>应用层</strong>：为操作系统或网络应用程序提供访问网络服务的接口。</p>
+<p>重要知识点：</p>
+<ul>
+<li><strong>数据传输基本单位为报文</strong></li>
+<li><strong>主要协议：</strong><ul>
+<li><strong>FTP（文件传送协议）</strong></li>
+<li><strong>Telnet（远程登录协议）</strong></li>
+<li><strong>DNS（域名解析协议）</strong></li>
+<li><strong>SMTP（邮件传送协议）</strong></li>
+<li><strong>POP3（邮局协议）</strong></li>
+<li><strong>HTTP（超文本传输协议）</strong></li>
+</ul>
+</li>
+</ul>
+<h2 id="3-IP地址：网络号加主机号，五类地址各有用途">3. IP地址：网络号加主机号，五类地址各有用途<a class="hlink" data-h="3-IP地址：网络号加主机号，五类地址各有用途" href="#3-IP地址：网络号加主机号，五类地址各有用途" title="跳到本节">¶</a></h2><h3 id="3-1-网络地址">3.1 网络地址<a class="hlink" data-h="3-1-网络地址" href="#3-1-网络地址" title="跳到本节">¶</a></h3><p>IP地址由网络号（包括子网号）和主机号组成，网络地址的主机号为全0，代表着整个网络。</p>
+<h3 id="3-2-广播地址">3.2 广播地址<a class="hlink" data-h="3-2-广播地址" href="#3-2-广播地址" title="跳到本节">¶</a></h3><p>广播地址通常称为直接广播地址，用于区分受限广播地址。广播地址的主机号为全1。当向某个网络的广播地址发送消息时，该网络内的所有主机都能收到该广播消息。</p>
+<h3 id="3-3-IP地址分类">3.3 IP地址分类<a class="hlink" data-h="3-3-IP地址分类" href="#3-3-IP地址分类" title="跳到本节">¶</a></h3><ul>
+<li><strong>A类地址</strong>：以0开头，第一个字节作为网络号，地址范围为：0.0.0.0~127.255.255.255</li>
+<li><strong>B类地址</strong>：以10开头，前两个字节作为网络号，地址范围是：128.0.0.0~191.255.255.255</li>
+<li><strong>C类地址</strong>：以110开头，前三个字节作为网络号，地址范围是：192.0.0.0~223.255.255.255</li>
+<li><strong>D类地址</strong>：以1110开头，地址范围是224.0.0.0~239.255.255.255，作为组播地址</li>
+<li><strong>E类地址</strong>：以1111开头，地址范围是240.0.0.0~255.255.255.255，为保留地址</li>
+</ul>
+<p>注：只有A、B、C类地址划分网络号和主机号，D类和E类地址没有这种划分。</p>
+<h3 id="3-4-特殊IP地址">3.4 特殊IP地址<a class="hlink" data-h="3-4-特殊IP地址" href="#3-4-特殊IP地址" title="跳到本节">¶</a></h3><ul>
+<li><strong>255.255.255.255</strong>：受限广播地址，仅用于本地网络，路由器不会转发</li>
+<li><strong>0.0.0.0</strong>：常用于寻找自己的IP地址，如在DHCP、BOOTP等协议中使用</li>
+<li><strong>127.0.0.0&#x2F;8</strong>：回环地址，用于本机测试，常用127.0.0.1</li>
+<li><strong>私有地址</strong>：<ul>
+<li>A类：10.0.0.0&#x2F;8（10.0.0.0~10.255.255.255）</li>
+<li>B类：172.16.0.0&#x2F;12（172.16.0.0~172.31.255.255）</li>
+<li>C类：192.168.0.0&#x2F;16（192.168.0.0~192.168.255.255）</li>
+</ul>
+</li>
+</ul>
+<p>五类地址里真正能分给主机用的只有 A&#x2F;B&#x2F;C，D 类是组播、E 类保留，这个边界记清楚就不会在划分子网时把组播地址算进去。</p>
+<h2 id="4-子网掩码：按位与判断是否在同一个子网">4. 子网掩码：按位与判断是否在同一个子网<a class="hlink" data-h="4-子网掩码：按位与判断是否在同一个子网" href="#4-子网掩码：按位与判断是否在同一个子网" title="跳到本节">¶</a></h2><p>子网掩码用于标识两个IP地址是否同属于一个子网。它是32位二进制地址，其中1表示网络位，0表示主机位。如果两个IP地址在子网掩码的按位与计算下所得结果相同，则表明它们属于同一子网。</p>
+<p>在计算子网时，需要注意保留地址（全0地址和广播地址），这些地址通常不能用于主机分配。</p>
+<p>子网掩码计算方法：</p>
+<ol>
+<li><strong>利用子网数计算</strong>：将所需子网数转换为二进制，确定位数N，然后在类地址子网掩码的主机地址部分前N位置1</li>
+<li><strong>利用主机数计算</strong>：将主机数转换为二进制，确定位数N，然后在全1子网掩码中从后向前N位置0</li>
+</ol>
+<p>规划子网时，还需考虑每个网络的网关地址、网络地址和广播地址需求。</p>
+<p>我算子网时习惯把掩码写成二进制对着看，全 1 是网络位、全 0 是主机位，再扣掉网络地址和广播地址两个保留值，能分配的主机数就不会算错。</p>
+<h2 id="5-ARP与RARP：IP-和-MAC-地址互相解析">5. ARP与RARP：IP 和 MAC 地址互相解析<a class="hlink" data-h="5-ARP与RARP：IP-和-MAC-地址互相解析" href="#5-ARP与RARP：IP-和-MAC-地址互相解析" title="跳到本节">¶</a></h2><h3 id="5-1-ARP协议">5.1 ARP协议<a class="hlink" data-h="5-1-ARP协议" href="#5-1-ARP协议" title="跳到本节">¶</a></h3><p><strong>地址解析协议（ARP）根据IP地址获取物理地址（MAC地址）</strong>。主机发送包含目标IP地址的ARP请求广播到网络，接收返回消息确定目标的物理地址，并将对应关系存入ARP缓存。</p>
+<p>ARP工作流程：</p>
+<ol>
+<li>主机A查询本地ARP缓存是否有主机B的MAC地址</li>
+<li>如果没有，发送ARP请求广播到本地网络</li>
+<li>与请求IP地址匹配的主机B将A的IP和MAC映射添加到自己的ARP缓存</li>
+<li>主机B发送ARP回复给主机A</li>
+<li>主机A更新ARP缓存，开始通信</li>
+</ol>
+<h3 id="5-2-RARP协议">5.2 RARP协议<a class="hlink" data-h="5-2-RARP协议" href="#5-2-RARP协议" title="跳到本节">¶</a></h3><p><strong>逆地址解析协议（RARP）将物理地址转换为IP地址</strong>。当主机只知道自己的物理地址而不知道IP地址时，可通过RARP广播请求获取IP地址。</p>
+<p>RARP工作流程：</p>
+<ol>
+<li>主机发送RARP广播，声明自己的MAC地址并请求IP地址</li>
+<li>RARP服务器检查其RARP列表</li>
+<li>如果存在对应关系，返回IP地址给请求主机</li>
+<li>如果不存在，不做任何响应</li>
+</ol>
+<p>ARP 和 RARP 是一对反过程：一个问「这个 IP 的 MAC 是谁」，一个问「这个 MAC 该配什么 IP」，无盘工作站当年就靠 RARP 拿到地址。</p>
+<h2 id="6-DNS协议和域名解析：把域名翻译成-IP-的分布式系统">6. DNS协议和域名解析：把域名翻译成 IP 的分布式系统<a class="hlink" data-h="6-DNS协议和域名解析：把域名翻译成-IP-的分布式系统" href="#6-DNS协议和域名解析：把域名翻译成-IP-的分布式系统" title="跳到本节">¶</a></h2><h3 id="6-1-DNS简介">6.1 DNS简介<a class="hlink" data-h="6-1-DNS简介" href="#6-1-DNS简介" title="跳到本节">¶</a></h3><p>DNS（Domain Name Service，域名服务）是互联网上最重要的应用层协议之一，使用TCP和UDP协议的53号端口。DNS将人类易于记忆的域名（如<a target="_blank" rel="noopener" href="http://www.baidu.com)转换为机器可识别的ip地址./">www.baidu.com）转换为机器可识别的IP地址。</a></p>
+<p>DNS是一个C&#x2F;S结构的协议，其中客户端发起查询请求，服务器负责解析域名并返回结果。</p>
+<h3 id="6-2-域名结构">6.2 域名结构<a class="hlink" data-h="6-2-域名结构" href="#6-2-域名结构" title="跳到本节">¶</a></h3><p>域名系统采用层次树状结构，从右到左依次为：</p>
+<ul>
+<li>顶级域（TLD）：<ul>
+<li>组织域：.com、.net、.org、.gov、.edu、.mil等</li>
+<li>国家域：.cn、.jp、.uk、.us等</li>
+</ul>
+</li>
+<li>二级域：通常是组织名称，如baidu.com</li>
+<li>子域或主机名：如<a target="_blank" rel="noopener" href="http://www.baidu.com中的www/">www.baidu.com中的www</a></li>
+</ul>
+<p>完全限定域名（FQDN）是包含所有层级且在最后有一个点的域名，例如：<a target="_blank" rel="noopener" href="http://www.baidu.com/">www.baidu.com</a>.</p>
+<h3 id="6-3-DNS查询类型">6.3 DNS查询类型<a class="hlink" data-h="6-3-DNS查询类型" href="#6-3-DNS查询类型" title="跳到本节">¶</a></h3><p>DNS支持两种主要的查询方式：</p>
+<ul>
+<li><strong>递归查询</strong>：客户端要求DNS服务器返回最终结果，DNS服务器负责追踪整个解析过程</li>
+<li><strong>迭代查询</strong>：DNS服务器返回它知道的最接近的下一个DNS服务器信息，由客户端继续向下一个服务器查询</li>
+</ul>
+<h3 id="6-4-DNS名称解析方式">6.4 DNS名称解析方式<a class="hlink" data-h="6-4-DNS名称解析方式" href="#6-4-DNS名称解析方式" title="跳到本节">¶</a></h3><ul>
+<li><strong>正向解析</strong>：名称 –&gt; IP地址</li>
+<li><strong>反向解析</strong>：IP地址 –&gt; 名称</li>
+</ul>
+<p>这两种解析方式使用不同的名称空间，并维护在不同的解析库中。</p>
+<h3 id="6-5-DNS服务器类型">6.5 DNS服务器类型<a class="hlink" data-h="6-5-DNS服务器类型" href="#6-5-DNS服务器类型" title="跳到本节">¶</a></h3><p>DNS服务器分为以下几种类型：</p>
+<ul>
+<li><strong>负责解析至少一个域的服务器</strong>：<ul>
+<li><strong>主名称服务器</strong>：域的权威服务器，负责维护域数据库，可进行读写操作</li>
+<li><strong>辅助名称服务器</strong>：从主服务器复制数据库，只能进行读操作，为域提供冗余服务</li>
+</ul>
+</li>
+<li><strong>不负责解析域的服务器</strong>：<ul>
+<li><strong>缓存名称服务器</strong>：缓存解析结果但不负责特定域的解析</li>
+</ul>
+</li>
+</ul>
+<h3 id="6-6-域数据同步">6.6 域数据同步<a class="hlink" data-h="6-6-域数据同步" href="#6-6-域数据同步" title="跳到本节">¶</a></h3><p>主DNS服务器与辅助DNS服务器之间的数据同步通过”区域传送”实现：</p>
+<ul>
+<li><strong>序列号</strong>（Serial）：数据库版本号，主服务器数据变化时递增</li>
+<li><strong>刷新时间间隔</strong>（Refresh）：辅助服务器检查主服务器序列号更新的时间间隔</li>
+<li><strong>重试时间间隔</strong>（Retry）：同步失败后重试的时间间隔</li>
+<li><strong>过期时常</strong>（Expire）：辅助服务器无法联系主服务器的最长时间，超过后停止服务</li>
+<li><strong>否定答案的缓存时长</strong>（Negative Answer TTL）：不存在域名记录的缓存时间</li>
+</ul>
+<p>区域传送类型：</p>
+<ul>
+<li><strong>全量传送</strong>（AXFR）：传送整个数据库</li>
+<li><strong>增量传送</strong>（IXFR）：仅传送变化的数据</li>
+</ul>
+<h3 id="6-7-DNS资源记录类型">6.7 DNS资源记录类型<a class="hlink" data-h="6-7-DNS资源记录类型" href="#6-7-DNS资源记录类型" title="跳到本节">¶</a></h3><p>DNS区域文件由资源记录（Resource Record，RR）组成：</p>
+<ul>
+<li><strong>SOA记录</strong>（Start Of Authority）：区域权威信息，每个区域只能有一个</li>
+<li><strong>NS记录</strong>（Name Service）：指定区域的名称服务器</li>
+<li><strong>A记录</strong>：域名到IPv4地址的映射</li>
+<li><strong>AAAA记录</strong>：域名到IPv6地址的映射</li>
+<li><strong>CNAME记录</strong>（Canonical Name）：域名别名</li>
+<li><strong>PTR记录</strong>（Pointer）：IP地址到域名的映射，用于反向解析</li>
+<li><strong>MX记录</strong>（Mail Exchanger）：邮件服务器记录，含优先级字段</li>
+<li><strong>TXT记录</strong>：文本信息记录</li>
+<li><strong>SRV记录</strong>：服务定位记录</li>
+</ul>
+<p>资源记录格式：<code>name [TTL] IN RR_TYPE value</code></p>
+<h3 id="6-8-BIND配置与实现">6.8 BIND配置与实现<a class="hlink" data-h="6-8-BIND配置与实现" href="#6-8-BIND配置与实现" title="跳到本节">¶</a></h3><p>BIND（Berkeley Internet Name Domain）是DNS协议最常用的实现，由ISC.org维护。在BIND中：</p>
+<ul>
+<li>dns是协议</li>
+<li>bind是dns协议的一种实现</li>
+<li>named是bind程序运行的进程名</li>
+</ul>
+<p>BIND相关程序包包括：</p>
+<ul>
+<li>bind-libs：被bind和bind-utils包中的程序共同用到的库文件</li>
+<li>bind-utils：bind客户端程序集，例如dig、host、nslookup等</li>
+<li>bind：提供dns server程序以及几个常用的测试程序</li>
+<li>bind-chroot：让named运行于jail模式下的安全选项</li>
+</ul>
+<p>BIND的主配置文件为<code>/etc/named.conf</code>，解析库文件通常存放在<code>/var/named/</code>目录下。</p>
+<h4 id="6-8-1-区域配置示例"><a href="#6-8-1-区域配置示例" class="headerlink" title="6.8.1 区域配置示例"></a>6.8.1 区域配置示例</h4><p>在配置文件中定义区域：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">zone <span class="string">&quot;example.com&quot;</span> IN &#123;</span><br><span class="line">    type master;</span><br><span class="line">    file <span class="string">&quot;example.com.zone&quot;</span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>区域数据文件示例（&#x2F;var&#x2F;named&#x2F;example.com.zone）：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">$TTL 3600</span><br><span class="line">$ORIGIN example.com.</span><br><span class="line">@     IN     SOA   ns1.example.com.   admin.example.com.  (</span><br><span class="line">             2023112201  ; 序列号</span><br><span class="line">             1H          ; 刷新时间</span><br><span class="line">             10M         ; 重试时间</span><br><span class="line">             3D          ; 过期时间</span><br><span class="line">             1D )        ; 否定缓存时间</span><br><span class="line">      IN     NS    ns1</span><br><span class="line">      IN     MX 10 mail</span><br><span class="line">ns1   IN     A     192.168.1.10</span><br><span class="line">mail  IN     A     192.168.1.20</span><br><span class="line">www   IN     A     192.168.1.30</span><br></pre></td></tr></table></figure>
+
+<h4 id="6-8-2-DNS测试工具"><a href="#6-8-2-DNS测试工具" class="headerlink" title="6.8.2 DNS测试工具"></a>6.8.2 DNS测试工具</h4><p>常用DNS测试命令：</p>
+<ul>
+<li><p><strong>dig</strong>：强大的DNS查询工具</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">dig @server domain type</span><br><span class="line">dig -x ip        # 反向解析</span><br><span class="line">dig +trace domain # 跟踪解析过程</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>host</strong>：简单的DNS查询工具</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">host -t type domain [server]</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>nslookup</strong>：交互式DNS查询工具</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">nslookup</span><br><span class="line">&gt; server dns-server</span><br><span class="line">&gt; set q=type</span><br><span class="line">&gt; domain</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>rndc</strong>：远程DNS控制工具</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">rndc status      <span class="comment"># 查看服务器状态</span></span><br><span class="line">rndc reload      <span class="comment"># 重新加载配置</span></span><br><span class="line">rndc flush       <span class="comment"># 清空缓存</span></span><br></pre></td></tr></table></figure></li>
+</ul>
+<p>我排查解析问题时一般先 <code>dig +trace</code> 看整条链路断在哪一层，再到区域文件里核对序列号有没有递增——辅助服务器不同步十有八九是序列号忘了加。</p>
+<h2 id="7-路由选择协议：RIP-数跳数，OSPF-算链路状态">7. 路由选择协议：RIP 数跳数，OSPF 算链路状态<a class="hlink" data-h="7-路由选择协议：RIP-数跳数，OSPF-算链路状态" href="#7-路由选择协议：RIP-数跳数，OSPF-算链路状态" title="跳到本节">¶</a></h2><p>常见的路由选择协议：</p>
+<ul>
+<li><strong>RIP协议</strong>：基于贝尔曼-福特算法，选路度量标准是跳数，最大支持15跳</li>
+<li><strong>OSPF协议</strong>：基于迪杰斯特拉算法的链路状态路由协议，选路度量标准是带宽和延迟</li>
+</ul>
+<h2 id="8-TCP-IP：三次握手建连、四次挥手断开的可靠传输">8. TCP&#x2F;IP：三次握手建连、四次挥手断开的可靠传输<a class="hlink" data-h="8-TCP-IP：三次握手建连、四次挥手断开的可靠传输" href="#8-TCP-IP：三次握手建连、四次挥手断开的可靠传输" title="跳到本节">¶</a></h2><p>TCP&#x2F;IP是互联网的基础协议，由网络层的IP协议和传输层的TCP协议组成。TCP负责发现传输问题并要求重传，确保数据正确传输；IP负责为每台联网设备规定地址。</p>
+<p>TCP是面向连接的通信协议，通过三次握手建立连接，通信完成后通过四次挥手断开连接。TCP提供可靠的数据流服务，采用”带重传的肯定确认”技术确保可靠性，并使用”滑动窗口”进行流量控制。</p>
+<h3 id="8-1-TCP报文首部字段">8.1 TCP报文首部字段<a class="hlink" data-h="8-1-TCP报文首部字段" href="#8-1-TCP报文首部字段" title="跳到本节">¶</a></h3><p>TCP报文首部包含以下字段：</p>
+<ul>
+<li>源端口号（16位）</li>
+<li>目的端口号（16位）</li>
+<li>序号（32位）</li>
+<li>确认号（32位）</li>
+<li>首部长度（4位）</li>
+<li>保留（6位）</li>
+<li>控制位（6位）：URG、ACK、PSH、RST、SYN、FIN</li>
+<li>窗口大小（16位）</li>
+<li>校验和（16位）</li>
+<li>紧急指针（16位）</li>
+<li>选项（可变长度）</li>
+</ul>
+<h3 id="8-2-TCP三次握手：三步确认双方收发能力">8.2 TCP三次握手：三步确认双方收发能力<a class="hlink" data-h="8-2-TCP三次握手：三步确认双方收发能力" href="#8-2-TCP三次握手：三步确认双方收发能力" title="跳到本节">¶</a></h3><p>三次握手是TCP建立连接的过程，通过三次通信确保双方都具备收发数据的能力。过程如下：</p>
+<ol>
+<li>客户端发送SYN请求建立连接</li>
+<li>服务器回复SYN+ACK</li>
+<li>客户端发送ACK确认</li>
+</ol>
+<p>TCP三次握手示意图：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">客户端                                  服务器</span><br><span class="line">  |                                      |</span><br><span class="line">  |------- SYN=1, seq=x --------------&gt;  |</span><br><span class="line">  |                                      |</span><br><span class="line">  |&lt;--- SYN=1, ACK=1, seq=y, ack=x+1 --- |</span><br><span class="line">  |                                      |</span><br><span class="line">  |------- ACK=1, ack=y+1 ------------&gt;  |</span><br><span class="line">  |                                      |</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-3-TCP四次挥手：第四步进入-TIME-WAIT">8.3 TCP四次挥手：第四步进入 TIME_WAIT<a class="hlink" data-h="8-3-TCP四次挥手：第四步进入-TIME-WAIT" href="#8-3-TCP四次挥手：第四步进入-TIME-WAIT" title="跳到本节">¶</a></h3><p>四次挥手是TCP断开连接的过程，通过四次通信确保双方都能正常断开连接。过程如下：</p>
+<ol>
+<li>客户端发送FIN请求关闭连接</li>
+<li>服务器回复ACK确认收到</li>
+<li>服务器发送FIN请求关闭</li>
+<li>客户端发送ACK确认，进入TIME_WAIT状态</li>
+</ol>
+<p>TCP四次挥手示意图：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">客户端                                  服务器</span><br><span class="line">  |                                      |</span><br><span class="line">  |------- FIN=1, seq=u --------------&gt;  |</span><br><span class="line">  |                                      |</span><br><span class="line">  |&lt;---------- ACK=1, ack=u+1 ---------- |</span><br><span class="line">  |                                      |</span><br><span class="line">  |&lt;-------- FIN=1, seq=v -------------- |</span><br><span class="line">  |                                      |</span><br><span class="line">  |------- ACK=1, ack=v+1 ------------&gt;  |</span><br><span class="line">  |      (进入TIME_WAIT状态)             |</span><br></pre></td></tr></table></figure>
+
+<p>使用TCP的协议包括：FTP、Telnet、SMTP、POP3、HTTP等。</p>
+<p>抓包看握手时我一般盯着 SYN、ACK 这两个标志位和序号递增关系，三次握手少一次、四次挥手卡在 TIME_WAIT，基本都能从这张图上对出来。</p>
+<h3 id="8-4-TCP状态转换">8.4 TCP状态转换<a class="hlink" data-h="8-4-TCP状态转换" href="#8-4-TCP状态转换" title="跳到本节">¶</a></h3><p>TCP连接状态转换过程：</p>
+<ul>
+<li>CLOSED：初始状态</li>
+<li>LISTEN：服务器等待连接</li>
+<li>SYN_SENT：客户端发送SYN后等待响应</li>
+<li>SYN_RECV：服务器收到SYN后等待确认</li>
+<li>ESTABLISHED：连接建立，双方可以通信</li>
+<li>FIN_WAIT1：客户端发起关闭请求</li>
+<li>CLOSE_WAIT：服务器收到关闭请求，等待应用程序关闭</li>
+<li>FIN_WAIT2：客户端等待服务器关闭</li>
+<li>LAST_ACK：服务器发送最后关闭确认</li>
+<li>TIME_WAIT：客户端等待足够时间以确保服务器收到确认</li>
+<li>CLOSED：连接完全关闭</li>
+</ul>
+<h3 id="8-5-TCP的特性">8.5 TCP的特性<a class="hlink" data-h="8-5-TCP的特性" href="#8-5-TCP的特性" title="跳到本节">¶</a></h3><ol>
+<li><strong>面向连接</strong>：通过三次握手建立连接</li>
+<li><strong>可靠传输</strong>：使用确认和重传机制</li>
+<li><strong>流量控制</strong>：滑动窗口机制</li>
+<li><strong>拥塞控制</strong>：慢启动、拥塞避免、快速重传、快速恢复</li>
+<li><strong>全双工通信</strong>：双方可同时收发数据</li>
+<li><strong>面向字节流</strong>：应用程序数据被看作一个字节序列</li>
+</ol>
+<h2 id="9-UDP：无连接、不可靠，但更快">9. UDP：无连接、不可靠，但更快<a class="hlink" data-h="9-UDP：无连接、不可靠，但更快" href="#9-UDP：无连接、不可靠，但更快" title="跳到本节">¶</a></h2><p>UDP是面向无连接的通信协议，包含源端口和目的端口信息，可实现广播发送，但不进行连接确认，属于不可靠传输。</p>
+<p>UDP报文由报头（源端口、目标端口、数据报长度、校验值）和数据区组成。UDP适用于对实时性要求较高而对可靠性要求较低的应用。</p>
+<p>使用UDP的协议包括：TFTP、SNMP、DNS、NFS、BOOTP等。</p>
+<p><strong>TCP与UDP的区别</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>TCP</th>
+<th>UDP</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>连接</td>
+<td>面向连接</td>
+<td>无连接</td>
+</tr>
+<tr>
+<td>可靠性</td>
+<td>可靠</td>
+<td>不可靠</td>
+</tr>
+<tr>
+<td>传输顺序</td>
+<td>保证顺序</td>
+<td>不保证顺序</td>
+</tr>
+<tr>
+<td>速度</td>
+<td>慢</td>
+<td>快</td>
+</tr>
+<tr>
+<td>头部大小</td>
+<td>20-60字节</td>
+<td>8字节</td>
+</tr>
+<tr>
+<td>流量控制</td>
+<td>有</td>
+<td>无</td>
+</tr>
+<tr>
+<td>拥塞控制</td>
+<td>有</td>
+<td>无</td>
+</tr>
+<tr>
+<td>应用场景</td>
+<td>要求可靠传输的应用</td>
+<td>实时性要求高的应用</td>
+</tr>
+</tbody></table>
+<p>选 TCP 还是 UDP 我通常就问一句：能不能接受丢包？视频、语音这类实时场景丢一两个包无伤大雅，用 UDP；文件、网页必须完整，那就 TCP。</p>
+<h2 id="10-HTTP与HTTPS：请求响应模型加一层-TLS-加密">10. HTTP与HTTPS：请求响应模型加一层 TLS 加密<a class="hlink" data-h="10-HTTP与HTTPS：请求响应模型加一层-TLS-加密" href="#10-HTTP与HTTPS：请求响应模型加一层-TLS-加密" title="跳到本节">¶</a></h2><h3 id="10-1-HTTP协议基础：跑在-TCP-上的请求-响应协议">10.1 HTTP协议基础：跑在 TCP 上的请求-响应协议<a class="hlink" data-h="10-1-HTTP协议基础：跑在-TCP-上的请求-响应协议" href="#10-1-HTTP协议基础：跑在-TCP-上的请求-响应协议" title="跳到本节">¶</a></h3><p>HTTP（HyperText Transfer Protocol，超文本传输协议）是互联网上应用最广泛的网络协议，所有WWW文件都必须遵守这个标准。HTTP是一个简单的请求-响应协议，运行在TCP之上，默认端口为80。</p>
+<p>HTTP协议是无状态的，对事务处理没有记忆能力，每个请求都是独立的。HTTP协议具有以下特点：</p>
+<ol>
+<li><strong>简单快速</strong>：客户端向服务器请求服务时，只需传送请求方法和路径</li>
+<li><strong>灵活</strong>：允许传输任意类型的数据对象</li>
+<li><strong>无连接</strong>：无连接意味着限制每次连接只处理一个请求，处理完客户的请求后，即断开连接</li>
+<li><strong>无状态</strong>：协议对于事务处理没有记忆能力，服务器不知道客户端是什么状态</li>
+</ol>
+<p>HTTP协议版本演变：</p>
+<ul>
+<li><strong>HTTP&#x2F;0.9</strong>：只支持GET方法，无HTTP头部，只能传送HTML文件</li>
+<li><strong>HTTP&#x2F;1.0</strong>：新增POST和HEAD方法，支持多种文件格式，引入状态码和头部</li>
+<li><strong>HTTP&#x2F;1.1</strong>：默认持久连接，新增PUT、DELETE、OPTIONS等方法，支持Host头部</li>
+<li><strong>HTTP&#x2F;2.0</strong>：使用二进制格式，支持多路复用、头部压缩、服务器推送</li>
+</ul>
+<h4 id="10-1-1-HTTP请求方法"><a href="#10-1-1-HTTP请求方法" class="headerlink" title="10.1.1 HTTP请求方法"></a>10.1.1 HTTP请求方法</h4><ul>
+<li><strong>GET</strong>：请求获取URL指定的资源</li>
+<li><strong>POST</strong>：向服务器提交数据，请求服务器进行处理</li>
+<li><strong>HEAD</strong>：类似GET请求，但只返回报文头部，不返回实体主体</li>
+<li><strong>PUT</strong>：上传文件到指定位置</li>
+<li><strong>DELETE</strong>：请求服务器删除指定资源</li>
+<li><strong>TRACE</strong>：追踪请求-响应的传输路径</li>
+<li><strong>OPTIONS</strong>：查询服务器支持的方法</li>
+<li><strong>CONNECT</strong>：用于代理服务器，将连接改为管道方式</li>
+<li><strong>PATCH</strong>：对资源进行部分修改</li>
+</ul>
+<h4 id="10-1-2-HTTP请求报文格式"><a href="#10-1-2-HTTP请求报文格式" class="headerlink" title="10.1.2 HTTP请求报文格式"></a>10.1.2 HTTP请求报文格式</h4><p>HTTP请求报文由请求行、请求头部、空行和请求体组成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&lt;method&gt; &lt;request-URL&gt; &lt;version&gt;</span><br><span class="line">&lt;headers&gt;</span><br><span class="line">&lt;空行&gt;</span><br><span class="line">&lt;entity-body&gt;</span><br></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">GET</span> <span class="string">/</span> <span class="string">HTTP/1.1</span></span><br><span class="line"><span class="attr">Host:</span> <span class="string">www.baidu.com</span></span><br><span class="line"><span class="attr">Connection:</span> <span class="string">keep-alive</span></span><br><span class="line"><span class="attr">Upgrade-Insecure-Requests:</span> <span class="number">1</span></span><br><span class="line"><span class="attr">User-Agent:</span> <span class="string">Mozilla/5.0</span> <span class="string">(Windows</span> <span class="string">NT</span> <span class="number">10.0</span><span class="string">;</span> <span class="string">WOW64)</span> <span class="string">AppleWebKit/537.36</span></span><br><span class="line"><span class="attr">Accept:</span> <span class="string">text/html,application/xhtml+xml,application/xml;q=0.9</span></span><br><span class="line"><span class="attr">Accept-Encoding:</span> <span class="string">gzip,</span> <span class="string">deflate,</span> <span class="string">br</span></span><br><span class="line"><span class="attr">Accept-Language:</span> <span class="string">zh-CN,zh;q=0.9</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="10-1-3-HTTP响应报文格式"><a href="#10-1-3-HTTP响应报文格式" class="headerlink" title="10.1.3 HTTP响应报文格式"></a>10.1.3 HTTP响应报文格式</h4><p>HTTP响应报文由状态行、响应头部、空行和响应体组成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&lt;version&gt; &lt;status&gt; &lt;reason-phrase&gt;</span><br><span class="line">&lt;headers&gt;</span><br><span class="line">&lt;空行&gt;</span><br><span class="line">&lt;entity-body&gt;</span><br></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">HTTP/1.1</span> <span class="number">200</span> <span class="string">OK</span></span><br><span class="line"><span class="attr">Bdpagetype:</span> <span class="number">2</span></span><br><span class="line"><span class="attr">Cache-Control:</span> <span class="string">private</span></span><br><span class="line"><span class="attr">Connection:</span> <span class="string">Keep-Alive</span></span><br><span class="line"><span class="attr">Content-Encoding:</span> <span class="string">gzip</span></span><br><span class="line"><span class="attr">Content-Type:</span> <span class="string">text/html;charset=utf-8</span></span><br><span class="line"><span class="attr">Date:</span> <span class="string">Wed,</span> <span class="number">04</span> <span class="string">Sep</span> <span class="number">2019 05:49:46 </span><span class="string">GMT</span></span><br><span class="line"><span class="attr">Expires:</span> <span class="string">Wed,</span> <span class="number">04</span> <span class="string">Sep</span> <span class="number">2019 05:49:46 </span><span class="string">GMT</span></span><br><span class="line"><span class="attr">Server:</span> <span class="string">BWS/1.1</span></span><br><span class="line"><span class="attr">Set-Cookie:</span> <span class="string">BDSVRTM=220;</span> <span class="string">path=/</span></span><br><span class="line"><span class="attr">Set-Cookie:</span> <span class="string">BD_HOME=1;</span> <span class="string">path=/</span></span><br><span class="line"><span class="attr">Transfer-Encoding:</span> <span class="string">chunked</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="10-2-HTTP状态码：五类状态一眼定位问题">10.2 HTTP状态码：五类状态一眼定位问题<a class="hlink" data-h="10-2-HTTP状态码：五类状态一眼定位问题" href="#10-2-HTTP状态码：五类状态一眼定位问题" title="跳到本节">¶</a></h3><p>HTTP状态码负责表示客户端HTTP请求的返回结果、标记服务器端的处理是否正常、通知出现的错误等工作。</p>
+<p>状态码分类：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1XX</td>
+<td>信息性状态码，接收的请求正在处理</td>
+</tr>
+<tr>
+<td>2XX</td>
+<td>成功状态码，请求正常处理完毕</td>
+</tr>
+<tr>
+<td>3XX</td>
+<td>重定向状态码，需要进行附加操作以完成请求</td>
+</tr>
+<tr>
+<td>4XX</td>
+<td>客户端错误状态码，服务器无法处理请求</td>
+</tr>
+<tr>
+<td>5XX</td>
+<td>服务器错误状态码，服务器处理请求出错</td>
+</tr>
+</tbody></table>
+<h4 id="10-2-1-2XX-成功状态码"><a href="#10-2-1-2XX-成功状态码" class="headerlink" title="10.2.1 2XX 成功状态码"></a>10.2.1 2XX 成功状态码</h4><p><strong>200 OK</strong><br>表示从客户端发来的请求在服务器端被正常处理。在响应报文内，随状态码一起返回的信息会因方法的不同而发生改变。比如，使用GET方法时，对应请求资源的实体会作为响应返回；而使用HEAD方法时，对应请求资源的实体主体不随报文首部作为响应返回（即在响应中只返回首部，不会返回实体的主体部分）。</p>
+<p><strong>204 No Content</strong><br>该状态码代表服务器接收的请求已成功处理，但在返回的响应报文中不含实体的主体部分。另外，也不允许返回任何实体的主体。比如，当从浏览器发出请求处理后，返回204响应，那么浏览器显示的页面不发生更新。一般在只需要从客户端往服务器发送信息，而对客户端不需要发送新信息内容的情况下使用。</p>
+<p><strong>206 Partial Content</strong><br>该状态码表示客户端进行了范围请求，而服务器成功执行了这部分的GET请求。响应报文中包含由Content-Range指定范围的实体内容。</p>
+<h4 id="10-2-2-3XX-重定向状态码"><a href="#10-2-2-3XX-重定向状态码" class="headerlink" title="10.2.2 3XX 重定向状态码"></a>10.2.2 3XX 重定向状态码</h4><p><strong>301 Moved Permanently</strong><br>永久性重定向。该状态码表示请求的资源已被分配了新的URI，以后应使用资源现在所指的URI。也就是说，如果已经把资源对应的URI保存为书签了，这时应该按Location首部字段提示的URI重新保存。</p>
+<p><strong>302 Found</strong><br>临时性重定向。该状态码表示请求的资源已被分配了新的URI，希望用户（本次）能使用新的URI访问。和301 Moved Permanently状态码相似，但302状态码代表的资源不是被永久移动，只是临时性质的。换句话说，已移动的资源对应的URI将来还有可能发生改变。</p>
+<p><strong>303 See Other</strong><br>该状态码表示由于请求对应的资源存在着另一个URI，应使用GET方法定向获取请求的资源。303状态码和302 Found状态码有着相同的功能，但303状态码明确表示客户端应当采用GET方法获取资源，这点与302状态码有区别。</p>
+<p><strong>304 Not Modified</strong><br>该状态码表示客户端发送附带条件的请求时，服务器端允许请求访问资源，但因发生请求未满足条件的情况后，直接返回304 Not Modified（服务器端资源未改变，可直接使用客户端未过期的缓存）。304状态码返回时，不包含任何响应的主体部分。304虽然被划分在3XX类别中，但是和重定向没有关系。</p>
+<p><strong>307 Temporary Redirect</strong><br>临时重定向。该状态码与302 Found有着相同的含义。尽管302标准禁止POST变换成GET，但实际使用时大家并不遵守。307会遵照浏览器标准，不会从POST变成GET。但是，对于处理响应时的行为，每种浏览器有可能出现不同的情况。</p>
+<h4 id="10-2-3-4XX-客户端错误状态码"><a href="#10-2-3-4XX-客户端错误状态码" class="headerlink" title="10.2.3 4XX 客户端错误状态码"></a>10.2.3 4XX 客户端错误状态码</h4><p><strong>400 Bad Request</strong><br>该状态码表示请求报文中存在语法错误。当错误发生时，需修改请求的内容后再次发送请求。另外，浏览器会像200 OK一样对待该状态码。</p>
+<p><strong>401 Unauthorized</strong><br>该状态码表示发送的请求需要有通过HTTP认证（BASIC认证、DIGEST认证）的认证信息。另外若之前已进行过1次请求，则表示用户认证失败。返回含有401的响应必须包含一个适用于被请求资源的WWW-Authenticate首部用以质询（challenge）用户信息。当浏览器初次接收到401响应，会弹出认证用的对话窗口。</p>
+<p><strong>403 Forbidden</strong><br>该状态码表明对请求资源的访问被服务器拒绝了。服务器端没有必要给出拒绝的详细理由，但如果想作说明的话，可以在实体的主体部分对原因进行描述，这样就能让用户看到了。未获得文件系统的访问授权，访问权限出现某些问题（从未授权的发送源IP地址试图访问）等列举的情况都可能是发生403的原因。</p>
+<p><strong>404 Not Found</strong><br>该状态码表明服务器上无法找到请求的资源或是服务器无法回应且不知原因。除此之外，也可以在服务器端拒绝请求且不想说明理由时使用。</p>
+<h4 id="10-2-4-5XX-服务器错误状态码"><a href="#10-2-4-5XX-服务器错误状态码" class="headerlink" title="10.2.4 5XX 服务器错误状态码"></a>10.2.4 5XX 服务器错误状态码</h4><p><strong>500 Internal Server Error</strong><br>该状态码表明服务器端在执行请求时发生了错误。也有可能是Web应用存在的bug或某些临时的故障。</p>
+<p><strong>503 Service Unavailable</strong><br>该状态码表明服务器暂时处于超负载或正在进行停机维护，现在无法处理请求。如果事先得知解除以上状况需要的时间，最好写入Retry-After首部字段再返回给客户端。</p>
+<p>看状态码我按首位数字分大类：2XX 是成了，4XX 找客户端自己的毛病，5XX 才是服务端要背锅，排查时先定大类再看具体码。</p>
+<h3 id="10-3-HTTP首部字段：四类字段各管一摊">10.3 HTTP首部字段：四类字段各管一摊<a class="hlink" data-h="10-3-HTTP首部字段：四类字段各管一摊" href="#10-3-HTTP首部字段：四类字段各管一摊" title="跳到本节">¶</a></h3><p>HTTP首部字段用于传递重要信息，如请求&#x2F;响应类型、资源特性、内容协商等。首部字段格式为<code>字段名: 字段值</code>。</p>
+<p>首部字段分类：</p>
+<ol>
+<li><p><strong>通用首部字段</strong>：请求和响应报文都使用的首部</p>
+<ul>
+<li>Cache-Control：缓存控制</li>
+<li>Connection：连接管理</li>
+<li>Date：创建报文日期和时间</li>
+<li>Pragma：报文指令</li>
+<li>Trailer：报文末端首部一览</li>
+<li>Transfer-Encoding：指定报文主体的传输编码方式</li>
+<li>Upgrade：升级为其他协议</li>
+<li>Via：代理服务器相关信息</li>
+<li>Warning：错误通知</li>
+</ul>
+</li>
+<li><p><strong>请求首部字段</strong>：请求报文使用的首部</p>
+<ul>
+<li>Accept：用户代理能处理的媒体类型</li>
+<li>Accept-Charset：优先的字符集</li>
+<li>Accept-Encoding：优先的内容编码</li>
+<li>Accept-Language：优先的语言</li>
+<li>Authorization：Web认证信息</li>
+<li>Expect：期待服务器的特定行为</li>
+<li>From：用户的电子邮箱地址</li>
+<li>Host：请求资源所在服务器</li>
+<li>If-Match：实体标记的比较</li>
+<li>If-Modified-Since：比较资源的更新时间</li>
+<li>If-None-Match：比较实体标记</li>
+<li>If-Range：资源未更新时发送实体范围请求</li>
+<li>If-Unmodified-Since：比较资源的更新时间</li>
+<li>Max-Forwards：最大传输逐跳数</li>
+<li>Proxy-Authorization：代理服务器要求客户端的认证信息</li>
+<li>Range：实体的字节范围请求</li>
+<li>Referer：对请求中URI的原始获取方</li>
+<li>TE：传输编码的优先级</li>
+<li>User-Agent：HTTP客户端程序的信息</li>
+</ul>
+</li>
+<li><p><strong>响应首部字段</strong>：响应报文使用的首部</p>
+<ul>
+<li>Accept-Ranges：是否接受字节范围请求</li>
+<li>Age：推算资源创建经过时间</li>
+<li>ETag：资源的匹配信息</li>
+<li>Location：令客户端重定向至指定URI</li>
+<li>Proxy-Authenticate：代理服务器对客户端的认证信息</li>
+<li>Retry-After：对再次发起请求的时机要求</li>
+<li>Server：HTTP服务器的安装信息</li>
+<li>Vary：代理服务器缓存的管理信息</li>
+<li>WWW-Authenticate：服务器对客户端的认证信息</li>
+</ul>
+</li>
+<li><p><strong>实体首部字段</strong>：针对请求报文和响应报文的实体部分使用的首部</p>
+<ul>
+<li>Allow：资源可支持的HTTP方法</li>
+<li>Content-Encoding：实体主体使用的编码方式</li>
+<li>Content-Language：实体主体的自然语言</li>
+<li>Content-Length：实体主体的大小</li>
+<li>Content-Location：替代对应资源的URI</li>
+<li>Content-MD5：实体主体的报文摘要</li>
+<li>Content-Range：实体主体的位置范围</li>
+<li>Content-Type：实体主体的媒体类型</li>
+<li>Expires：实体主体过期的日期时间</li>
+<li>Last-Modified：资源的最后修改日期时间</li>
+</ul>
+</li>
+</ol>
+<h3 id="10-4-HTTP工作原理：建连到记录日志的七步">10.4 HTTP工作原理：建连到记录日志的七步<a class="hlink" data-h="10-4-HTTP工作原理：建连到记录日志的七步" href="#10-4-HTTP工作原理：建连到记录日志的七步" title="跳到本节">¶</a></h3><p>HTTP工作在客户端-服务端（C&#x2F;S）架构上。一次HTTP交互过程如下：</p>
+<ol>
+<li><strong>建立连接</strong>：客户端与Web服务器建立TCP连接</li>
+<li><strong>发送HTTP请求</strong>：客户端发送请求到服务器</li>
+<li><strong>服务器处理请求</strong>：服务器解析请求，访问资源</li>
+<li><strong>返回响应结果</strong>：服务器将响应结果发送给客户端</li>
+<li><strong>关闭连接</strong>：若Connection: close，则断开连接；若Connection: keep-alive，则保持连接</li>
+</ol>
+<p>一次完整的HTTP请求处理过程：</p>
+<ol>
+<li>建立或处理连接：接收请求或拒绝请求</li>
+<li>接收请求：接收来自于网络上的主机请求报文</li>
+<li>处理请求：解析请求报文，获取资源及请求方法等信息</li>
+<li>访问资源：获取请求报文中请求的资源</li>
+<li>构建响应报文：根据请求构建适当的响应</li>
+<li>发送响应报文：将响应发送给客户端</li>
+<li>记录日志：记录访问日志信息</li>
+</ol>
+<h3 id="10-5-HTTPS协议：HTTP-外面套一层-TLS">10.5 HTTPS协议：HTTP 外面套一层 TLS<a class="hlink" data-h="10-5-HTTPS协议：HTTP-外面套一层-TLS" href="#10-5-HTTPS协议：HTTP-外面套一层-TLS" title="跳到本节">¶</a></h3><p>HTTPS（Hypertext Transfer Protocol Secure，超文本传输安全协议）是HTTP协议的安全版本，通过SSL&#x2F;TLS加密HTTP通信内容。HTTPS默认端口为443。</p>
+<p><strong>HTTPS的特点</strong>：</p>
+<ul>
+<li>数据加密传输，提高了通信安全性</li>
+<li>提供服务器身份验证，防止中间人攻击</li>
+<li>保护数据完整性，防止数据被篡改</li>
+</ul>
+<h4 id="10-5-1-HTTP与HTTPS的区别"><a href="#10-5-1-HTTP与HTTPS的区别" class="headerlink" title="10.5.1 HTTP与HTTPS的区别"></a>10.5.1 HTTP与HTTPS的区别</h4><ol>
+<li><strong>安全性</strong>：HTTP明文传输，安全性差；HTTPS加密传输，安全性高</li>
+<li><strong>证书</strong>：HTTPS需要CA证书，一般需要付费申请</li>
+<li><strong>性能</strong>：HTTP连接简单，响应速度更快；HTTPS需要额外的SSL握手，耗时更多</li>
+<li><strong>端口</strong>：HTTP使用80端口，HTTPS使用443端口</li>
+<li><strong>资源消耗</strong>：HTTPS会消耗更多服务器资源</li>
+</ol>
+<h4 id="10-5-2-HTTPS的工作原理"><a href="#10-5-2-HTTPS的工作原理" class="headerlink" title="10.5.2 HTTPS的工作原理"></a>10.5.2 HTTPS的工作原理</h4><p>HTTPS通过SSL&#x2F;TLS协议进行加密通信，主要工作流程如下：</p>
+<ol>
+<li><strong>客户端发起HTTPS请求</strong>：连接到服务器443端口</li>
+<li><strong>服务器配置证书</strong>：服务器需要配置公钥证书，可以是自签名的或由CA颁发的</li>
+<li><strong>服务器发送证书</strong>：包含公钥及其他相关信息</li>
+<li><strong>客户端验证证书</strong>：检查证书有效性、颁发机构、过期时间等</li>
+<li><strong>客户端生成随机值</strong>：生成会话密钥，并用服务器公钥加密</li>
+<li><strong>客户端发送加密信息</strong>：将加密后的随机值发送给服务器</li>
+<li><strong>服务器解密信息</strong>：使用私钥解密获取会话密钥</li>
+<li><strong>双方使用会话密钥加密通信</strong>：之后的所有通信都使用这个对称密钥加密</li>
+</ol>
+<p>HTTPS握手流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">客户端                                    服务器</span><br><span class="line">   |                                       |</span><br><span class="line">   |-- ClientHello(支持的加密算法、版本) --&gt;|</span><br><span class="line">   |                                       |</span><br><span class="line">   |&lt;- ServerHello(选择的加密算法、版本) --|</span><br><span class="line">   |&lt;------ 服务器证书 -------------------|</span><br><span class="line">   |&lt;------ ServerHelloDone --------------|</span><br><span class="line">   |                                       |</span><br><span class="line">   |-- 验证证书 ----------------------→    |</span><br><span class="line">   |-- ClientKeyExchange(预主密钥) -------&gt;|</span><br><span class="line">   |-- ChangeCipherSpec ----------------&gt;  |</span><br><span class="line">   |-- Finished ------------------------&gt;  |</span><br><span class="line">   |                                       |</span><br><span class="line">   |&lt;----------- ChangeCipherSpec --------|</span><br><span class="line">   |&lt;----------- Finished ----------------|</span><br><span class="line">   |                                       |</span><br><span class="line">   |-- 加密HTTP数据 -------------------&gt;   |</span><br><span class="line">   |&lt;---------- 加密HTTP响应 -------------|</span><br><span class="line">   |                                       |</span><br></pre></td></tr></table></figure>
+
+<p>HTTPS 握手本质是「非对称加密协商出会话密钥，之后用对称加密传数据」，前半段慢、后半段快，这样既安全又不拖累传输效率。</p>
+<h2 id="11-网络安全与加密：对称、非对称、哈希三类算法">11. 网络安全与加密：对称、非对称、哈希三类算法<a class="hlink" data-h="11-网络安全与加密：对称、非对称、哈希三类算法" href="#11-网络安全与加密：对称、非对称、哈希三类算法" title="跳到本节">¶</a></h2><h3 id="11-1-网络安全基本目标：保密性、完整性、可用性">11.1 网络安全基本目标：保密性、完整性、可用性<a class="hlink" data-h="11-1-网络安全基本目标：保密性、完整性、可用性" href="#11-1-网络安全基本目标：保密性、完整性、可用性" title="跳到本节">¶</a></h3><p>网络安全主要包括三个方面：</p>
+<ul>
+<li><strong>保密性</strong>（Confidentiality）：确保信息只能被授权用户访问</li>
+<li><strong>完整性</strong>（Integrity）：防止数据被未授权修改</li>
+<li><strong>可用性</strong>（Availability）：确保合法用户能够访问服务</li>
+</ul>
+<h3 id="11-2-常见攻击类型：分别冲击三个安全目标">11.2 常见攻击类型：分别冲击三个安全目标<a class="hlink" data-h="11-2-常见攻击类型：分别冲击三个安全目标" href="#11-2-常见攻击类型：分别冲击三个安全目标" title="跳到本节">¶</a></h3><ul>
+<li><strong>威胁保密性的攻击</strong>：窃听、通信量分析</li>
+<li><strong>威胁完整性的攻击</strong>：数据更改、伪装、重放、否认</li>
+<li><strong>威胁可用性的攻击</strong>：拒绝服务攻击（DoS&#x2F;DDoS）</li>
+</ul>
+<h3 id="11-3-加密和解密技术：三类算法各有分工">11.3 加密和解密技术：三类算法各有分工<a class="hlink" data-h="11-3-加密和解密技术：三类算法各有分工" href="#11-3-加密和解密技术：三类算法各有分工" title="跳到本节">¶</a></h3><p>加密技术是网络安全的核心，主要分为两类：</p>
+<h4 id="11-3-1-对称加密"><a href="#11-3-1-对称加密" class="headerlink" title="11.3.1 对称加密"></a>11.3.1 对称加密</h4><p>对称加密使用同一密钥进行加密和解密。主要特点：</p>
+<ul>
+<li>加密解密速度快</li>
+<li>密钥管理复杂，密钥分发困难</li>
+<li>适合大量数据加密</li>
+</ul>
+<p>主要对称加密算法：</p>
+<ul>
+<li><strong>DES</strong>（Data Encryption Standard）：56位密钥</li>
+<li><strong>3DES</strong>（Triple DES）：使用三重DES加密</li>
+<li><strong>AES</strong>（Advanced Encryption Standard）：支持128、192、256位密钥</li>
+<li><strong>Blowfish</strong>、<strong>Twofish</strong>、<strong>IDEA</strong>、<strong>RC6</strong>、<strong>CAST5</strong>等</li>
+</ul>
+<h4 id="11-3-2-非对称加密（公钥加密）"><a href="#11-3-2-非对称加密（公钥加密）" class="headerlink" title="11.3.2 非对称加密（公钥加密）"></a>11.3.2 非对称加密（公钥加密）</h4><p>非对称加密使用一对密钥：公钥和私钥。主要特点：</p>
+<ul>
+<li>公钥可公开分发，私钥保密保存</li>
+<li>用公钥加密的数据只能用对应的私钥解密，反之亦然</li>
+<li>加解密速度慢，不适合大量数据加密</li>
+</ul>
+<p>主要用途：</p>
+<ul>
+<li><strong>数字签名</strong>：发送方用私钥加密数据特征码，接收方用发送方公钥验证</li>
+<li><strong>密钥交换</strong>：安全地交换对称加密的密钥</li>
+<li><strong>数据加密</strong>：小量敏感数据的加密</li>
+</ul>
+<p>主要非对称加密算法：</p>
+<ul>
+<li><strong>RSA</strong>：可用于加密和签名</li>
+<li><strong>DSA</strong>（Digital Signature Algorithm）：仅用于签名</li>
+<li><strong>ECC</strong>（椭圆曲线加密）：更高效的非对称加密</li>
+<li><strong>ElGamal</strong>：基于离散对数问题的加密算法</li>
+</ul>
+<h4 id="11-3-3-单向加密（哈希算法）"><a href="#11-3-3-单向加密（哈希算法）" class="headerlink" title="11.3.3 单向加密（哈希算法）"></a>11.3.3 单向加密（哈希算法）</h4><p>单向加密算法将任意长度的数据映射为固定长度的散列值，不可逆。主要特点：</p>
+<ul>
+<li>定长输出</li>
+<li>雪崩效应：输入微小变化导致输出显著不同</li>
+<li>不可逆：无法从散列值重建原始数据</li>
+</ul>
+<p>主要用途：数据完整性验证、密码存储</p>
+<p>主要哈希算法：</p>
+<ul>
+<li><strong>MD5</strong>：128位输出，现已不安全</li>
+<li><strong>SHA-1</strong>：160位输出，现已不安全</li>
+<li><strong>SHA-2</strong>系列：包括SHA-224、SHA-256、SHA-384、SHA-512</li>
+<li><strong>SHA-3</strong>：最新的哈希标准</li>
+</ul>
+<p>这三类算法我会这么区分：对称加密用来快速加密大文件，非对称加密解决「密钥怎么安全送到对方手里」，哈希则用来验数据有没有被改动，三者经常组合着用。</p>
+<h3 id="11-4-PKI与数字证书：把公钥和身份绑起来">11.4 PKI与数字证书：把公钥和身份绑起来<a class="hlink" data-h="11-4-PKI与数字证书：把公钥和身份绑起来" href="#11-4-PKI与数字证书：把公钥和身份绑起来" title="跳到本节">¶</a></h3><p>PKI（Public Key Infrastructure，公钥基础设施）是支持公钥加密的安全体系，主要组件包括：</p>
+<ul>
+<li><strong>CA</strong>（Certificate Authority）：证书颁发机构</li>
+<li><strong>RA</strong>（Registration Authority）：证书注册机构</li>
+<li><strong>CRL</strong>（Certificate Revocation List）：证书吊销列表</li>
+<li><strong>CB</strong>（Certificate Base）：证书存取库</li>
+</ul>
+<p>数字证书（X.509 v3标准）包含以下信息：</p>
+<ul>
+<li>版本号</li>
+<li>序列号</li>
+<li>签名算法ID</li>
+<li>发行者名称</li>
+<li>有效期限</li>
+<li>主体名称</li>
+<li>主体公钥</li>
+<li>发行者的唯一标识</li>
+<li>主体的唯一标识</li>
+<li>扩展信息</li>
+<li>发行者签名</li>
+</ul>
+<h3 id="11-5-SSL-TLS协议：为通信加一道加密层">11.5 SSL&#x2F;TLS协议：为通信加一道加密层<a class="hlink" data-h="11-5-SSL-TLS协议：为通信加一道加密层" href="#11-5-SSL-TLS协议：为通信加一道加密层" title="跳到本节">¶</a></h3><p>SSL（Secure Sockets Layer）和TLS（Transport Layer Security）是为网络通信提供安全及数据完整性的加密协议。</p>
+<p><strong>协议版本演进</strong>：</p>
+<ul>
+<li><strong>SSL</strong>：由Netscape开发，包括v1.0、v2.0、v3.0（已废弃）</li>
+<li><strong>TLS</strong>：由IETF标准化，包括v1.0、v1.1、v1.2、v1.3</li>
+</ul>
+<p><strong>协议分层设计</strong>：</p>
+<ol>
+<li>最底层：基础算法原语的实现（AES、RSA、MD5等）</li>
+<li>向上一层：各种算法的实现</li>
+<li>再向上一层：组合算法实现的半成品</li>
+<li>最上层：各种成品密码学协议软件</li>
+</ol>
+<p><strong>OpenSSL</strong>是SSL&#x2F;TLS协议的开源实现，由三部分组成：</p>
+<ul>
+<li>libencrypto库：加密算法库</li>
+<li>libssl库：SSL&#x2F;TLS协议实现</li>
+<li>openssl命令行工具：提供各种加密、证书管理功能</li>
+</ul>
+<h2 id="12-NAT协议：私网地址换公网地址，缓解-IP-不足">12. NAT协议：私网地址换公网地址，缓解 IP 不足<a class="hlink" data-h="12-NAT协议：私网地址换公网地址，缓解-IP-不足" href="#12-NAT协议：私网地址换公网地址，缓解-IP-不足" title="跳到本节">¶</a></h2><p>网络地址转换(NAT)将私有地址转换为合法IP地址，解决IP地址不足问题，同时能有效避免外部攻击，保护内部网络计算机。</p>
+<h2 id="13-DHCP协议：基于-UDP-自动分配-IP">13. DHCP协议：基于 UDP 自动分配 IP<a class="hlink" data-h="13-DHCP协议：基于-UDP-自动分配-IP" href="#13-DHCP协议：基于-UDP-自动分配-IP" title="跳到本节">¶</a></h2><p>动态主机设置协议(DHCP)是一个使用UDP协议的局域网协议，主要用于自动分配IP地址和进行集中管理计算机。</p>
+<h2 id="14-一次完整通信：从输入网址到页面渲染">14. 一次完整通信：从输入网址到页面渲染<a class="hlink" data-h="14-一次完整通信：从输入网址到页面渲染" href="#14-一次完整通信：从输入网址到页面渲染" title="跳到本节">¶</a></h2><p><strong>在浏览器输入<a target="_blank" rel="noopener" href="http://www.baidu.com后发生的过程/">www.baidu.com后发生的过程</a></strong>：</p>
+<ol>
+<li><p>浏览器通过DNS解析获取百度服务器IP地址</p>
+<ul>
+<li>检查浏览器DNS缓存</li>
+<li>检查操作系统DNS缓存</li>
+<li>检查本地hosts文件</li>
+<li>向本地DNS服务器发起查询请求</li>
+<li>如果本地DNS服务器没有记录，则进行递归或迭代查询</li>
+</ul>
+</li>
+<li><p>浏览器发起HTTP请求，TCP封装数据包并传输到网络层</p>
+<ul>
+<li>浏览器创建HTTP请求消息</li>
+<li>应用层将HTTP请求交给传输层</li>
+</ul>
+</li>
+<li><p>传输层将HTTP请求分段，添加源端口和目的端口</p>
+<ul>
+<li>客户端随机选择一个源端口</li>
+<li>目的端口为HTTP默认端口80或HTTPS默认端口443</li>
+<li>进行三次握手建立TCP连接</li>
+</ul>
+</li>
+<li><p>网络层查找路由表确定如何到达服务器</p>
+<ul>
+<li>添加源IP和目的IP</li>
+<li>确定下一跳路由</li>
+</ul>
+</li>
+<li><p>链路层通过ARP获取目的MAC地址并发送数据包</p>
+<ul>
+<li>如果目标在同一网段，直接ARP获取目标MAC</li>
+<li>如果不在同一网段，ARP获取默认网关MAC</li>
+</ul>
+</li>
+<li><p>数据包经过多个路由器最终到达服务器</p>
+<ul>
+<li>每个路由器检查目的IP并决定转发路径</li>
+<li>可能经过NAT转换等过程</li>
+</ul>
+</li>
+<li><p>服务器处理请求并返回响应</p>
+<ul>
+<li>服务器接收请求并解析</li>
+<li>服务器生成响应并发送回客户端</li>
+<li>响应经过与请求相反的路径返回</li>
+</ul>
+</li>
+<li><p>浏览器接收响应并渲染页面</p>
+<ul>
+<li>解析HTML、CSS、JavaScript</li>
+<li>加载其他资源（图片、样式表、脚本等）</li>
+<li>渲染网页内容</li>
+</ul>
+</li>
+<li><p>通信完成后断开TCP连接</p>
+<ul>
+<li>通过四次挥手关闭连接</li>
+<li>释放相关资源</li>
+</ul>
+</li>
+</ol>
+<p>把这条链路从头走一遍，前面讲的 DNS、TCP 握手、IP 路由、ARP、HTTP 就都落在了各自的位置上——这也是我回头复习整篇时最常用的线索。</p>
+
+
+
+
+
+<a class="author-card" href="/about/">
+  <span class="avatar sm" aria-hidden="true">Z</span>
+  <span class="ac-text"><b>zeek.zhao</b><span class="ac-sub">嵌入式与 DevOps 工程师 · 折腾 Yocto、CI 与 Obsidian 知识管理</span></span>
+  <span class="ac-go">查看个人主页 →</span>
+</a>
+
+
+<div class="pager">
+  <span style="flex:1"></span>
+  <span style="flex:1"></span>
+</div>
+
+
+
+<section class="comments" id="giscusWrap" aria-label="评论">
+  <div class="comments-title">评论</div>
+  <div class="giscus-box" id="giscusBox"><noscript>评论需要启用 JavaScript（giscus 基于 GitHub Discussions）。</noscript></div>
+</section>
+
+
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"08-网络协议与通信原理","description":"学网络绕不开协议，可我一开始死记各层字段总记不住，后来改成盯住「一个包从我的机器出发，经过哪些环节才到对方」这条主线，反而全串起来了。","datePublished":"2026-11-13T00:00:00+08:00","dateModified":"2026-11-13T00:00:00+08:00","author":{"@type":"Person","name":"zeek.zhao","url":"https://zeek-zhao.github.io/about/"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://zeek-zhao.github.io/posts/286299626.html"},"url":"https://zeek-zhao.github.io/posts/286299626.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://zeek-zhao.github.io/"},{"@type":"ListItem","position":2,"name":"归档","item":"https://zeek-zhao.github.io/archives/"},{"@type":"ListItem","position":3,"name":"操作系统与机器人","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/"},{"@type":"ListItem","position":4,"name":"Linux","item":"https://zeek-zhao.github.io/categories/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%9C%BA%E5%99%A8%E4%BA%BA/Linux/"},{"@type":"ListItem","position":5,"name":"08-网络协议与通信原理","item":"https://zeek-zhao.github.io/posts/286299626.html"}]}</script>
+
+    <div class="footer">© 2026 <b>Zeek 的 AI 知识工程</b> · <span class="site-wc">全站 3772221 字</span> · <a href="/about/">About me</a> · <a href="https://zeek-zhao.github.io/atom.xml" target="_blank" rel="noopener noreferrer">RSS</a> · 持续更新中</div>
+  </div></main>
+  <aside class="toc" id="toc">
+    
+      <div class="toc-title">本页目录</div>
+      
+        <a href="#1-网络层次划分：OSI-七层、TCP-IP-四层与五层的对应" data-h="1-网络层次划分：OSI-七层、TCP-IP-四层与五层的对应" class="">1. 网络层次划分：OSI 七层、TCP&#x2F;IP 四层与五层的对应</a>
+      
+        <a href="#2-OSI-七层模型：从物理信号逐层封装到应用数据" data-h="2-OSI-七层模型：从物理信号逐层封装到应用数据" class="">2. OSI 七层模型：从物理信号逐层封装到应用数据</a>
+      
+        <a href="#2-1-物理层：把比特流送上物理媒体" data-h="2-1-物理层：把比特流送上物理媒体" class="l2">2.1 物理层：把比特流送上物理媒体</a>
+      
+        <a href="#2-2-数据链路层：成帧、透明传输与差错控制" data-h="2-2-数据链路层：成帧、透明传输与差错控制" class="l2">2.2 数据链路层：成帧、透明传输与差错控制</a>
+      
+        <a href="#2-3-网络层：路径选择、路由与逻辑寻址" data-h="2-3-网络层：路径选择、路由与逻辑寻址" class="l2">2.3 网络层：路径选择、路由与逻辑寻址</a>
+      
+        <a href="#2-4-传输层：第一个端到端的层次" data-h="2-4-传输层：第一个端到端的层次" class="l2">2.4 传输层：第一个端到端的层次</a>
+      
+        <a href="#2-5-会话层、表示层和应用层：面向用户的三层" data-h="2-5-会话层、表示层和应用层：面向用户的三层" class="l2">2.5 会话层、表示层和应用层：面向用户的三层</a>
+      
+        <a href="#3-IP地址：网络号加主机号，五类地址各有用途" data-h="3-IP地址：网络号加主机号，五类地址各有用途" class="">3. IP地址：网络号加主机号，五类地址各有用途</a>
+      
+        <a href="#3-1-网络地址" data-h="3-1-网络地址" class="l2">3.1 网络地址</a>
+      
+        <a href="#3-2-广播地址" data-h="3-2-广播地址" class="l2">3.2 广播地址</a>
+      
+        <a href="#3-3-IP地址分类" data-h="3-3-IP地址分类" class="l2">3.3 IP地址分类</a>
+      
+        <a href="#3-4-特殊IP地址" data-h="3-4-特殊IP地址" class="l2">3.4 特殊IP地址</a>
+      
+        <a href="#4-子网掩码：按位与判断是否在同一个子网" data-h="4-子网掩码：按位与判断是否在同一个子网" class="">4. 子网掩码：按位与判断是否在同一个子网</a>
+      
+        <a href="#5-ARP与RARP：IP-和-MAC-地址互相解析" data-h="5-ARP与RARP：IP-和-MAC-地址互相解析" class="">5. ARP与RARP：IP 和 MAC 地址互相解析</a>
+      
+        <a href="#5-1-ARP协议" data-h="5-1-ARP协议" class="l2">5.1 ARP协议</a>
+      
+        <a href="#5-2-RARP协议" data-h="5-2-RARP协议" class="l2">5.2 RARP协议</a>
+      
+        <a href="#6-DNS协议和域名解析：把域名翻译成-IP-的分布式系统" data-h="6-DNS协议和域名解析：把域名翻译成-IP-的分布式系统" class="">6. DNS协议和域名解析：把域名翻译成 IP 的分布式系统</a>
+      
+        <a href="#6-1-DNS简介" data-h="6-1-DNS简介" class="l2">6.1 DNS简介</a>
+      
+        <a href="#6-2-域名结构" data-h="6-2-域名结构" class="l2">6.2 域名结构</a>
+      
+        <a href="#6-3-DNS查询类型" data-h="6-3-DNS查询类型" class="l2">6.3 DNS查询类型</a>
+      
+        <a href="#6-4-DNS名称解析方式" data-h="6-4-DNS名称解析方式" class="l2">6.4 DNS名称解析方式</a>
+      
+        <a href="#6-5-DNS服务器类型" data-h="6-5-DNS服务器类型" class="l2">6.5 DNS服务器类型</a>
+      
+        <a href="#6-6-域数据同步" data-h="6-6-域数据同步" class="l2">6.6 域数据同步</a>
+      
+        <a href="#6-7-DNS资源记录类型" data-h="6-7-DNS资源记录类型" class="l2">6.7 DNS资源记录类型</a>
+      
+        <a href="#6-8-BIND配置与实现" data-h="6-8-BIND配置与实现" class="l2">6.8 BIND配置与实现</a>
+      
+        <a href="#7-路由选择协议：RIP-数跳数，OSPF-算链路状态" data-h="7-路由选择协议：RIP-数跳数，OSPF-算链路状态" class="">7. 路由选择协议：RIP 数跳数，OSPF 算链路状态</a>
+      
+        <a href="#8-TCP-IP：三次握手建连、四次挥手断开的可靠传输" data-h="8-TCP-IP：三次握手建连、四次挥手断开的可靠传输" class="">8. TCP&#x2F;IP：三次握手建连、四次挥手断开的可靠传输</a>
+      
+        <a href="#8-1-TCP报文首部字段" data-h="8-1-TCP报文首部字段" class="l2">8.1 TCP报文首部字段</a>
+      
+        <a href="#8-2-TCP三次握手：三步确认双方收发能力" data-h="8-2-TCP三次握手：三步确认双方收发能力" class="l2">8.2 TCP三次握手：三步确认双方收发能力</a>
+      
+        <a href="#8-3-TCP四次挥手：第四步进入-TIME-WAIT" data-h="8-3-TCP四次挥手：第四步进入-TIME-WAIT" class="l2">8.3 TCP四次挥手：第四步进入 TIME_WAIT</a>
+      
+        <a href="#8-4-TCP状态转换" data-h="8-4-TCP状态转换" class="l2">8.4 TCP状态转换</a>
+      
+        <a href="#8-5-TCP的特性" data-h="8-5-TCP的特性" class="l2">8.5 TCP的特性</a>
+      
+        <a href="#9-UDP：无连接、不可靠，但更快" data-h="9-UDP：无连接、不可靠，但更快" class="">9. UDP：无连接、不可靠，但更快</a>
+      
+        <a href="#10-HTTP与HTTPS：请求响应模型加一层-TLS-加密" data-h="10-HTTP与HTTPS：请求响应模型加一层-TLS-加密" class="">10. HTTP与HTTPS：请求响应模型加一层 TLS 加密</a>
+      
+        <a href="#10-1-HTTP协议基础：跑在-TCP-上的请求-响应协议" data-h="10-1-HTTP协议基础：跑在-TCP-上的请求-响应协议" class="l2">10.1 HTTP协议基础：跑在 TCP 上的请求-响应协议</a>
+      
+        <a href="#10-2-HTTP状态码：五类状态一眼定位问题" data-h="10-2-HTTP状态码：五类状态一眼定位问题" class="l2">10.2 HTTP状态码：五类状态一眼定位问题</a>
+      
+        <a href="#10-3-HTTP首部字段：四类字段各管一摊" data-h="10-3-HTTP首部字段：四类字段各管一摊" class="l2">10.3 HTTP首部字段：四类字段各管一摊</a>
+      
+        <a href="#10-4-HTTP工作原理：建连到记录日志的七步" data-h="10-4-HTTP工作原理：建连到记录日志的七步" class="l2">10.4 HTTP工作原理：建连到记录日志的七步</a>
+      
+        <a href="#10-5-HTTPS协议：HTTP-外面套一层-TLS" data-h="10-5-HTTPS协议：HTTP-外面套一层-TLS" class="l2">10.5 HTTPS协议：HTTP 外面套一层 TLS</a>
+      
+        <a href="#11-网络安全与加密：对称、非对称、哈希三类算法" data-h="11-网络安全与加密：对称、非对称、哈希三类算法" class="">11. 网络安全与加密：对称、非对称、哈希三类算法</a>
+      
+        <a href="#11-1-网络安全基本目标：保密性、完整性、可用性" data-h="11-1-网络安全基本目标：保密性、完整性、可用性" class="l2">11.1 网络安全基本目标：保密性、完整性、可用性</a>
+      
+        <a href="#11-2-常见攻击类型：分别冲击三个安全目标" data-h="11-2-常见攻击类型：分别冲击三个安全目标" class="l2">11.2 常见攻击类型：分别冲击三个安全目标</a>
+      
+        <a href="#11-3-加密和解密技术：三类算法各有分工" data-h="11-3-加密和解密技术：三类算法各有分工" class="l2">11.3 加密和解密技术：三类算法各有分工</a>
+      
+        <a href="#11-4-PKI与数字证书：把公钥和身份绑起来" data-h="11-4-PKI与数字证书：把公钥和身份绑起来" class="l2">11.4 PKI与数字证书：把公钥和身份绑起来</a>
+      
+        <a href="#11-5-SSL-TLS协议：为通信加一道加密层" data-h="11-5-SSL-TLS协议：为通信加一道加密层" class="l2">11.5 SSL&#x2F;TLS协议：为通信加一道加密层</a>
+      
+        <a href="#12-NAT协议：私网地址换公网地址，缓解-IP-不足" data-h="12-NAT协议：私网地址换公网地址，缓解-IP-不足" class="">12. NAT协议：私网地址换公网地址，缓解 IP 不足</a>
+      
+        <a href="#13-DHCP协议：基于-UDP-自动分配-IP" data-h="13-DHCP协议：基于-UDP-自动分配-IP" class="">13. DHCP协议：基于 UDP 自动分配 IP</a>
+      
+        <a href="#14-一次完整通信：从输入网址到页面渲染" data-h="14-一次完整通信：从输入网址到页面渲染" class="">14. 一次完整通信：从输入网址到页面渲染</a>
+      
+    
+  </aside>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-backdrop" id="cmdkBackdrop"></div>
+  <div class="cmdk-panel" role="dialog" aria-label="搜索文章">
+    <div class="cmdk-input">🔍<input id="cmdkQ" placeholder="搜索标题、描述、标签或分类…"><kbd>Esc</kbd></div>
+    <div class="cmdk-results" id="cmdkResults"></div>
+    <div class="cmdk-foot"><span>↑↓ 选择 · ↵ 打开 · Esc 关闭</span><span>数据源 search.json</span></div>
+  </div>
+</div>
+
+<script>window.ZEEK_CFG = {"katex":true,"mermaid":true,"mascot":true,"bgm":"/bgm/playlist.json","analytics":"goatcounter-zeek-zhao","giscus":{"repo":"zeek-zhao/zeek-zhao.github.io","repoId":"R_kgDOOQtDmA","category":"Announcements","categoryId":"DIC_kwDOOQtDmM4DLIB1","lang":"zh-CN"}};</script>
+<script src="/js/main.js" data-search="/search.json" defer></script>
+</body>
+</html>
